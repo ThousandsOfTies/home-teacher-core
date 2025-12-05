@@ -1,0 +1,65 @@
+.ad-slot {
+  width: 100%;
+  margin: 1rem 0;
+  overflow: hidden;
+}
+
+.ad-placeholder {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border: 2px dashed #cbd5e0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  transition: all 0.3s ease;
+}
+
+.ad-placeholder:hover {
+  border-color: #a0aec0;
+  background: linear-gradient(135deg, #e6e9f0 0%, #b8c5db 100%);
+}
+
+.ad-placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+  color: #4a5568;
+}
+
+.ad-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #718096;
+}
+
+.ad-slot-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #2d3748;
+}
+
+.ad-hint {
+  font-size: 0.75rem;
+  color: #a0aec0;
+  font-style: italic;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  .ad-slot {
+    margin: 0.75rem 0;
+  }
+
+  .ad-placeholder {
+    padding: 0.75rem;
+  }
+
+  .ad-slot-name {
+    font-size: 0.8125rem;
+  }
+}
