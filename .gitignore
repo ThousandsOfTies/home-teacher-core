@@ -31,3 +31,7 @@ deploy
 
 # PDF files
 PDFs/
+
+# Lockfiles
+package-lock.json
+pnpm-lock.yaml
