@@ -1117,6 +1117,8 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack }: PDFViewerProps) => {
 
   // 矩形選択の開始（フックの関数を使用）
   const startSelection = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Ctrl押下中は選択しない（パン操作を優先）
+    if (e.ctrlKey || e.metaKey) return
     if (!isSelectionMode || !selectionCanvasRef.current) return
 
     const canvas = selectionCanvasRef.current
@@ -1563,8 +1565,8 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack }: PDFViewerProps) => {
               title="クリア（ダブルクリックで全ページクリア）"
             >
               <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="1" y="1" width="18" height="22" rx="2" fill="white" stroke="#999" strokeWidth="0.8"/>
-                <path d="M16 3 L12 7 L16 11 L20 7 Z" fill="yellow" stroke="orange" strokeWidth="0.8" transform="translate(-2, -1)"/>
+                <rect x="1" y="1" width="18" height="22" rx="2" fill="white" stroke="#999" strokeWidth="0.8" />
+                <path d="M16 3 L12 7 L16 11 L20 7 Z" fill="yellow" stroke="orange" strokeWidth="0.8" transform="translate(-2, -1)" />
               </svg>
             </button>
 
