@@ -53,7 +53,7 @@ export default defineConfig(({ mode }) => {
         ]
       }),
       VitePWA({
-        registerType: 'autoUpdate',
+        registerType: 'prompt',
         includeAssets: ['favicon.ico', 'logo.png', 'app.png'],
         manifest: {
           name: appName,

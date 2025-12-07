@@ -11,9 +11,11 @@ import { PREDEFINED_SNS, getSNSIcon } from '../../constants/sns';
 
 interface AdminPanelProps {
   onSelectPDF: (record: PDFFileRecord) => void;
+  hasUpdate?: boolean;
+  onUpdate?: () => void;
 }
 
-export default function AdminPanel({ onSelectPDF }: AdminPanelProps) {
+export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }: AdminPanelProps) {
   // Custom hooks
   const {
     pdfRecords,
@@ -969,11 +971,24 @@ export default function AdminPanel({ onSelectPDF }: AdminPanelProps) {
                 transition: 'all 0.2s ease',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px'
+                gap: '8px',
+                position: 'relative'
               }}
             >
               <span style={{ fontSize: '20px' }}>⚙️</span>
               Admin
+              {hasUpdate && (
+                <span style={{
+                  position: 'absolute',
+                  top: '-4px',
+                  right: '-4px',
+                  width: '12px',
+                  height: '12px',
+                  backgroundColor: '#e67e22',
+                  borderRadius: '50%',
+                  border: '2px solid white'
+                }} />
+              )}
             </button>
           </div>
         </div>
@@ -1072,6 +1087,51 @@ export default function AdminPanel({ onSelectPDF }: AdminPanelProps) {
           <div style={{ padding: '20px' }}>
             {/* 広告: 上部バナー */}
             <AdSlot slot="admin-top" />
+
+            {/* 新しいバージョン通知（最優先表示） */}
+            {hasUpdate && (
+              <div style={{
+                backgroundColor: '#fff3e0',
+                border: '2px solid #e67e22',
+                borderRadius: '12px',
+                padding: '16px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                boxShadow: '0 2px 4px rgba(230, 126, 34, 0.2)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '24px' }}>✨</span>
+                  <div>
+                    <h3 style={{ margin: '0 0 4px 0', color: '#d35400', fontSize: '16px', fontWeight: 'bold' }}>
+                      New Version Available!
+                    </h3>
+                    <p style={{ margin: 0, color: '#e67e22', fontSize: '14px' }}>
+                      タップしてアプリを更新してください
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={onUpdate}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#e67e22',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  更新する
+                </button>
+              </div>
+            )}
 
             <div style={{
               display: 'grid',
