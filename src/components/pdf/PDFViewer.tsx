@@ -509,8 +509,8 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack }: PDFViewerProps) => {
     // zoom = fitScale / RENDER_SCALE
     const fitZoom = fitScale / RENDER_SCALE
 
-    // zoom範囲 1/RENDER_SCALE ～ 1.0 に制限
-    const clampedZoom = Math.max(1.0 / RENDER_SCALE, Math.min(1.0, fitZoom))
+    // zoom範囲 1/RENDER_SCALE ～ 2.0 に制限 (1000%まで)
+    const clampedZoom = Math.max(1.0 / RENDER_SCALE, Math.min(2.0, fitZoom))
 
     // フィット時のズーム値を保存（これより小さくしようとしたらフィット表示に戻す）
     setMinFitZoom(clampedZoom)
@@ -838,8 +838,8 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack }: PDFViewerProps) => {
 
     // スケール比率
     const ratio = currentDistance / initialPinchDistanceRef.current
-    // プリレンダリング: zoom範囲 minFitZoom ～ 1.0
-    let newZoom = Math.max(minFitZoom, Math.min(1.0, initialScaleRef.current * ratio))
+    // プリレンダリング: zoom範囲 minFitZoom ～ 2.0
+    let newZoom = Math.max(minFitZoom, Math.min(2.0, initialScaleRef.current * ratio))
 
     // 現在の指の中心位置（wrapper基準）
     if (!wrapperRef.current) return
