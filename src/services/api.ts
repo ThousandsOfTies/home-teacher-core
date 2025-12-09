@@ -5,15 +5,15 @@ const getApiBaseUrl = () => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL
   }
-  
+
   // 本番環境（GitHub Pages）かどうかを判定
   const isProduction = window.location.hostname === 'thousandsofties.github.io'
-  
+
   if (isProduction) {
-    // Cloud RunのURL
-    return 'https://tuto-tuto-api-736494768812.asia-northeast1.run.app/api'
+    // Cloud Run ステージングURL（developブランチ用）
+    return 'https://hometeacher-api-staging-n5ja4qrrqq-an.a.run.app/api'
   }
-  
+
   // ローカル開発環境
   return 'http://localhost:3003/api'
 }
