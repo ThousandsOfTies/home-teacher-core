@@ -47,9 +47,10 @@ interface PDFViewerProps {
   pdfRecord: PDFFileRecord // PDFファイルレコード全体を受け取る
   pdfId: string // IndexedDBのレコードID
   onBack?: () => void // 管理画面に戻るコールバック
+  answerRegistrationMode?: boolean // 解答登録モード
 }
 
-const PDFViewer = ({ pdfRecord, pdfId, onBack }: PDFViewerProps) => {
+const PDFViewer = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }: PDFViewerProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawingCanvasRef = useRef<HTMLCanvasElement>(null)
   const selectionCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -189,6 +190,11 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack }: PDFViewerProps) => {
   const [selectedModel, setSelectedModel] = useState<string>('default')
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
   const [defaultModel, setDefaultModel] = useState<string>('gemini-2.0-flash-exp')
+
+  // 解答登録モード状態
+  const [isProcessingAnswers, setIsProcessingAnswers] = useState(false)
+  const [showAnswerStartDialog, setShowAnswerStartDialog] = useState(false)
+  const [answersProcessed, setAnswersProcessed] = useState(0)
 
   // useSelection hook を使用して矩形選択機能を管理
   const {
@@ -1078,6 +1084,86 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack }: PDFViewerProps) => {
     }
   }
 
+  // 解答登録処理（指定ページ以降を全て処理）
+  const processAnswersFromPage = async (startPage: number) => {
+    if (!pdfDoc || !canvasRef.current) return
+
+    setShowAnswerStartDialog(false)
+    setIsProcessingAnswers(true)
+    setAnswersProcessed(0)
+
+    try {
+      console.log(`🎓 解答登録開始: ページ ${startPage} からページ ${numPages} まで`)
+      addStatusMessage(`🎓 解答登録開始 (${startPage}→${numPages})`)
+
+      for (let page = startPage; page <= numPages; page++) {
+        console.log(`📄 ページ ${page} を処理中...`)
+
+        // Canvas to image for this page
+        const pdfPage = await pdfDoc.getPage(page)
+        const viewport = pdfPage.getViewport({ scale: 2 })
+
+        const tempCanvas = document.createElement('canvas')
+        tempCanvas.width = viewport.width
+        tempCanvas.height = viewport.height
+        const ctx = tempCanvas.getContext('2d')!
+
+        await pdfPage.render({
+          canvasContext: ctx,
+          viewport: viewport
+        }).promise
+
+        const imageData = tempCanvas.toDataURL('image/jpeg', 0.9)
+
+        // API呼び出し: ページを解析
+        const response = await fetch('http://localhost:3003/api/analyze-page', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageData,
+            pageNumber: page,
+            language: navigator.language
+          })
+        })
+
+        const result = await response.json()
+
+        if (result.success && result.pageType === 'answer' && result.data.answers) {
+          // 解答データを保存
+          const { saveAnswers, generateAnswerId } = await import('../../utils/indexedDB')
+
+          const answerRecords = result.data.answers.map((answer: any) => ({
+            id: generateAnswerId(pdfId, page, answer.problemNumber),
+            pdfId: pdfId,
+            pageNumber: page,
+            problemNumber: answer.problemNumber,
+            correctAnswer: answer.correctAnswer,
+            createdAt: Date.now()
+          }))
+
+          await saveAnswers(answerRecords)
+          console.log(`✅ ページ ${page}: ${answerRecords.length}件の解答を保存`)
+        }
+
+        setAnswersProcessed(page - startPage + 1)
+      }
+
+      addStatusMessage(`✅ 完了! ${numPages - startPage + 1}ページ処理しました`)
+      console.log('🎉 解答登録完了!')
+
+      // 3秒後に管理画面に戻る
+      setTimeout(() => {
+        if (onBack) onBack()
+      }, 3000)
+
+    } catch (error) {
+      console.error('❌ 解答登録エラー:', error)
+      addStatusMessage('❌ 解答登録エラー')
+    } finally {
+      setIsProcessingAnswers(false)
+    }
+  }
+
   // 採点開始（範囲選択モードに切り替え）
   const startGrading = () => {
     addStatusMessage('📱 採点モード開始')
@@ -1161,13 +1247,14 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack }: PDFViewerProps) => {
         hasSelectionPreview: !!selectionPreview
       })
 
-      let imageData: string
+      let croppedImageData: string
+      let fullPageImageData: string
 
       // selectionPreviewがある場合は、それを直接使用（確認ダイアログで表示された画像）
       // これにより座標変換の問題を回避
       if (selectionPreview) {
         console.log('✅ 確認ダイアログの画像を使用')
-        imageData = selectionPreview
+        croppedImageData = selectionPreview
       } else if (selectionRect) {
         // selectionPreviewがない場合の旧ロジック（後方互換性のため残す）
         console.log('⚠️ selectionPreviewが存在しないため、座標から画像を生成')
@@ -1239,88 +1326,46 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack }: PDFViewerProps) => {
 
         // 合成した画像を圧縮してBase64に変換
         try {
-          imageData = compressImage(tempCanvas, 1024)
+          croppedImageData = compressImage(tempCanvas, 1024)
         } catch (error) {
           console.error('❌ Image compression failed:', error)
           throw new Error(`画像圧縮エラー: ${error instanceof Error ? error.message : String(error)}`)
         }
       } else {
-        // 選択範囲がない場合は、ページ全体を送信（最適化）
-        const tempCanvas = document.createElement('canvas')
-        const pdfCanvas = canvasRef.current
-
-        // iPad対応: 最大解像度制限
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-        const maxWidth = isIOS ? 1200 : 2048
-        const maxHeight = isIOS ? 1200 : 2048
-        let targetWidth = pdfCanvas.width
-        let targetHeight = pdfCanvas.height
-
-        console.log('📄 ページ全体:', { originalWidth: pdfCanvas.width, originalHeight: pdfCanvas.height })
-
-        // ページ全体も大きすぎる場合は縮小
-        if (pdfCanvas.width > maxWidth || pdfCanvas.height > maxHeight) {
-          const scale = Math.min(maxWidth / pdfCanvas.width, maxHeight / pdfCanvas.height)
-          targetWidth = Math.round(pdfCanvas.width * scale)
-          targetHeight = Math.round(pdfCanvas.height * scale)
-          console.log(`ページ全体を縮小: ${pdfCanvas.width}x${pdfCanvas.height} → ${targetWidth}x${targetHeight}`)
-        }
-
-        try {
-          tempCanvas.width = targetWidth
-          tempCanvas.height = targetHeight
-        } catch (error) {
-          console.error('❌ Canvas作成エラー:', error)
-          throw new Error(`Canvas作成失敗 (${targetWidth}x${targetHeight}): ${error instanceof Error ? error.message : String(error)}`)
-        }
-
-        const ctx = tempCanvas.getContext('2d')
-        if (!ctx) {
-          throw new Error('Canvas 2Dコンテキストの取得に失敗しました')
-        }
-
-        // 高品質な縮小処理
-        ctx.imageSmoothingEnabled = true
-        ctx.imageSmoothingQuality = 'high'
-
-        try {
-          // PDFを描画
-          ctx.drawImage(pdfCanvas, 0, 0, targetWidth, targetHeight)
-
-          // 手書きを重ねる
-          ctx.drawImage(drawingCanvasRef.current, 0, 0, targetWidth, targetHeight)
-        } catch (error) {
-          console.error('❌ Canvas描画エラー:', error)
-          throw new Error(`Canvas描画失敗: ${error instanceof Error ? error.message : String(error)}`)
-        }
-
-        console.log('✅ ページ全体を採点:', { targetWidth, targetHeight })
-
-        // 合成した画像を圧縮してBase64に変換
-        try {
-          imageData = compressImage(tempCanvas, 1024)
-        } catch (error) {
-          console.error('❌ Image compression failed:', error)
-          throw new Error(`画像圧縮エラー: ${error instanceof Error ? error.message : String(error)}`)
-        }
+        // 選択範囲がない場合はエラー
+        throw new Error('選択範囲が指定されていません')
       }
+
+      // フルページ画像を生成（低解像度）
+      const fullPageCanvas = document.createElement('canvas')
+      const pdfCanvas = canvasRef.current
+
+      // 低解像度版（位置情報用）
+      const fullPageScale = 0.3  // 30%に縮小
+      fullPageCanvas.width = Math.round(pdfCanvas.width * fullPageScale)
+      fullPageCanvas.height = Math.round(pdfCanvas.height * fullPageScale)
+
+      const fullPageCtx = fullPageCanvas.getContext('2d')!
+      fullPageCtx.imageSmoothingEnabled = true
+      fullPageCtx.imageSmoothingQuality = 'medium'
+
+      // PDFのみ描画（手書きは不要）
+      fullPageCtx.drawImage(pdfCanvas, 0, 0, fullPageCanvas.width, fullPageCanvas.height)
+      fullPageImageData = compressImage(fullPageCanvas, 800)
 
       // データサイズをログ出力
-      const sizeInKB = Math.round(imageData.length / 1024)
-      console.log(`送信画像サイズ: ${sizeInKB} KB`)
+      const croppedSizeKB = Math.round(croppedImageData.length / 1024)
+      const fullPageSizeKB = Math.round(fullPageImageData.length / 1024)
+      console.log(`送信画像サイズ: 選択=${croppedSizeKB}KB, フルページ=${fullPageSizeKB}KB`)
 
-      // 画像サイズが大きすぎる場合は警告
-      if (sizeInKB > 5000) {
-        console.warn('⚠️ 画像サイズが大きすぎます:', sizeInKB, 'KB')
-      }
-
-      // APIに送信
-      console.log('📤 APIに送信中...', { model: selectedModel })
-      const response = await gradeWork(
-        imageData,
+      // 文脈ベース採点APIに送信
+      console.log('🎯 文脈ベース採点APIに送信中...', { model: selectedModel })
+      const { gradeWorkWithContext } = await import('../../services/api')
+      const response = await gradeWorkWithContext(
+        fullPageImageData,
+        croppedImageData,
         pageNum,
-        undefined, // problemContext
-        selectedModel !== 'default' ? selectedModel : undefined // モデル指定
+        selectedModel !== 'default' ? selectedModel : undefined
       )
 
       if (response.success) {
@@ -1346,7 +1391,8 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack }: PDFViewerProps) => {
                 feedback: problem.feedback,
                 explanation: problem.explanation,
                 timestamp: Date.now(),
-                imageData: imageData // 採点時の画像を保存
+                imageData: croppedImageData, // 採点時の画像を保存
+                matchingMetadata: problem.matchingMetadata
               }
               await saveGradingHistory(historyRecord)
             }
@@ -1471,119 +1517,170 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack }: PDFViewerProps) => {
 
           {/* 右寄せコンテナ */}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <div className="divider"></div>
+            {answerRegistrationMode ? (
+              /* 解答登録モード: シンプルなツールバー */
+              <>
+                <button
+                  onClick={() => setShowAnswerStartDialog(true)}
+                  style={{
+                    padding: '12px 24px',
+                    backgroundColor: '#3498db',
+                    color: 'white',
+                    borderRadius: '12px',
+                    fontSize: '28px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    boxShadow: '0 4px 8px rgba(52, 152, 219, 0.3)',
+                    transition: 'all 0.3s ease'
+                  }}
+                  title="このページ以降を解答として登録"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                    e.currentTarget.style.boxShadow = '0 6px 12px rgba(52, 152, 219, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(52, 152, 219, 0.3)';
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    🦉
+                    <span style={{ fontSize: '20px', color: 'white', opacity: 0.8 }}>→</span>
+                    <span style={{ position: 'relative', display: 'inline-block' }}>
+                      🦉
+                      <span style={{
+                        position: 'absolute',
+                        top: '-8px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        fontSize: '18px'
+                      }}>🎓</span>
+                    </span>
+                  </span>
+                </button>
+              </>
+            ) : (
+              /* 通常モード: 全ツール表示 */
+              <>
+                <div className="divider"></div>
 
-            {/* 採点ボタン */}
-            <button
-              onClick={isSelectionMode ? handleCancelSelection : startGrading}
-              className={isSelectionMode ? 'active' : ''}
-              disabled={isGrading}
-              title={isSelectionMode ? 'キャンセル' : '範囲を選択して採点'}
-            >
-              {isGrading ? '⏳' : '✅'}
-            </button>
+                {/* 採点ボタン */}
+                <button
+                  onClick={isSelectionMode ? handleCancelSelection : startGrading}
+                  className={isSelectionMode ? 'active' : ''}
+                  disabled={isGrading}
+                  title={isSelectionMode ? 'キャンセル' : '範囲を選択して採点'}
+                >
+                  {isGrading ? '⏳' : '✅'}
+                </button>
 
-            {/* 描画ツール */}
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={toggleDrawingMode}
-                className={isDrawingMode ? 'active' : ''}
-                title={isDrawingMode ? 'ペンモード ON' : 'ペンモード OFF'}
-              >
-                {ICON_SVG.pen(isDrawingMode, penColor)}
-              </button>
+                {/* 描画ツール */}
+                <div style={{ position: 'relative' }}>
+                  <button
+                    onClick={toggleDrawingMode}
+                    className={isDrawingMode ? 'active' : ''}
+                    title={isDrawingMode ? 'ペンモード ON' : 'ペンモード OFF'}
+                  >
+                    {ICON_SVG.pen(isDrawingMode, penColor)}
+                  </button>
 
-              {/* ペン設定ポップアップ */}
-              {showPenPopup && (
-                <div className="tool-popup">
-                  <div className="popup-row">
-                    <label>色:</label>
-                    <input
-                      type="color"
-                      value={penColor}
-                      onChange={(e) => setPenColor(e.target.value)}
-                      style={{ width: '40px', height: '30px', border: '1px solid #ccc', cursor: 'pointer' }}
-                    />
-                  </div>
-                  <div className="popup-row">
-                    <label>太さ:</label>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={penSize}
-                      onChange={(e) => setPenSize(Number(e.target.value))}
-                      style={{ width: '100px' }}
-                    />
-                    <span>{penSize}px</span>
-                  </div>
+                  {/* ペン設定ポップアップ */}
+                  {showPenPopup && (
+                    <div className="tool-popup">
+                      <div className="popup-row">
+                        <label>色:</label>
+                        <input
+                          type="color"
+                          value={penColor}
+                          onChange={(e) => setPenColor(e.target.value)}
+                          style={{ width: '40px', height: '30px', border: '1px solid #ccc', cursor: 'pointer' }}
+                        />
+                      </div>
+                      <div className="popup-row">
+                        <label>太さ:</label>
+                        <input
+                          type="range"
+                          min="1"
+                          max="10"
+                          value={penSize}
+                          onChange={(e) => setPenSize(Number(e.target.value))}
+                          style={{ width: '100px' }}
+                        />
+                        <span>{penSize}px</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={toggleEraserMode}
-                className={isEraserMode ? 'active' : ''}
-                title={isEraserMode ? '消しゴムモード ON' : '消しゴムモード OFF'}
-              >
-                {ICON_SVG.eraser(isEraserMode)}
-              </button>
+                <div style={{ position: 'relative' }}>
+                  <button
+                    onClick={toggleEraserMode}
+                    className={isEraserMode ? 'active' : ''}
+                    title={isEraserMode ? '消しゴムモード ON' : '消しゴムモード OFF'}
+                  >
+                    {ICON_SVG.eraser(isEraserMode)}
+                  </button>
 
-              {/* 消しゴム設定ポップアップ */}
-              {showEraserPopup && (
-                <div className="tool-popup">
-                  <div className="popup-row">
-                    <label>サイズ:</label>
-                    <input
-                      type="range"
-                      min="10"
-                      max="100"
-                      value={eraserSize}
-                      onChange={(e) => setEraserSize(Number(e.target.value))}
-                      style={{ width: '100px' }}
-                    />
-                    <span>{eraserSize}px</span>
-                  </div>
+                  {/* 消しゴム設定ポップアップ */}
+                  {showEraserPopup && (
+                    <div className="tool-popup">
+                      <div className="popup-row">
+                        <label>サイズ:</label>
+                        <input
+                          type="range"
+                          min="10"
+                          max="100"
+                          value={eraserSize}
+                          onChange={(e) => setEraserSize(Number(e.target.value))}
+                          style={{ width: '100px' }}
+                        />
+                        <span>{eraserSize}px</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className="divider"></div>
+                <div className="divider"></div>
 
-            <button
-              onClick={undo}
-              title="元に戻す (Ctrl+Z)"
-            >
-              ↩️
-            </button>
-            <button
-              onClick={clearDrawing}
-              onDoubleClick={clearAllDrawings}
-              title="クリア（ダブルクリックで全ページクリア）"
-            >
-              <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="1" y="1" width="18" height="22" rx="2" fill="white" stroke="#999" strokeWidth="0.8" />
-                <path d="M16 3 L12 7 L16 11 L20 7 Z" fill="yellow" stroke="orange" strokeWidth="0.8" transform="translate(-2, -1)" />
-              </svg>
-            </button>
+                <button
+                  onClick={undo}
+                  title="元に戻す (Ctrl+Z)"
+                >
+                  ↩️
+                </button>
+                <button
+                  onClick={clearDrawing}
+                  onDoubleClick={clearAllDrawings}
+                  title="クリア（ダブルクリックで全ページクリア）"
+                >
+                  <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="1" y="1" width="18" height="22" rx="2" fill="white" stroke="#999" strokeWidth="0.8" />
+                    <path d="M16 3 L12 7 L16 11 L20 7 Z" fill="yellow" stroke="orange" strokeWidth="0.8" transform="translate(-2, -1)" />
+                  </svg>
+                </button>
 
-            <div className="divider"></div>
+                <div className="divider"></div>
 
-            {/* ズーム操作 */}
-            <button onClick={resetZoom} title="画面に合わせる">
-              <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'>
-                {/* 左上への矢印 */}
-                <path fill='currentColor' d='M4,4 L4,9 L6,9 L6,6 L9,6 L9,4 Z M4,4 L2,6 L6,6 Z M4,4 L6,2 L6,6 Z' />
-                {/* 右上への矢印 */}
-                <path fill='currentColor' d='M20,4 L20,9 L18,9 L18,6 L15,6 L15,4 Z M20,4 L22,6 L18,6 Z M20,4 L18,2 L18,6 Z' />
-                {/* 左下への矢印 */}
-                <path fill='currentColor' d='M4,20 L4,15 L6,15 L6,18 L9,18 L9,20 Z M4,20 L2,18 L6,18 Z M4,20 L6,22 L6,18 Z' />
-                {/* 右下への矢印 */}
-                <path fill='currentColor' d='M20,20 L20,15 L18,15 L18,18 L15,18 L15,20 Z M20,20 L22,18 L18,18 Z M20,20 L18,22 L18,18 Z' />
-              </svg>
-            </button>
-            <span className="zoom-info">{displayZoom}%</span>
+                {/* ズーム操作 */}
+                <button onClick={resetZoom} title="画面に合わせる">
+                  <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'>
+                    {/* 左上への矢印 */}
+                    <path fill='currentColor' d='M4,4 L4,9 L6,9 L6,6 L9,6 L9,4 Z M4,4 L2,6 L6,6 Z M4,4 L6,2 L6,6 Z' />
+                    {/* 右上への矢印 */}
+                    <path fill='currentColor' d='M20,4 L20,9 L18,9 L18,6 L15,6 L15,4 Z M20,4 L22,6 L18,6 Z M20,4 L18,2 L18,6 Z' />
+                    {/* 左下への矢印 */}
+                    <path fill='currentColor' d='M4,20 L4,15 L6,15 L6,18 L9,18 L9,20 Z M4,20 L2,18 L6,18 Z M4,20 L6,22 L6,18 Z' />
+                    {/* 右下への矢印 */}
+                    <path fill='currentColor' d='M20,20 L20,15 L18,15 L18,18 L15,18 L15,20 Z M20,20 L22,18 L18,18 Z M20,20 L18,22 L18,18 Z' />
+                  </svg>
+                </button>
+                <span className="zoom-info">{displayZoom}%</span>
+              </>
+            )}
           </div>
 
         </div>
@@ -1877,6 +1974,122 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack }: PDFViewerProps) => {
                 <button onClick={confirmAndGrade} className="confirm-button">
                   採点する
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 解答登録モード: 開始確認ダイアログ */}
+        {showAnswerStartDialog && !isProcessingAnswers && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '16px',
+              padding: '32px',
+              maxWidth: '400px',
+              width: '90%',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🎓</div>
+              <h3 style={{ margin: '0 0 16px 0', color: '#2c3e50', fontSize: '24px' }}>
+                解答を登録しますか？
+              </h3>
+              <p style={{ margin: '0 0 24px 0', color: '#7f8c8d', fontSize: '16px', lineHeight: '1.6' }}>
+                現在のページ（<strong>{pageNum}</strong>）から<br />
+                最終ページ（<strong>{numPages}</strong>）までを<br />
+                解答ページとして登録します
+              </p>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => {
+                    setShowAnswerStartDialog(false)
+                    if (onBack) onBack()
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    backgroundColor: '#95a5a6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={() => processAnswersFromPage(pageNum)}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    backgroundColor: '#3498db',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  登録開始
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 解答登録モード: 処理中表示 */}
+        {isProcessingAnswers && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            color: 'white'
+          }}>
+            <div style={{
+              textAlign: 'center',
+              padding: '32px'
+            }}>
+              <div style={{ fontSize: '64px', marginBottom: '24px' }}>📚</div>
+              <h2 style={{ margin: '0 0 16px 0', fontSize: '28px' }}>
+                解答を登録中...
+              </h2>
+              <p style={{ margin: '0 0 24px 0', fontSize: '18px', opacity: 0.8 }}>
+                {answersProcessed} / {numPages - pageNum + 1} ページ処理済み
+              </p>
+              <div style={{
+                width: '300px',
+                height: '8px',
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                borderRadius: '4px',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  width: `${(answersProcessed / (numPages - pageNum + 1)) * 100}%`,
+                  height: '100%',
+                  backgroundColor: '#3498db',
+                  transition: 'width 0.3s ease'
+                }} />
               </div>
             </div>
           </div>

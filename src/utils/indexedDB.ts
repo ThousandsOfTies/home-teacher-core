@@ -1,12 +1,13 @@
 // IndexedDB管理ユーティリティ
 
 const DB_NAME = 'TutoTutoDB';
-const DB_VERSION = 8; // バージョンを上げてSNS履歴ストア追加
+const DB_VERSION = 9; // バージョンを上げて解答ストア追加
 const STORE_NAME = 'pdfFiles';
 const SNS_STORE_NAME = 'snsLinks';
 const GRADING_HISTORY_STORE_NAME = 'gradingHistory';
 const SETTINGS_STORE_NAME = 'settings';
 const SNS_USAGE_HISTORY_STORE_NAME = 'snsUsageHistory';
+const ANSWER_STORE_NAME = 'answers'; // 解答データ用ストア
 
 export interface PDFFileRecord {
   id: string; // ユニークID (ファイル名 + タイムスタンプ)
@@ -39,6 +40,13 @@ export interface GradingHistoryRecord {
   explanation: string; // 解説
   timestamp: number; // 実施時刻（タイムスタンプ）
   imageData?: string; // 採点時の画像データ（オプション）
+  matchingMetadata?: {
+    method: 'exact' | 'ai' | 'context' | 'hybrid';
+    confidence?: string;
+    reasoning?: string;
+    candidates?: string[];
+    similarity?: number;
+  }; // マッチング詳細データ（デバッグ用）
 }
 
 export interface AppSettings {
@@ -57,7 +65,17 @@ export interface SNSUsageHistoryRecord {
   timestamp: number; // アクセス日時（タイムスタンプ）
 }
 
-// データベースを開く
+// 解答データ（採点精度改善用）
+export interface AnswerRecord {
+  id: string; // ユニークID (pdfId_page_problem)
+  pdfId: string; // 問題集のID
+  pageNumber: number; // 解答ページ番号
+  problemNumber: string; // 問題番号（例: "1", "問1", "A"）
+  correctAnswer: string; // 正解（例: "12cm", "60°"）
+  problemText?: string; // 問題文（オプション）
+  createdAt: number; // 登録日時
+}
+
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     console.log('🔓 IndexedDB開く:', {
@@ -121,6 +139,14 @@ function openDB(): Promise<IDBDatabase> {
         const snsUsageStore = db.createObjectStore(SNS_USAGE_HISTORY_STORE_NAME, { keyPath: 'id' });
         snsUsageStore.createIndex('timestamp', 'timestamp', { unique: false });
         snsUsageStore.createIndex('snsId', 'snsId', { unique: false });
+      }
+
+      // 解答データ用オブジェクトストアが存在しない場合は作成
+      if (!db.objectStoreNames.contains(ANSWER_STORE_NAME)) {
+        const answerStore = db.createObjectStore(ANSWER_STORE_NAME, { keyPath: 'id' });
+        answerStore.createIndex('pdfId', 'pdfId', { unique: false });
+        answerStore.createIndex('pageNumber', 'pageNumber', { unique: false });
+        // 複合インデックス用のキーを別途作成（pdfId_pageNumber_problemNumber）
       }
 
       // v6へのアップグレード: Base64からBlobへ移行
@@ -571,5 +597,158 @@ export async function getSNSUsageHistory(): Promise<SNSUsageHistoryRecord[]> {
         reject(new Error('SNS利用履歴の取得に失敗しました'));
       };
     }).catch(reject);
+  });
+}
+
+// ========================================
+// 解答データ管理（採点精度改善用）
+// ========================================
+
+// 解答IDを生成
+export function generateAnswerId(pdfId: string, pageNumber: number, problemNumber: string): string {
+  return `answer_${pdfId}_${pageNumber}_${problemNumber}`;
+}
+
+// 解答を保存
+export async function saveAnswer(record: AnswerRecord): Promise<void> {
+  const db = await openDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([ANSWER_STORE_NAME], 'readwrite');
+    const objectStore = transaction.objectStore(ANSWER_STORE_NAME);
+    const request = objectStore.put(record);
+
+    request.onsuccess = () => {
+      console.log('✅ 解答を保存:', record.id);
+      resolve();
+    };
+
+    request.onerror = () => {
+      console.error('❌ 解答の保存に失敗:', request.error);
+      reject(new Error('解答の保存に失敗しました'));
+    };
+  });
+}
+
+// 複数の解答を一括保存
+export async function saveAnswers(records: AnswerRecord[]): Promise<void> {
+  const db = await openDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([ANSWER_STORE_NAME], 'readwrite');
+    const objectStore = transaction.objectStore(ANSWER_STORE_NAME);
+
+    let completed = 0;
+    let hasError = false;
+
+    records.forEach(record => {
+      const request = objectStore.put(record);
+
+      request.onsuccess = () => {
+        completed++;
+        if (completed === records.length && !hasError) {
+          console.log(`✅ ${records.length}件の解答を保存`);
+          resolve();
+        }
+      };
+
+      request.onerror = () => {
+        if (!hasError) {
+          hasError = true;
+          console.error('❌ 解答の保存に失敗:', request.error);
+          reject(new Error('解答の保存に失敗しました'));
+        }
+      };
+    });
+
+    if (records.length === 0) {
+      resolve();
+    }
+  });
+}
+
+// 特定のページ・問題番号の解答を取得
+export async function getAnswer(pdfId: string, pageNumber: number, problemNumber: string): Promise<AnswerRecord | null> {
+  const id = generateAnswerId(pdfId, pageNumber, problemNumber);
+  const db = await openDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([ANSWER_STORE_NAME], 'readonly');
+    const objectStore = transaction.objectStore(ANSWER_STORE_NAME);
+    const request = objectStore.get(id);
+
+    request.onsuccess = () => {
+      resolve(request.result || null);
+    };
+
+    request.onerror = () => {
+      reject(new Error('解答の取得に失敗しました'));
+    };
+  });
+}
+
+// 特定のPDFの全解答を取得
+export async function getAnswersByPdfId(pdfId: string): Promise<AnswerRecord[]> {
+  const db = await openDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([ANSWER_STORE_NAME], 'readonly');
+    const objectStore = transaction.objectStore(ANSWER_STORE_NAME);
+    const index = objectStore.index('pdfId');
+    const request = index.openCursor(IDBKeyRange.only(pdfId));
+
+    const records: AnswerRecord[] = [];
+
+    request.onsuccess = (event) => {
+      const cursor = (event.target as IDBRequest).result;
+      if (cursor) {
+        records.push(cursor.value);
+        cursor.continue();
+      } else {
+        console.log(`✅ ${pdfId}の解答を取得: ${records.length}件`);
+        resolve(records);
+      }
+    };
+
+    request.onerror = () => {
+      reject(new Error('解答の取得に失敗しました'));
+    };
+  });
+}
+
+// 特定のPDFの解答をすべて削除
+export async function deleteAnswersByPdfId(pdfId: string): Promise<void> {
+  const answers = await getAnswersByPdfId(pdfId);
+  const db = await openDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([ANSWER_STORE_NAME], 'readwrite');
+    const objectStore = transaction.objectStore(ANSWER_STORE_NAME);
+
+    let completed = 0;
+    let hasError = false;
+
+    answers.forEach(answer => {
+      const request = objectStore.delete(answer.id);
+
+      request.onsuccess = () => {
+        completed++;
+        if (completed === answers.length && !hasError) {
+          console.log(`✅ ${pdfId}の解答を削除: ${answers.length}件`);
+          resolve();
+        }
+      };
+
+      request.onerror = () => {
+        if (!hasError) {
+          hasError = true;
+          reject(new Error('解答の削除に失敗しました'));
+        }
+      };
+    });
+
+    if (answers.length === 0) {
+      resolve();
+    }
   });
 }

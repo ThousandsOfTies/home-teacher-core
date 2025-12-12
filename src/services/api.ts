@@ -28,6 +28,13 @@ export interface Problem {
   correctAnswer: string
   feedback: string
   explanation: string
+  matchingMetadata?: {
+    method: 'exact' | 'ai' | 'context' | 'hybrid';
+    confidence?: string;
+    reasoning?: string;
+    candidates?: string[];
+    similarity?: number;
+  }
 }
 
 export interface GradingResult {
@@ -124,6 +131,77 @@ export const gradeWork = async (
   }
 }
 
+// 文脈ベース採点（2画像送信：フルページ + 選択範囲）
+export const gradeWorkWithContext = async (
+  fullPageImageData: string,
+  croppedImageData: string,
+  pageNumber: number,
+  model?: string
+): Promise<GradeResponse> => {
+  try {
+    const userLanguage = navigator.language
+
+    console.log('🎯 文脈ベース採点リクエスト送信:', {
+      url: `${API_BASE_URL}/grade-with-context`,
+      pageNumber,
+      language: userLanguage,
+      model: model || 'default',
+      fullPageSize: fullPageImageData.length,
+      croppedSize: croppedImageData.length
+    })
+
+    const response = await fetch(`${API_BASE_URL}/grade-with-context`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        pageFullImage: fullPageImageData,
+        croppedImage: croppedImageData,
+        pageNumber,
+        language: userLanguage,
+        model: model || undefined,
+      }),
+    })
+
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type')
+      let errorMessage = '採点に失敗しました'
+
+      try {
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.details || errorMessage
+        } else {
+          const errorText = await response.text()
+          errorMessage = errorText || `HTTPエラー: ${response.status} ${response.statusText}`
+        }
+      } catch (parseError) {
+        errorMessage = `HTTPエラー: ${response.status} ${response.statusText}`
+      }
+
+      throw new Error(errorMessage)
+    }
+
+    const responseText = await response.text()
+    if (!responseText || responseText.trim() === '') {
+      throw new Error('サーバーから空のレスポンスが返されました')
+    }
+
+    try {
+      const result = JSON.parse(responseText)
+      console.log('✅ 文脈ベース採点結果を受信:', result)
+      return result
+    } catch (parseError) {
+      console.error('JSONパースエラー:', parseError)
+      throw new Error('サーバーからの応答を解析できませんでした')
+    }
+  } catch (error) {
+    console.error('Context-based Grading API Error:', error)
+    throw error
+  }
+}
+
 export const checkHealth = async (): Promise<boolean> => {
   try {
     const response = await fetch(`${API_BASE_URL}/health`)
@@ -162,5 +240,183 @@ export const getAvailableModels = async (): Promise<ModelsResponse> => {
       ],
       default: 'gemini-2.0-flash-exp'
     }
+  }
+}
+
+// ========================================
+// 解答抽出API（採点精度改善 PoC）
+// ========================================
+
+export interface ExtractedAnswer {
+  problemNumber: string
+  correctAnswer: string
+}
+
+export interface ExtractAnswersResponse {
+  success: boolean
+  pageNumber: number
+  answers: ExtractedAnswer[]
+  pageInfo?: {
+    totalProblems?: number
+    description?: string
+  }
+  responseTime?: number
+  error?: string
+}
+
+// 解答ページから解答を抽出
+export const extractAnswers = async (
+  imageData: string,
+  pageNumber: number
+): Promise<ExtractAnswersResponse> => {
+  try {
+    const userLanguage = navigator.language
+
+    console.log('📖 解答抽出リクエスト送信:', {
+      url: `${API_BASE_URL}/extract-answers`,
+      pageNumber,
+      imageDataSize: imageData.length
+    })
+
+    const response = await fetch(`${API_BASE_URL}/extract-answers`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        imageData,
+        pageNumber,
+        language: userLanguage,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || `HTTPエラー: ${response.status}`)
+    }
+
+    const result = await response.json()
+    console.log('📝 解答抽出結果:', result)
+    return result
+
+  } catch (error) {
+    console.error('❌ 解答抽出エラー:', error)
+    throw error
+  }
+}
+
+// ========================================
+// 問題ページ分析API
+// ========================================
+
+export interface AnalyzedProblem {
+  problemNumber: string
+  type: string
+  hasDiagram: boolean
+  topic?: string
+}
+
+export interface AnalyzeProblemPageResponse {
+  success: boolean
+  pageNumber: number
+  problems: AnalyzedProblem[]
+  totalProblems: number
+  pageType?: string
+  responseTime?: number
+  error?: string
+}
+
+// 問題ページの構造を分析
+export const analyzeProblemPage = async (
+  imageData: string,
+  pageNumber: number
+): Promise<AnalyzeProblemPageResponse> => {
+  try {
+    const userLanguage = navigator.language
+
+    console.log('🔍 問題ページ分析リクエスト送信:', {
+      url: `${API_BASE_URL}/analyze-problem-page`,
+      pageNumber,
+      imageDataSize: imageData.length
+    })
+
+    const response = await fetch(`${API_BASE_URL}/analyze-problem-page`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        imageData,
+        pageNumber,
+        language: userLanguage,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || `HTTPエラー: ${response.status}`)
+    }
+
+    const result = await response.json()
+    console.log('📊 問題ページ分析結果:', result)
+    return result
+
+  } catch (error) {
+    console.error('❌ 問題ページ分析エラー:', error)
+    throw error
+  }
+}
+
+// ========================================
+// 汎用ページ分析API（問題/解答自動判定）
+// ========================================
+
+export interface UniversalPageResponse {
+  success: boolean
+  pageType: 'problem' | 'answer' | 'unknown'
+  pageNumber: number
+  data: any // ページタイプに応じて problems または answers
+  responseTime?: number
+  error?: string
+}
+
+// ページを分析（問題ページか解答ページか自動判定）
+export const analyzePage = async (
+  imageData: string,
+  pageNumber: number
+): Promise<UniversalPageResponse> => {
+  try {
+    const userLanguage = navigator.language
+
+    console.log('🔍 汎用ページ分析リクエスト送信:', {
+      url: `${API_BASE_URL}/analyze-page`,
+      pageNumber,
+      imageDataSize: imageData.length
+    })
+
+    const response = await fetch(`${API_BASE_URL}/analyze-page`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        imageData,
+        pageNumber,
+        language: userLanguage,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || `HTTPエラー: ${response.status}`)
+    }
+
+    const result = await response.json()
+    console.log(`📄 ページ分析結果 (${result.pageType}):`, result)
+    return result
+
+  } catch (error) {
+    console.error('❌ 汎用ページ分析エラー:', error)
+    throw error
   }
 }

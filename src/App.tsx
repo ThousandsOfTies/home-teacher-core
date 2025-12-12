@@ -9,6 +9,7 @@ type AppView = 'admin' | 'viewer'
 function App() {
   const [currentView, setCurrentView] = useState<AppView>('admin')
   const [selectedPDF, setSelectedPDF] = useState<PDFFileRecord | null>(null)
+  const [isAnswerRegistrationMode, setIsAnswerRegistrationMode] = useState(false)
 
   // PWA update handling
   const {
@@ -31,14 +32,16 @@ function App() {
     console.log('🏠 PWA起動: Home画面を表示')
   }, [])
 
-  const handleSelectPDF = (record: PDFFileRecord) => {
+  const handleSelectPDF = (record: PDFFileRecord, answerMode: boolean = false) => {
     setSelectedPDF(record)
+    setIsAnswerRegistrationMode(answerMode)
     setCurrentView('viewer')
   }
 
   const handleBackToAdmin = () => {
     setCurrentView('admin')
     setSelectedPDF(null)
+    setIsAnswerRegistrationMode(false)
   }
 
   const handleUpdate = () => {
@@ -59,6 +62,7 @@ function App() {
           pdfRecord={selectedPDF}
           pdfId={selectedPDF.id}
           onBack={handleBackToAdmin}
+          answerRegistrationMode={isAnswerRegistrationMode}
         />
       ) : (
         <div>No PDF selected</div>

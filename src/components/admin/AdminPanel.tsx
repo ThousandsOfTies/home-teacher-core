@@ -10,7 +10,7 @@ import './AdminPanel.css';
 import { PREDEFINED_SNS, getSNSIcon } from '../../constants/sns';
 
 interface AdminPanelProps {
-  onSelectPDF: (record: PDFFileRecord) => void;
+  onSelectPDF: (record: PDFFileRecord, answerMode?: boolean) => void;
   hasUpdate?: boolean;
   onUpdate?: () => void;
 }
@@ -48,7 +48,9 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; fileName: string } | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [showSNSSettings, setShowSNSSettings] = useState(false);
+
   const [showGradingHistory, setShowGradingHistory] = useState(false);
+  const [pdfAnswerStatus, setPdfAnswerStatus] = useState<Record<string, boolean>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [showStorageInfo, setShowStorageInfo] = useState(false);
@@ -126,7 +128,11 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
     try {
       await saveSNSSettingsHook();
       // 時間制限設定も保存
-      await saveAppSettings({ id: 'app-settings', snsTimeLimitMinutes: snsTimeLimit });
+      await saveAppSettings({
+        id: 'app-settings',
+        snsTimeLimitMinutes: snsTimeLimit,
+        notificationEnabled: notificationEnabled
+      });
       setShowSNSSettings(false);
     } catch (error) {
       console.error('Failed to save SNS settings:', error);
@@ -165,6 +171,26 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
       setErrorMessage('通知設定の保存に失敗しました');
     }
   };
+
+  // 解答登録状況を確認
+  const checkAnswerStatus = async () => {
+    const { getAnswersByPdfId } = await import('../../utils/indexedDB');
+    const statusMap: Record<string, boolean> = {};
+
+    for (const record of pdfRecords) {
+      const answers = await getAnswersByPdfId(record.id);
+      statusMap[record.id] = answers.length > 0;
+    }
+
+    setPdfAnswerStatus(statusMap);
+  };
+
+  // PDFレコードが変更されたら解答状況を確認
+  useEffect(() => {
+    if (pdfRecords.length > 0) {
+      checkAnswerStatus();
+    }
+  }, [pdfRecords]);
 
   // 通知設定をキャンセル
   const cancelNotificationSettings = () => {
@@ -1048,6 +1074,54 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                       )}
                     </div>
                     <div className="file-name">{record.fileName}</div>
+
+                    {/* 解答登録ボタン（梟アイコン） */}
+                    <button
+                      className="answer-register-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectPDF(record, true); // answerMode = true
+                      }}
+                      title={pdfAnswerStatus[record.id] ? "解答登録済み" : "解答を登録"}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '6px',
+                        transition: 'all 0.2s',
+                        color: pdfAnswerStatus[record.id] ? '#27ae60' : '#95a5a6',
+                        fontSize: '24px',
+                        marginLeft: 'auto',
+                        position: 'relative'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = pdfAnswerStatus[record.id] ? '#d5f4e6' : '#e3f2fd';
+                        e.currentTarget.style.transform = 'scale(1.15)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.transform = 'scale(1)';
+                      }}
+                    >
+                      <span style={{ position: 'relative', display: 'inline-block' }}>
+                        🦉
+                        {pdfAnswerStatus[record.id] && (
+                          <span style={{
+                            position: 'absolute',
+                            top: '-10px',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            fontSize: '16px'
+                          }}>🎓</span>
+                        )}
+                      </span>
+                    </button>
+
+                    {/* 削除ボタン */}
                     <button
                       className="delete-button"
                       onClick={(e) => {
@@ -1307,16 +1381,19 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
             <div style={{ marginTop: '20px' }}>
               <AdSlot slot="admin-sidebar" />
             </div>
-          </div>
-        )}
-      </div>
+          </div >
+        )
+        }
+      </div >
 
       {/* 採点履歴モーダル */}
-      {showGradingHistory && (
-        <GradingHistory
-          onClose={() => setShowGradingHistory(false)}
-        />
-      )}
+      {
+        showGradingHistory && (
+          <GradingHistory
+            onClose={() => setShowGradingHistory(false)}
+          />
+        )
+      }
     </>
   );
 }

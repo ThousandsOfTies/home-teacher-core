@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install all dependencies (including tsx for running TypeScript)
-RUN npm ci
+RUN npm install
 
 # Copy server source files
 COPY server ./server

@@ -8,11 +8,11 @@ interface GradingHistoryProps {
 }
 
 const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
-  const [activeTab, setActiveTab] = useState<'grading' | 'sns'>('grading')
   const [historyList, setHistoryList] = useState<GradingHistoryRecord[]>([])
   const [snsHistoryList, setSnsHistoryList] = useState<SNSUsageHistoryRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedHistory, setSelectedHistory] = useState<GradingHistoryRecord | null>(null)
+  const [filterType, setFilterType] = useState<'all' | 'grading' | 'sns'>('all')
   const [filterCorrect, setFilterCorrect] = useState<'all' | 'correct' | 'incorrect'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -52,20 +52,43 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
     }
   }
 
-  // フィルタリングされた履歴
-  const filteredHistory = historyList.filter(record => {
-    // 正解/不正解フィルター
-    if (filterCorrect === 'correct' && !record.isCorrect) return false
-    if (filterCorrect === 'incorrect' && record.isCorrect) return false
+  // 統合履歴型
+  type UnifiedHistoryItem =
+    | { type: 'grading'; data: GradingHistoryRecord }
+    | { type: 'sns'; data: SNSUsageHistoryRecord }
 
-    // 検索クエリフィルター
-    if (searchQuery) {
+  // 統合＆ソート
+  const unifiedHistory: UnifiedHistoryItem[] = [
+    ...historyList.map(item => ({ type: 'grading' as const, data: item })),
+    ...snsHistoryList.map(item => ({ type: 'sns' as const, data: item }))
+  ].sort((a, b) => b.data.timestamp - a.data.timestamp) // 新しい順
+
+  // フィルタリング
+  const filteredHistory = unifiedHistory.filter(item => {
+    // タイプフィルター
+    if (filterType === 'grading' && item.type !== 'grading') return false
+    if (filterType === 'sns' && item.type !== 'sns') return false
+
+    // 採点履歴の場合の正解/不正解フィルター
+    if (item.type === 'grading') {
+      if (filterCorrect === 'correct' && !item.data.isCorrect) return false
+      if (filterCorrect === 'incorrect' && item.data.isCorrect) return false
+
+      // 検索クエリフィルター
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase()
+        return (
+          item.data.pdfFileName.toLowerCase().includes(query) ||
+          item.data.problemNumber.toLowerCase().includes(query) ||
+          item.data.studentAnswer.toLowerCase().includes(query)
+        )
+      }
+    }
+
+    // SNS履歴の場合の検索フィルター
+    if (item.type === 'sns' && searchQuery) {
       const query = searchQuery.toLowerCase()
-      return (
-        record.pdfFileName.toLowerCase().includes(query) ||
-        record.problemNumber.toLowerCase().includes(query) ||
-        record.studentAnswer.toLowerCase().includes(query)
-      )
+      return item.data.snsName.toLowerCase().includes(query)
     }
 
     return true
@@ -76,6 +99,7 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
   const correctCount = historyList.filter(r => r.isCorrect).length
   const incorrectCount = totalCount - correctCount
   const correctRate = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0
+  const snsCount = snsHistoryList.length
 
   // 日付をフォーマット
   const formatDate = (timestamp: number) => {
@@ -93,34 +117,16 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
     <div className="grading-history-overlay">
       <div className="grading-history-panel">
         <div className="history-header">
-          <h2>History</h2>
+          <h2>学習タイムライン</h2>
           <button className="close-btn" onClick={onClose}>
             ✕
           </button>
         </div>
 
-        {/* タブ */}
-        <div className="history-tabs">
-          <button
-            className={`tab-button ${activeTab === 'grading' ? 'active' : ''}`}
-            onClick={() => setActiveTab('grading')}
-          >
-            採点履歴
-          </button>
-          <button
-            className={`tab-button ${activeTab === 'sns' ? 'active' : ''}`}
-            onClick={() => setActiveTab('sns')}
-          >
-            SNS利用履歴
-          </button>
-        </div>
-
-        {activeTab === 'grading' && (
-          <>
         {/* 統計情報 */}
         <div className="history-stats">
           <div className="stat-item">
-            <span className="stat-value" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span className="stat-value" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span className="result-badge correct" style={{ width: '20px', height: '20px', fontSize: '12px' }}>✓</span>
                 {correctCount}
@@ -129,8 +135,8 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
                 <span className="result-badge incorrect" style={{ width: '20px', height: '20px', fontSize: '12px' }}>✗</span>
                 {incorrectCount}
               </span>
-              <span>Total: {totalCount}</span>
-              <span>Rate: {correctRate}%</span>
+              <span>📱 SNS: {snsCount}回</span>
+              <span>正答率: {correctRate}%</span>
             </span>
           </div>
         </div>
@@ -139,89 +145,126 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
         <div className="history-filters">
           <div className="filter-buttons">
             <button
-              className={filterCorrect === 'all' ? 'active' : ''}
-              onClick={() => setFilterCorrect('all')}
+              className={filterType === 'all' ? 'active' : ''}
+              onClick={() => setFilterType('all')}
               title="すべて表示"
-              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '8px 12px' }}
             >
-              <span className="result-badge correct" style={{ width: '20px', height: '20px', fontSize: '12px' }}>✓</span>
-              <span className="result-badge incorrect" style={{ width: '20px', height: '20px', fontSize: '12px' }}>✗</span>
+              全て
             </button>
             <button
-              className={filterCorrect === 'correct' ? 'active' : ''}
-              onClick={() => setFilterCorrect('correct')}
-              title="正解のみ"
-              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '8px 12px' }}
+              className={filterType === 'grading' ? 'active' : ''}
+              onClick={() => setFilterType('grading')}
+              title="採点のみ"
             >
-              <span className="result-badge correct" style={{ width: '20px', height: '20px', fontSize: '12px' }}>✓</span>
+              📝 採点
             </button>
             <button
-              className={filterCorrect === 'incorrect' ? 'active' : ''}
-              onClick={() => setFilterCorrect('incorrect')}
-              title="不正解のみ"
-              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '8px 12px' }}
+              className={filterType === 'sns' ? 'active' : ''}
+              onClick={() => setFilterType('sns')}
+              title="SNSのみ"
             >
-              <span className="result-badge incorrect" style={{ width: '20px', height: '20px', fontSize: '12px' }}>✗</span>
+              📱 SNS
             </button>
+
+            {filterType !== 'sns' && (
+              <>
+                <div style={{ width: '1px', height: '20px', backgroundColor: '#ddd', margin: '0 4px' }}></div>
+                <button
+                  className={filterCorrect === 'correct' ? 'active' : ''}
+                  onClick={() => setFilterCorrect('correct')}
+                  title="正解のみ"
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '8px 12px' }}
+                >
+                  <span className="result-badge correct" style={{ width: '20px', height: '20px', fontSize: '12px' }}>✓</span>
+                </button>
+                <button
+                  className={filterCorrect === 'incorrect' ? 'active' : ''}
+                  onClick={() => setFilterCorrect('incorrect')}
+                  title="不正解のみ"
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '8px 12px' }}
+                >
+                  <span className="result-badge incorrect" style={{ width: '20px', height: '20px', fontSize: '12px' }}>✗</span>
+                </button>
+              </>
+            )}
           </div>
           <input
             type="text"
             className="search-input"
-            placeholder="問題集名、問題番号で検索..."
+            placeholder="問題集名、問題番号、SNS名で検索..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
-        {/* 履歴リスト */}
+        {/* 統合タイムライン */}
         <div className="history-content">
           {loading ? (
             <div className="loading">読み込み中...</div>
           ) : filteredHistory.length === 0 ? (
             <div className="empty-message">
-              {searchQuery || filterCorrect !== 'all'
+              {searchQuery || filterType !== 'all'
                 ? '条件に一致する履歴がありません'
-                : 'まだ採点履歴がありません'}
+                : 'まだ履歴がありません'}
             </div>
           ) : (
             <div className="history-list">
-              {filteredHistory.map((record) => (
-                <div
-                  key={record.id}
-                  className={`history-item ${record.isCorrect ? 'correct' : 'incorrect'} ${
-                    selectedHistory?.id === record.id ? 'selected' : ''
-                  }`}
-                  onClick={() => setSelectedHistory(record)}
-                >
-                  <div className="history-item-header">
-                    <span className={`result-badge ${record.isCorrect ? 'correct' : 'incorrect'}`}>
-                      {record.isCorrect ? '✓' : '✗'}
-                    </span>
-                    <span className="problem-info">
-                      {record.pdfFileName} - ページ{record.pageNumber} - 問{record.problemNumber}
-                    </span>
-                    <button
-                      className="delete-btn"
-                      onClick={(e) => handleDelete(record.id, e)}
-                      title="削除"
+              {filteredHistory.map((item, index) => (
+                <div key={`${item.type}-${item.data.id}-${index}`}>
+                  {item.type === 'grading' ? (
+                    // 採点履歴
+                    <div
+                      className={`history-item ${item.data.isCorrect ? 'correct' : 'incorrect'} ${selectedHistory?.id === item.data.id ? 'selected' : ''
+                        }`}
+                      onClick={() => setSelectedHistory(item.data)}
                     >
-                      🗑️
-                    </button>
-                  </div>
-                  <div className="history-item-content">
-                    <div className="timestamp">{formatDate(record.timestamp)}</div>
-                    <div className="answer-preview">
-                      解答: {record.studentAnswer?.substring(0, 50) || '(なし)'}
-                      {(record.studentAnswer?.length || 0) > 50 ? '...' : ''}
+                      <div className="history-item-header">
+                        <span className={`result-badge ${item.data.isCorrect ? 'correct' : 'incorrect'}`}>
+                          {item.data.isCorrect ? '✓' : '✗'}
+                        </span>
+                        <span className="problem-info">
+                          {item.data.pdfFileName} - ページ{item.data.pageNumber} - 問{item.data.problemNumber}
+                        </span>
+                        <button
+                          className="delete-btn"
+                          onClick={(e) => handleDelete(item.data.id, e)}
+                          title="削除"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                      <div className="history-item-content">
+                        <div className="timestamp">{formatDate(item.data.timestamp)}</div>
+                        <div className="answer-preview">
+                          解答: {item.data.studentAnswer?.substring(0, 50) || '(なし)'}
+                          {(item.data.studentAnswer?.length || 0) > 50 ? '...' : ''}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    // SNS利用履歴
+                    <div className="history-item sns-item">
+                      <div className="history-item-header" style={{ backgroundColor: '#f8f9fa' }}>
+                        <span style={{ fontSize: '20px' }}>📱</span>
+                        <span className="problem-info" style={{ color: '#7f8c8d' }}>
+                          {item.data.snsName} - {item.data.timeLimitMinutes}分
+                        </span>
+                      </div>
+                      <div className="history-item-content">
+                        <div className="timestamp">{formatDate(item.data.timestamp)}</div>
+                        <div className="answer-preview" style={{ fontSize: '12px', color: '#95a5a6' }}>
+                          {item.data.snsUrl}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* 詳細パネル */}
+        {/* 詳細パネル（採点履歴のみ） */}
         {selectedHistory && (
           <div className="history-detail">
             <div className="detail-header">
@@ -275,44 +318,35 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
                   />
                 </div>
               )}
-            </div>
-          </div>
-        )}
 
-          </>
-        )}
-
-        {activeTab === 'sns' && (
-          <div className="sns-history-content">
-            {loading ? (
-              <div className="loading">読み込み中...</div>
-            ) : snsHistoryList.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">📱</div>
-                <p>SNS利用履歴がありません</p>
-              </div>
-            ) : (
-              <div className="sns-history-list">
-                {snsHistoryList.map((record) => (
-                  <div key={record.id} className="sns-history-item">
-                    <div className="sns-history-main">
-                      <div className="sns-name">{record.snsName}</div>
-                      <div className="sns-timestamp">{formatDate(record.timestamp)}</div>
-                    </div>
-                    <div className="sns-history-details">
-                      <div className="sns-detail-item">
-                        <span className="sns-detail-label">制限時間:</span>
-                        <span className="sns-detail-value">{record.timeLimitMinutes}分</span>
+              {selectedHistory.matchingMetadata && (
+                <div className="detail-section">
+                  <h4>Matching Metadata (Debug)</h4>
+                  <div className="metadata-box" style={{
+                    backgroundColor: '#f8f9fa',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontFamily: 'monospace',
+                    border: '1px solid #e9ecef'
+                  }}>
+                    <p style={{ margin: '4px 0' }}><strong>Method:</strong> {selectedHistory.matchingMetadata.method}</p>
+                    {selectedHistory.matchingMetadata.confidence && (
+                      <p style={{ margin: '4px 0' }}><strong>Confidence:</strong> {selectedHistory.matchingMetadata.confidence}</p>
+                    )}
+                    {selectedHistory.matchingMetadata.similarity !== undefined && (
+                      <p style={{ margin: '4px 0' }}><strong>Similarity:</strong> {selectedHistory.matchingMetadata.similarity.toFixed(4)}</p>
+                    )}
+                    {selectedHistory.matchingMetadata.reasoning && (
+                      <div style={{ margin: '4px 0' }}>
+                        <strong>Reasoning:</strong>
+                        <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap' }}>{selectedHistory.matchingMetadata.reasoning}</div>
                       </div>
-                      <div className="sns-detail-item">
-                        <span className="sns-detail-label">URL:</span>
-                        <span className="sns-detail-value sns-url">{record.snsUrl}</span>
-                      </div>
-                    </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
