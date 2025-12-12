@@ -1088,43 +1088,63 @@ app.post('/api/grade-with-context', async (req, res) => {
     const pageMatch = pageFullImage.match(/^data:image\/(\w+);base64,(.+)$/)
     const cropMatch = croppedImage.match(/^data:image\/(\w+);base64,(.+)$/)
 
+    // デバッグ: 画像サイズを確認
+    console.log(`🖼️  画像サイズ確認:`)
+    console.log(`   フルページ: ${pageFullImage.length} bytes`)
+    console.log(`   切り取り: ${croppedImage.length} bytes`)
+
     if (!pageMatch || !cropMatch) {
       return res.status(400).json({ error: '無効な画像データ形式です' })
     }
 
-    const contextPrompt = `You are grading student work with context awareness.
+    const contextPrompt = `You are analyzing student work with context awareness.
 
-You have TWO images:
-1. **Full Page Image**: Shows the entire page layout with all problems
-2. **Cropped Image**: Shows the specific problem/answer the student worked on
+IMAGE ORDER (VERY IMPORTANT):
+- IMAGE 1 (FIRST): Full page showing ALL problems (REFERENCE ONLY - DO NOT GRADE THIS)
+- IMAGE 2 (SECOND): Cropped area showing ONE problem (THIS IS WHAT YOU MUST GRADE)
 
 Your task:
-1. Look at the FULL PAGE to understand the layout and see ALL problem numbers on this page
-2. Look at the CROPPED IMAGE to identify which specific problem this is
+1. Look at IMAGE 1 (full page) ONLY to identify the problem number
+2. Look at IMAGE 2 (cropped) to see what the student actually answered
 3. Determine the EXACT problem number by considering:
    - Position on the page (top/middle/bottom, left/right)
-   - Visual context and surrounding problems
+   - Visual context and surrounding problems visible in IMAGE 1
    - Sub-problem numbers like (1), (2), (3) if visible
 
-4. Grade the student's work shown in the cropped image
+4. Extract the student's answer from IMAGE 2 (cropped) ONLY
+5. Grade ONLY what is visible in IMAGE 2 (cropped)
+
+CRITICAL RULES (READ CAREFULLY):
+- IMAGE 1 is ONLY for identifying the problem number - DO NOT grade it
+- IMAGE 2 is the ONLY thing you should grade
+- The student wrote their answer in IMAGE 2, not IMAGE 1
+- DO NOT grade blank/empty problems visible in IMAGE 1
+- ONLY grade the answer visible in IMAGE 2
+- Ignore all other problems visible in IMAGE 1
+
+EXAMPLE:
+- IMAGE 1 shows: Problem 1(1), 1(2), 1(3) on the page
+- IMAGE 2 shows: Only problem 1(1) with answer "59°"
+- You should: Grade ONLY "59°" for problem 1(1)
+- You should NOT: Grade 1(2) or 1(3) even if they're blank in IMAGE 1
 
 Return ONLY valid JSON:
 {
   "problemNumber": "exact problem number (e.g., '1(1)', '1(2)', '2')",
   "confidence": "high/medium/low",
-  "positionReasoning": "brief explanation of how you identified the problem number from position",
-  "problemText": "problem text from cropped image",
-  "studentAnswer": "student's handwritten answer",
-  "isCorrect": true or false,
-  "correctAnswer": "correct answer if student is wrong",
-  "feedback": "encouraging feedback",
-  "explanation": "detailed explanation"
+  "positionReasoning": "brief explanation of how you identified the problem number from IMAGE 1",
+  "problemText": "problem text from IMAGE 2 (cropped)",
+  "studentAnswer": "student's answer from IMAGE 2 (cropped) ONLY",
+  "isCorrect": true or false (based on the answer in IMAGE 2),
+  "correctAnswer": "correct answer (if you can determine it from IMAGE 2)",
+  "feedback": "encouraging feedback about the answer in IMAGE 2",
+  "explanation": "detailed explanation about the answer in IMAGE 2"
 }
 
-IMPORTANT:
-- Be very precise about the problem number
-- Use the full page layout to disambiguate sub-problems
-- If you see "問1(1)" and "問1(2)" on the full page, determine which one the cropped image shows
+FINAL REMINDER:
+- Grade ONLY the answer visible in IMAGE 2 (the cropped image)
+- DO NOT mention or grade other problems from IMAGE 1
+- The correct answer should match what's asked in IMAGE 2, not other problems
 
 LANGUAGE: ${responseLang}`
 
@@ -1200,8 +1220,9 @@ LANGUAGE: ${responseLang}`
       })
     }
 
-    console.log(`✅ 文脈ベース採点完了: ${elapsedTime}秒`)
+    console.log(`✅ 文脈ベース解析完了: ${elapsedTime}秒`)
     console.log(`   問題番号: ${gradingData.problemNumber} (信頼度: ${gradingData.confidence})`)
+    console.log(`   生徒の解答: "${gradingData.studentAnswer}"`)
     console.log(`   位置推定: ${gradingData.positionReasoning}`)
 
     // Metadata structure normalization

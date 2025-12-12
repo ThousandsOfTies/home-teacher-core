@@ -1369,16 +1369,72 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }:
       )
 
       if (response.success) {
-        setGradingResult(response.result)
         setGradingError(null)
         setGradingModelName(response.modelName || null)
         setGradingResponseTime(response.responseTime || null)
         // 採点成功後も選択モード（採点モード）を維持（連続して再採点できるように）
 
-        // 採点履歴を保存
+        // 採点履歴を保存（クライアント側で正解判定）
         try {
           if (response.result.problems && response.result.problems.length > 0) {
+            const { getAnswersByPdfId } = await import('../../utils/indexedDB')
+            const registeredAnswers = await getAnswersByPdfId(pdfId)
+
+            console.log(`📚 登録済み解答: ${registeredAnswers.length}件`)
+
             for (const problem of response.result.problems) {
+              // 解答を正規化する関数
+              const normalizeAnswer = (answer: string): string => {
+                return answer
+                  .toLowerCase()
+                  .replace(/\s+/g, '') // 全ての空白を削除
+                  .replace(/°|度/g, '') // 度記号を削除
+                  .replace(/[Xx×]/g, '*') // 掛け算記号を統一
+                  .replace(/[（(]/g, '(') // 括弧を統一
+                  .replace(/[）)]/g, ')')
+                  .replace(/,/g, '.') // カンマをピリオドに
+                  .trim()
+              }
+
+              // 問題番号で解答を検索
+              const matchedAnswer = registeredAnswers.find(ans =>
+                ans.problemNumber === problem.problemNumber ||
+                ans.problemNumber === problem.problemNumber.replace(/[()（）]/g, '')
+              )
+
+              let isCorrect = false
+              let correctAnswer = ''
+              let feedback = ''
+              let explanation = ''
+
+              if (matchedAnswer) {
+                correctAnswer = matchedAnswer.correctAnswer
+                const normalizedStudent = normalizeAnswer(problem.studentAnswer)
+                const normalizedCorrect = normalizeAnswer(correctAnswer)
+
+                isCorrect = normalizedStudent === normalizedCorrect
+
+                console.log(`🔍 問題${problem.problemNumber}:`)
+                console.log(`   生徒: "${problem.studentAnswer}" → "${normalizedStudent}"`)
+                console.log(`   正解: "${correctAnswer}" → "${normalizedCorrect}"`)
+                console.log(`   判定: ${isCorrect ? '✓ 正解' : '✗ 不正解'}`)
+
+                if (isCorrect) {
+                  feedback = '正解です！よくできました！'
+                  explanation = `正解は ${correctAnswer} です。`
+                } else {
+                  feedback = '惜しい！もう一度確認してみましょう。'
+                  explanation = `正解は ${correctAnswer} です。あなたの解答「${problem.studentAnswer}」を見直してみてください。`
+                }
+              } else {
+                // ⚠️ DBに正解がない → AIの判定を採用
+                console.log(`🤖 問題${problem.problemNumber}: AI判定使用`)
+                isCorrect = problem.isCorrect || false
+                correctAnswer = problem.correctAnswer || ''
+                feedback = problem.feedback || '採点結果を確認してください。'
+                explanation = problem.explanation || ''
+              }
+
               const historyRecord = {
                 id: generateGradingHistoryId(),
                 pdfId: pdfId,
@@ -1386,16 +1442,29 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }:
                 pageNumber: pageNum,
                 problemNumber: problem.problemNumber,
                 studentAnswer: problem.studentAnswer,
-                isCorrect: problem.isCorrect,
-                correctAnswer: problem.correctAnswer,
-                feedback: problem.feedback,
-                explanation: problem.explanation,
+                isCorrect,
+                correctAnswer,
+                feedback,
+                explanation,
                 timestamp: Date.now(),
-                imageData: croppedImageData, // 採点時の画像を保存
+                imageData: croppedImageData,
                 matchingMetadata: problem.matchingMetadata
               }
               await saveGradingHistory(historyRecord)
+
+              // 表示用にも判定結果を更新
+              problem.isCorrect = isCorrect
+              problem.correctAnswer = correctAnswer
+              problem.feedback = feedback
+              problem.explanation = explanation
             }
+
+            // 更新された結果を表示に反映
+            setGradingResult({
+              ...response.result,
+              problems: response.result.problems
+            })
+
             console.log('採点履歴を保存しました:', response.result.problems.length, '件')
             addStatusMessage(`✅ 採点履歴を保存しました (${response.result.problems.length}問)`)
           }
