@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PDFFileRecord, getAppSettings, saveAppSettings, AppSettings } from '../../utils/indexedDB';
+import { PDFFileRecord, getAppSettings, saveAppSettings } from '../../utils/indexedDB';
 import { getPlatformInfo } from '../../utils/storageManager';
 import GradingHistory from '../grading/GradingHistory';
 import { usePDFRecords } from '../../hooks/admin/usePDFRecords';

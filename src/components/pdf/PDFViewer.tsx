@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
-import { gradeWork, GradingResult as GradingResultType, getAvailableModels, ModelInfo } from '../../services/api'
+import { GradingResult as GradingResultType, getAvailableModels, ModelInfo } from '../../services/api'
 import GradingResult from '../grading/GradingResult'
 import { savePDFRecord, getPDFRecord, getAllSNSLinks, SNSLinkRecord, PDFFileRecord, saveGradingHistory, generateGradingHistoryId, getAppSettings, saveAppSettings } from '../../utils/indexedDB'
 import { ICON_SVG } from '../../constants/icons'
 import { usePDFRenderer } from '../../hooks/pdf/usePDFRenderer'
 import { useDrawing, useEraser, useZoomPan, DrawingPath } from '@thousands-of-ties/drawing-common'
-import { useSelection, SelectionRect } from '../../hooks/pdf/useSelection'
-import { matchAndGrade } from './grading'
+import { useSelection } from '../../hooks/pdf/useSelection'
 import './PDFViewer.css'
 
 // PDF.jsのworkerを設定（ローカルファイルを使用、Safari/Edge対応）
