@@ -1071,7 +1071,9 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
 
     } catch (error) {
       console.error('❌ 解答登録エラー:', error)
-      addStatusMessage('❌ 解答登録エラー')
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      addStatusMessage(`❌ 解答登録エラー: ${errorMsg}`)
+      alert(`解答登録中にエラーが発生しました:\n${errorMsg}`)
     } finally {
       setIsProcessingAnswers(false)
     }
