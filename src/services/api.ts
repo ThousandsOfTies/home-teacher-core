@@ -1,207 +1,22 @@
-// 開発環墁E localhost:3003、本番環墁E Cloud Run
-// VITE_API_URLが設定されてぁE��ぁE��合�E、本番環墁E��EitHub Pages�E�かローカル開発かを判宁E
-const getApiBaseUrl = () => {
-  // 環墁E��数が�E示皁E��設定されてぁE��場合�Eそれを使用
-  if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL
-  }
+import { GradeResponse, ModelInfoResponse, AnalyzePageResponse } from '../types'
 
-  // 本番環墁E��EitHub Pages�E�かどぁE��を判宁E
-  const isProduction = window.location.hostname === 'thousandsofties.github.io'
+// 環境変数からAPIのベースURLを取得（Viteの環境変数）
+// see: https://vitejs.dev/guide/env-and-mode.html
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://hometeacher-api-736494768812.asia-northeast1.run.app'
 
-  if (isProduction) {
-    // Cloud Run スチE�EジングURL�E�Eevelopブランチ用�E�E
-    return 'https://hometeacher-api-staging-n5ja4qrrqq-an.a.run.app/api'
-  }
+console.log('🔌 API Base URL:', API_BASE_URL)
 
-  // ローカル開発環墁E
-  return 'http://localhost:3003/api'
-}
-
-const API_BASE_URL = getApiBaseUrl()
-
-export interface Problem {
-  problemNumber: string
-  problemText: string
-  studentAnswer: string
-  isCorrect: boolean
-  correctAnswer: string
-  feedback: string
-  explanation: string
-  printedPageNumber?: number  // AIが検�Eした印刷された�Eージ番号�E�見開きPDF対応！E
-  matchingMetadata?: {
-    method: 'exact' | 'ai' | 'context' | 'hybrid';
-    confidence?: string;
-    reasoning?: string;
-    candidates?: string[];
-    similarity?: number;
-  }
-  // 採点ソース惁E���E�デバッグ・確認用�E�E
-  gradingSource?: 'db' | 'ai';  // 正解の判定�E�E�DBの登録解筁Eor AIの推諁E
-  dbMatchedAnswer?: {           // DBから取得した解答情報�E��EチE��した場合！E
-    problemNumber: string;
-    correctAnswer: string;
-    problemPageNumber?: number;
-    pageNumber: number;
-  };
-}
-
-export interface GradingResult {
-  problems: Problem[]
-  overallComment: string
-  rawResponse?: string
-  printedPageNumber?: number  // AIが検�Eした印刷された�Eージ番号�E�見開きPDF対応！E
-}
-
-export interface GradeResponse {
-  success: boolean
-  result: GradingResult
-  modelName?: string
-  responseTime?: number
-  error?: string
-}
-
-
-// 斁E��ベ�Eス採点�E�E画像送信�E�フルペ�Eジ + 選択篁E���E�E
-export const gradeWorkWithContext = async (
-  fullPageImageData: string,
-  croppedImageData: string,
-  pageNumber: number,
-  model?: string
-): Promise<GradeResponse> => {
-  try {
-    const userLanguage = navigator.language
-
-    console.log('🎯 斁E��ベ�Eス採点リクエスト送信:', {
-      url: `${API_BASE_URL}/grade-with-context`,
-      pageNumber,
-      language: userLanguage,
-      model: model || 'default',
-      fullPageSize: fullPageImageData.length,
-      croppedSize: croppedImageData.length
-    })
-
-    const response = await fetch(`${API_BASE_URL}/grade-with-context`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        pageFullImage: fullPageImageData,
-        croppedImage: croppedImageData,
-        pageNumber,
-        language: userLanguage,
-        model: model || undefined,
-      }),
-    })
-
-    if (!response.ok) {
-      const contentType = response.headers.get('content-type')
-      let errorMessage = '採点に失敗しました'
-
-      try {
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json()
-          errorMessage = errorData.error || errorData.details || errorMessage
-        } else {
-          const errorText = await response.text()
-          errorMessage = errorText || `HTTPエラー: ${response.status} ${response.statusText}`
-        }
-      } catch (parseError) {
-        errorMessage = `HTTPエラー: ${response.status} ${response.statusText}`
-      }
-
-      throw new Error(errorMessage)
-    }
-
-    const responseText = await response.text()
-    if (!responseText || responseText.trim() === '') {
-      throw new Error('サーバ�Eから空のレスポンスが返されました')
-    }
-
-    try {
-      const result = JSON.parse(responseText)
-      console.log('✁E斁E��ベ�Eス採点結果を受信:', result)
-      return result
-    } catch (parseError) {
-      console.error('JSONパ�Eスエラー:', parseError)
-      throw new Error('サーバ�Eからの応答を解析できませんでした')
-    }
-  } catch (error) {
-    console.error('Context-based Grading API Error:', error)
-    throw error
-  }
-}
-
-export const checkHealth = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/health`)
-    return response.ok
-  } catch {
-    return false
-  }
-}
-
-export interface ModelInfo {
-  id: string
-  name: string
-  description: string
-}
-
-export interface ModelsResponse {
-  models: ModelInfo[]
-  default: string
-}
-
-export const getAvailableModels = async (): Promise<ModelsResponse> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/models`)
-    if (!response.ok) {
-      throw new Error('モチE��一覧の取得に失敗しました')
-    }
-    return await response.json()
-  } catch (error) {
-    console.error('Models API Error:', error)
-    // フォールバック: チE��ォルト�EモチE��リストを返す
-    return {
-      models: [
-        { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash (Experimental)', description: '実験版の高速モチE��' },
-        { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: '高性能な安定版モチE��' },
-        { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: '高速な安定版モチE��' }
-      ],
-      default: 'gemini-2.0-flash-exp'
-    }
-  }
-}
-
-// ========================================
-// 汎用ペ�Eジ刁E��API�E�問顁E解答�E動判定！E
-// ========================================
-
-export interface UniversalPageResponse {
-  success: boolean
-  pageType: 'problem' | 'answer' | 'unknown'
-  pageNumber: number
-  data: any // ペ�Eジタイプに応じて problems また�E answers
-  responseTime?: number
-  error?: string
-}
-
-// ペ�Eジを�E析（問題�Eージか解答�Eージか�E動判定！E
+/**
+ * 汎用的なページ解析API
+ * 画像全体を送信して、問題番号と正答のペア、およびセクション名を抽出する
+ */
 export const analyzePage = async (
   imageData: string,
-  pageNumber: number
-): Promise<UniversalPageResponse> => {
+  pageNumber: number,
+  language: string = 'ja'
+): Promise<AnalyzePageResponse> => {
   try {
-    const userLanguage = navigator.language
-
-    console.log('🔍 汎用ペ�Eジ刁E��リクエスト送信:', {
-      url: `${API_BASE_URL}/analyze-page`,
-      pageNumber,
-      imageDataSize: imageData.length
-    })
-
-    const response = await fetch(`${API_BASE_URL}/analyze-page`, {
+    const response = await fetch(`${API_BASE_URL}/api/analyze-page`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -209,21 +24,90 @@ export const analyzePage = async (
       body: JSON.stringify({
         imageData,
         pageNumber,
-        language: userLanguage,
+        language,
       }),
     })
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || `HTTPエラー: ${response.status} ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    console.log(`📄 ページ解析結果 (${result.pageType}):`, result)
+    return result
+  } catch (error) {
+    console.error('❌ ページ解析エラー:', error)
+    throw error
+  }
+}
+
+/**
+ * コンテキスト付き採点API
+ * 問題の切り抜き画像と、ページ全体のコンテキスト画像を送信して採点を行う
+ */
+export const gradeWorkWithContext = async (
+  problemImage: string,
+  contextImage: string,
+  problemNumber: string,
+  studentAnswer: string, // 手書き文字認識結果など（オプショナル）
+  pageNumber: number,
+  model?: string
+): Promise<GradeResponse> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/grade`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        imageData: problemImage, // 切り抜き画像
+        contextImage,            // ページ全体（低解像度）
+        problemNumber,
+        studentAnswer,
+        pageNumber,
+        model
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('API Error Response:', errorData);
       throw new Error(errorData.error || `HTTPエラー: ${response.status}`)
     }
 
     const result = await response.json()
-    console.log(`📄 ペ�Eジ刁E��結果 (${result.pageType}):`, result)
     return result
-
   } catch (error) {
-    console.error('❁E汎用ペ�Eジ刁E��エラー:', error)
+    console.error('❌ 採点エラー:', error)
     throw error
+  }
+}
+
+/**
+ * 利用可能なAIモデル一覧を取得
+ */
+export const getAvailableModels = async (): Promise<ModelInfoResponse> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/models`)
+    if (!response.ok) {
+      // エンドポイントがない場合はデフォルトを返す（後方互換性）
+      return {
+        default: 'gemini-1.5-flash',
+        models: [
+          { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Default)', description: '高速・低コスト' },
+          { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: '高精度・推論能力が高い' }
+        ]
+      }
+    }
+    return await response.json()
+  } catch (error) {
+    console.warn('⚠️ モデル一覧取得失敗、デフォルトを使用:', error)
+    return {
+      default: 'gemini-1.5-flash',
+      models: [
+        { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Default)', description: '高速・低コスト' }
+      ]
+    }
   }
 }
