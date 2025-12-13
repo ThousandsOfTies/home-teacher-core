@@ -138,8 +138,7 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             'react-vendor': ['react', 'react-dom'],
             'fabric-vendor': ['fabric'],
-            'pdfjs-vendor': ['pdfjs-dist'],
-            'google-genai': ['@google/genai']
+            'pdfjs-vendor': ['pdfjs-dist']
           }
         }
       }
