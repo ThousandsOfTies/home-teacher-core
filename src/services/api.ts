@@ -28,6 +28,7 @@ export interface Problem {
   correctAnswer: string
   feedback: string
   explanation: string
+  printedPageNumber?: number  // AIが検出した印刷されたページ番号（見開きPDF対応）
   matchingMetadata?: {
     method: 'exact' | 'ai' | 'context' | 'hybrid';
     confidence?: string;
@@ -35,12 +36,21 @@ export interface Problem {
     candidates?: string[];
     similarity?: number;
   }
+  // 採点ソース情報（デバッグ・確認用）
+  gradingSource?: 'db' | 'ai';  // 正解の判定元：DBの登録解答 or AIの推論
+  dbMatchedAnswer?: {           // DBから取得した解答情報（マッチした場合）
+    problemNumber: string;
+    correctAnswer: string;
+    problemPageNumber?: number;
+    pageNumber: number;
+  };
 }
 
 export interface GradingResult {
   problems: Problem[]
   overallComment: string
   rawResponse?: string
+  printedPageNumber?: number  // AIが検出した印刷されたページ番号（見開きPDF対応）
 }
 
 export interface GradeResponse {

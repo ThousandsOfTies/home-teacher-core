@@ -90,7 +90,8 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' })
 // シンプルなレート制限（メモリベース）
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000 // 15分
-const RATE_LIMIT_MAX = 20 // 15分間に20リクエストまで
+const RATE_LIMIT_MAX = process.env.NODE_ENV === 'production' ? 20 : 100 // 開発環境では100リクエストまで
+
 
 const checkRateLimit = (identifier: string): boolean => {
   const now = Date.now()
@@ -475,21 +476,31 @@ app.post('/api/extract-answers', async (req, res) => {
 
 Analyze this image carefully and extract ALL answers visible on this page.
 
+IMPORTANT: Answer pages in Japanese workbooks often show which problem page the answers correspond to.
+Look for references like:
+- "p.5" or "P5" or "5ページ" 
+- Page numbers in headers/margins
+- Section or unit indicators (e.g., "第5回", "Unit 5")
+
 For EACH answer visible:
 1. Identify the problem number (e.g., "1", "問1", "A", "(1)")
 2. Extract the correct answer EXACTLY as shown
 3. Include units if present (cm, °, ㎠, etc.)
+4. Identify which PROBLEM PAGE this answer corresponds to (if indicated)
 
 Return ONLY valid JSON in this format:
 {
+  "problemPageReference": "5",
   "answers": [
     {
       "problemNumber": "1",
-      "correctAnswer": "12cm"
+      "correctAnswer": "12cm",
+      "problemPage": 5
     },
     {
       "problemNumber": "2", 
-      "correctAnswer": "60°"
+      "correctAnswer": "60°",
+      "problemPage": 5
     }
   ],
   "pageInfo": {
@@ -503,9 +514,12 @@ IMPORTANT:
 - Preserve exact formatting (units, symbols, fractions)
 - For geometry: include units (cm, °, cm², etc.)
 - If answer has multiple parts, list each separately: "問1(1)", "問1(2)"
+- If the problem page reference is visible (like "p.5" or "5ページ"), include it in "problemPage"
+- If no problem page reference is visible, set problemPage to null
 - Return ONLY valid JSON, no markdown
 
 LANGUAGE: ${responseLang}`
+
 
     const startTime = Date.now()
 
@@ -773,61 +787,48 @@ app.post('/api/analyze-page', async (req, res) => {
     const langCode = language ? language.split('-')[0] : 'ja'
     const responseLang = langCode === 'ja' ? 'Japanese' : 'English'
 
-    const universalPrompt = `You are analyzing a page from a workbook/textbook.
+    const universalPrompt = `あなたは問題集・ドリルの解答ページを解析するAIです。
 
-First, determine if this is a PROBLEM PAGE or an ANSWER KEY PAGE.
+【タスク】
+この画像から、すべての問題番号と正解を漏れなく抽出してください。
 
-Then extract the appropriate information:
+【重要なルール】
+1. 問題番号は必ず「大問番号(小問番号)」の形式で出力すること
+   例: 1(1), 1(2), 2(1), 2(2) など
+   
+2. 横に並んでいる解答も全て抽出すること
+   例: 「1 (1) 105度 (2) 10度 (3) 47度 (4) 100度」
+   → 1(1)=105度, 1(2)=10度, 1(3)=47度, 1(4)=100度
+   
+3. セクションヘッダーに「問題は○ページ」と書いてあれば、それをproblemPageとして記録
 
-**If this is a PROBLEM PAGE:**
-Extract the structure:
-- Page number (if visible)
-- All problem numbers
-- Problem types
-- Whether problems have diagrams
+4. 「解説」の文章は無視して、答えの値のみを抽出
 
-**If this is an ANSWER KEY PAGE:**
-Extract the answers:
-- Problem numbers
-- Correct answers (with units)
+【出力形式】
+必ず以下のJSON形式で出力してください（他のテキストは不要）:
 
-Return ONLY valid JSON in ONE of these formats:
-
-**For PROBLEM PAGE:**
-{
-  "pageType": "problem",
-  "pageNumber": 5,
-  "problems": [
-    {
-      "problemNumber": "1(1)",
-      "type": "triangle angle calculation",
-      "hasDiagram": true,
-      "topic": "geometry"
-    }
-  ],
-  "totalProblems": 1
-}
-
-**For ANSWER KEY PAGE:**
 {
   "pageType": "answer",
-  "pageNumber": 191,
+  "pageNumber": 78,
   "answers": [
-    {
-      "problemNumber": "1(1)",
-      "correctAnswer": "75°"
-    }
-  ],
-  "totalAnswers": 1
+    {"problemNumber": "1(1)", "correctAnswer": "105度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA（問題は6ページ）"},
+    {"problemNumber": "1(2)", "correctAnswer": "10度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA（問題は6ページ）"},
+    {"problemNumber": "1(3)", "correctAnswer": "47度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA（問題は6ページ）"},
+    {"problemNumber": "1(4)", "correctAnswer": "100度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA（問題は6ページ）"}
+  ]
 }
 
-IMPORTANT:
-- Accurately determine page type
-- Extract ALL items on the page
-- Preserve exact formatting
-- Return ONLY valid JSON, no markdown
+もしこれが問題ページ（解答ページではない）の場合は:
+{
+  "pageType": "problem",
+  "pageNumber": 6,
+  "problems": [{"problemNumber": "1(1)", "type": "計算", "hasDiagram": false}]
+}
 
-LANGUAGE: ${responseLang}`
+【最重要】
+- すべての小問を漏れなく抽出すること
+- 「(2)」だけでなく「1(2)」のように大問番号を必ず付けること
+- 解説文は無視し、答えの数値・記号のみを抽出すること`
 
     const startTime = Date.now()
 
@@ -894,6 +895,14 @@ LANGUAGE: ${responseLang}`
 
     console.log(`✅ ページ分析完了: ${elapsedTime}秒`)
     console.log(`📄 ページタイプ: ${pageType}, アイテム数: ${itemCount}`)
+
+    // デバッグ: 解答ページの場合、各解答のproblemPageを表示
+    if (pageType === 'answer' && analyzedData.answers) {
+      console.log(`📋 解答詳細:`)
+      analyzedData.answers.forEach((ans: any, i: number) => {
+        console.log(`   ${i + 1}. ${ans.problemNumber} = "${ans.correctAnswer}" (問題ページ: ${ans.problemPage ?? '未設定'})`)
+      })
+    }
 
     res.json({
       success: true,
@@ -1104,18 +1113,28 @@ IMAGE ORDER (VERY IMPORTANT):
 - IMAGE 2 (SECOND): Cropped area showing ONE problem (THIS IS WHAT YOU MUST GRADE)
 
 Your task:
-1. Look at IMAGE 1 (full page) ONLY to identify the problem number
-2. Look at IMAGE 2 (cropped) to see what the student actually answered
+1. Look at IMAGE 1 (full page) to:
+   a. Find the PRINTED PAGE NUMBER(s) visible on the page (e.g., "p.4", "5ページ", "4", "5" in corners/margins)
+   b. Identify which printed page the cropped problem belongs to
+   c. Identify the exact problem number
+
+2. Many workbooks show 2 printed pages per PDF page (a spread/見開き). Look for page numbers in:
+   - Top corners (left page number on left, right page number on right)
+   - Bottom corners
+   - Headers or footers
+   - Examples: "4", "5", "p.4", "4ページ"
+
 3. Determine the EXACT problem number by considering:
    - Position on the page (top/middle/bottom, left/right)
-   - Visual context and surrounding problems visible in IMAGE 1
+   - Which printed page (left or right) the problem appears on
    - Sub-problem numbers like (1), (2), (3) if visible
 
-4. Extract the student's answer from IMAGE 2 (cropped) ONLY
-5. Grade ONLY what is visible in IMAGE 2 (cropped)
+4. Look at IMAGE 2 (cropped) to see what the student actually answered
+5. Extract the student's answer from IMAGE 2 (cropped) ONLY
+6. Grade ONLY what is visible in IMAGE 2 (cropped)
 
 CRITICAL RULES (READ CAREFULLY):
-- IMAGE 1 is ONLY for identifying the problem number - DO NOT grade it
+- IMAGE 1 is for identifying the problem number AND printed page number - DO NOT grade it
 - IMAGE 2 is the ONLY thing you should grade
 - The student wrote their answer in IMAGE 2, not IMAGE 1
 - DO NOT grade blank/empty problems visible in IMAGE 1
@@ -1123,16 +1142,16 @@ CRITICAL RULES (READ CAREFULLY):
 - Ignore all other problems visible in IMAGE 1
 
 EXAMPLE:
-- IMAGE 1 shows: Problem 1(1), 1(2), 1(3) on the page
-- IMAGE 2 shows: Only problem 1(1) with answer "59°"
-- You should: Grade ONLY "59°" for problem 1(1)
-- You should NOT: Grade 1(2) or 1(3) even if they're blank in IMAGE 1
+- IMAGE 1 shows: A spread with page 4 (left) and page 5 (right), Problems 1(1), 1(2) on page 4
+- IMAGE 2 shows: Problem 1(1) with answer "59°" (from the left side = page 4)
+- printedPageNumber should be: 4 (not the PDF page, but the printed page number visible in IMAGE 1)
 
 Return ONLY valid JSON:
 {
+  "printedPageNumber": <number or null - the page number printed on the workbook page where the problem is located>,
   "problemNumber": "exact problem number (e.g., '1(1)', '1(2)', '2')",
   "confidence": "high/medium/low",
-  "positionReasoning": "brief explanation of how you identified the problem number from IMAGE 1",
+  "positionReasoning": "brief explanation: which side of the spread (left/right), what printed page number you found",
   "problemText": "problem text from IMAGE 2 (cropped)",
   "studentAnswer": "student's answer from IMAGE 2 (cropped) ONLY",
   "isCorrect": true or false (based on the answer in IMAGE 2),
@@ -1140,6 +1159,14 @@ Return ONLY valid JSON:
   "feedback": "encouraging feedback about the answer in IMAGE 2",
   "explanation": "detailed explanation about the answer in IMAGE 2"
 }
+
+IMPORTANT for printedPageNumber:
+- This is the PAGE NUMBER PRINTED ON THE WORKBOOK, not the PDF page number
+- Look for numbers like "4", "5", "p.4", "4ページ" in corners/margins of IMAGE 1
+- If the problem is on the LEFT side of a spread, use the left page's number
+- If the problem is on the RIGHT side, use the right page's number
+- Return as a number (e.g., 4), not a string
+- If no page number is visible, return null
 
 FINAL REMINDER:
 - Grade ONLY the answer visible in IMAGE 2 (the cropped image)
@@ -1221,6 +1248,7 @@ LANGUAGE: ${responseLang}`
     }
 
     console.log(`✅ 文脈ベース解析完了: ${elapsedTime}秒`)
+    console.log(`   印刷ページ番号: ${gradingData.printedPageNumber ?? '(検出できず)'}`)
     console.log(`   問題番号: ${gradingData.problemNumber} (信頼度: ${gradingData.confidence})`)
     console.log(`   生徒の解答: "${gradingData.studentAnswer}"`)
     console.log(`   位置推定: ${gradingData.positionReasoning}`)
@@ -1239,7 +1267,8 @@ LANGUAGE: ${responseLang}`
       success: true,
       result: {
         problems: [problemWithMetadata],
-        overallComment: `問題番号の特定: ${gradingData.positionReasoning}`
+        overallComment: `問題番号の特定: ${gradingData.positionReasoning}`,
+        printedPageNumber: gradingData.printedPageNumber  // 印刷ページ番号をレスポンスに含める
       },
       modelName: preferredModelName,
       responseTime: elapsedTime

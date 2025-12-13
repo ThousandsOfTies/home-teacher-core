@@ -271,6 +271,7 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }:
   // ページ番号が変更されたら保存
   useEffect(() => {
     if (!pdfId) return
+    if (answerRegistrationMode) return // 解答登録モードの時はページ位置を保存しない
 
     const savePageNumber = async () => {
       try {
@@ -1096,8 +1097,23 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }:
       console.log(`🎓 解答登録開始: ページ ${startPage} からページ ${numPages} まで`)
       addStatusMessage(`🎓 解答登録開始 (${startPage}→${numPages})`)
 
+      // === フェーズ1: 全ページを処理して解答を収集 ===
+      interface CollectedAnswer {
+        pdfPage: number
+        problemNumber: string
+        correctAnswer: string
+        problemPage: number | null  // 処理後のページ参照（なければnull）
+        sectionName?: string
+        // AIの生データ（デバッグ用）
+        rawAiProblemPage?: number | string | null
+        rawAiSectionName?: string | null
+      }
+
+      const allAnswers: CollectedAnswer[] = []
+      const sectionBoundaries: { pdfPage: number; problemPage: number }[] = []
+
       for (let page = startPage; page <= numPages; page++) {
-        console.log(`📄 ページ ${page} を処理中...`)
+        console.log(`📄 [フェーズ1] ページ ${page} を解析中...`)
 
         // Canvas to image for this page
         const pdfPage = await pdfDoc.getPage(page)
@@ -1115,40 +1131,207 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }:
 
         const imageData = tempCanvas.toDataURL('image/jpeg', 0.9)
 
-        // API呼び出し: ページを解析
-        const response = await fetch('http://localhost:3003/api/analyze-page', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageData,
-            pageNumber: page,
-            language: navigator.language
-          })
-        })
-
-        const result = await response.json()
+        // API呼び出し: ページを解析 (api.tsのanalyzePage関数を使用)
+        const { analyzePage } = await import('../../services/api')
+        const result = await analyzePage(imageData, page)
 
         if (result.success && result.pageType === 'answer' && result.data.answers) {
-          // 解答データを保存
-          const { saveAnswers, generateAnswerId } = await import('../../utils/indexedDB')
+          for (const answer of result.data.answers) {
+            // デバッグ: AIからの応答を詳しく表示
+            console.log(`🔍 AI応答 [PDFページ${page}]:`, {
+              problemNumber: answer.problemNumber,
+              correctAnswer: answer.correctAnswer,
+              problemPage: answer.problemPage,
+              sectionName: answer.sectionName
+            })
 
-          const answerRecords = result.data.answers.map((answer: any) => ({
-            id: generateAnswerId(pdfId, page, answer.problemNumber),
-            pdfId: pdfId,
-            pageNumber: page,
-            problemNumber: answer.problemNumber,
-            correctAnswer: answer.correctAnswer,
-            createdAt: Date.now()
-          }))
+            let problemPage: number | null = null
 
-          await saveAnswers(answerRecords)
-          console.log(`✅ ページ ${page}: ${answerRecords.length}件の解答を保存`)
+            // 1. sectionNameから明示的なページ番号を抽出（最も信頼性が高い）
+            if (answer.sectionName) {
+              // 「第○回」のようなセッション番号を除外
+              const sessionPattern = /第[0-9０-９]+回/
+              const hasSessionNumber = sessionPattern.test(answer.sectionName)
+
+              // ページを明示するパターンのみを抽出
+              const pagePatterns = [
+                /(?:p\.?|page)\s*([0-9０-９]+)/i,                    // p.6, page 6
+                /問題[はが]?\s*([0-9０-９]+)\s*(?:ページ)/i,          // 問題は6ページ
+                /([0-9０-９]+)\s*ページ/,                            // 6ページ (ただし「第29回」は除外)
+              ]
+
+              for (const pattern of pagePatterns) {
+                const match = answer.sectionName.match(pattern)
+                if (match && match[1]) {
+                  let numStr = match[1]
+                  numStr = numStr.replace(/[０-９]/g, (s: string) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+                  const extractedPage = parseInt(numStr, 10)
+
+                  // 妥当性チェック: ページ番号が妥当な範囲内か
+                  if (!isNaN(extractedPage) && extractedPage > 0 && extractedPage < 1000) {
+                    problemPage = extractedPage
+                    console.log(`📄 sectionNameからページ番号抽出: "${answer.sectionName}" → ${problemPage}`)
+                    break
+                  }
+                }
+              }
+
+              // セッション番号が含まれていてページ番号が見つからない場合は警告
+              if (hasSessionNumber && problemPage === null) {
+                console.log(`⚠️ セッション番号を検出（ページ番号ではない）: "${answer.sectionName}"`)
+              }
+            }
+
+            // 2. AIが直接返したproblemPageを使用（sectionNameから抽出できなかった場合のみ）
+            if (problemPage === null && answer.problemPage != null) {
+              if (typeof answer.problemPage === 'number') {
+                // 妥当性チェック: AIが返した値が合理的か
+                if (answer.problemPage > 0 && answer.problemPage < page) {
+                  problemPage = answer.problemPage
+                  console.log(`📄 AIのproblemPageを使用: ${problemPage}`)
+                } else {
+                  console.log(`⚠️ AIのproblemPage(${answer.problemPage})は不正な値のため無視`)
+                }
+              } else if (typeof answer.problemPage === 'string') {
+                const match = answer.problemPage.toString().match(/\d+/)
+                if (match) {
+                  const parsed = parseInt(match[0], 10)
+                  if (parsed > 0 && parsed < page) {
+                    problemPage = parsed
+                    console.log(`📄 AIのproblemPage(文字列)を使用: ${problemPage}`)
+                  }
+                }
+              }
+            }
+
+
+            // 新しいセクションを検出
+            if (problemPage !== null) {
+              const lastBoundary = sectionBoundaries[sectionBoundaries.length - 1]
+              if (!lastBoundary || lastBoundary.problemPage !== problemPage) {
+                sectionBoundaries.push({ pdfPage: page, problemPage })
+                console.log(`📌 セクション境界検出: PDFページ ${page} → 問題ページ ${problemPage}`)
+              }
+            }
+
+            allAnswers.push({
+              pdfPage: page,
+              problemNumber: answer.problemNumber,
+              correctAnswer: answer.correctAnswer,
+              problemPage,
+              sectionName: answer.sectionName,
+              // AIの生データを保存（デバッグ用）
+              rawAiProblemPage: answer.problemPage,
+              rawAiSectionName: answer.sectionName
+            })
+          }
         }
 
-        setAnswersProcessed(page - startPage + 1)
+        setAnswersProcessed(Math.floor((page - startPage + 1) / 2))  // フェーズ1は50%
       }
 
-      addStatusMessage(`✅ 完了! ${numPages - startPage + 1}ページ処理しました`)
+      console.log(`📊 フェーズ1完了: ${allAnswers.length}件の解答を収集、${sectionBoundaries.length}個のセクション境界を検出`)
+
+      // === フェーズ2: セクション境界を元に遡及的にページ番号を割り当て ===
+      const { saveAnswers, generateAnswerId } = await import('../../utils/indexedDB')
+
+      // シンプルな「Fill-Down（下方向への塗りつぶし）」戦略
+      // リストは順序通りに来るため、新しいセクションが見つかるまで前のセクションを継続する
+      let currentSectionPage: number | null | undefined = undefined
+      let hasExplicitPageRef = false
+
+      const assignedAnswers = allAnswers.map(answer => {
+        let updatedFromSectionName = false
+        hasExplicitPageRef = false // フラグをリセット
+
+        // 1. セクション名からページ番号を抽出（最強のソース）
+        if (answer.sectionName) {
+          // 様々なページ参照パターンを抽出（全角数字対応）
+          // - "p.6", "p6", "Page 6"
+          // - "6ページ", "○○ページ"
+          // - "問題は6ページ", "問題6ページ"
+          // - "<問題は6ページ>"
+          const patterns = [
+            /(?:p\.?|page)\s*([0-9０-９]+)/i,                    // p.6, page 6
+            /([0-9０-９]+)\s*(?:ページ|page)/i,                  // 6ページ
+            /問題[はが]?\s*([0-9０-９]+)\s*(?:ページ)?/i,         // 問題は6ページ, 問題6
+            /<[^>]*?([0-9０-９]+)\s*(?:ページ)[^>]*>/i,          // <問題は6ページ>
+          ]
+
+          for (const pattern of patterns) {
+            const match = answer.sectionName.match(pattern)
+            if (match && match[1]) {
+              let numStr = match[1]
+              // 全角数字を半角に変換
+              numStr = numStr.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+
+              const extractedPage = parseInt(numStr, 10)
+              if (!isNaN(extractedPage)) {
+                currentSectionPage = extractedPage
+                updatedFromSectionName = true
+                hasExplicitPageRef = true
+                console.log(`🏷️ セクション名からページ抽出: "${answer.sectionName}" → ${currentSectionPage}`)
+                break  // 最初にマッチしたパターンを使用
+              }
+            }
+          }
+        }
+
+        // 2. 明示的なページ参照がある場合（セクション名からの抽出ができなかった場合のみ採用）
+        if (answer.problemPage !== null) {
+          if (!updatedFromSectionName) {
+            currentSectionPage = answer.problemPage
+            hasExplicitPageRef = true
+          }
+        }
+
+        // 3. リセットロジック（重要）:
+        // 新しい大問（1番など）が始まり、かつ明示的なページ指定がない場合、
+        // 前のセクションからの継続（Fill-Down）を断ち切るためにリセットする
+        if (!hasExplicitPageRef) {
+          const n = (answer.problemNumber || '').replace(/\s+/g, '').toLowerCase()
+          // "1", "1(1)", "問1", "question1" などで始まる場合
+          if (n === '1' || n.startsWith('1(') || n.startsWith('問1') || n.startsWith('question1')) {
+            console.log(`🔄 新しいセクションの開始を検出（ページ指定なし）: "${answer.problemNumber}" → リセット`)
+            currentSectionPage = undefined // nullではなくundefinedにして「不明」扱いにする
+          }
+        }
+
+        const assignedPage = currentSectionPage !== null ? currentSectionPage : undefined
+
+
+
+        if (assignedPage) {
+          console.log(`📎 割り当て: ${answer.problemNumber} → 問題ページ ${assignedPage} ${answer.problemPage !== null ? '(明示的)' : '(継続)'}`)
+        }
+
+        return {
+          id: generateAnswerId(pdfId, answer.pdfPage, answer.problemNumber),
+          pdfId: pdfId,
+          pageNumber: answer.pdfPage,
+          problemPageNumber: assignedPage,
+          problemNumber: answer.problemNumber,
+          correctAnswer: answer.correctAnswer,
+          sectionName: answer.sectionName,
+          createdAt: Date.now(),
+          // AIの生データを保存（デバッグ用）
+          rawAiResponse: {
+            problemPage: answer.rawAiProblemPage ?? null,
+            sectionName: answer.rawAiSectionName ?? null
+          }
+        }
+      })
+
+      // 保存
+      await saveAnswers(assignedAnswers)
+      console.log(`✅ フェーズ2完了: ${assignedAnswers.length}件の解答を保存`)
+
+      // 統計を出力
+      const withPageRef = assignedAnswers.filter(a => a.problemPageNumber !== undefined).length
+      console.log(`📊 統計: ページ参照あり ${withPageRef}/${assignedAnswers.length} (${Math.round(withPageRef / assignedAnswers.length * 100)}%)`)
+
+      setAnswersProcessed(numPages - startPage + 1)
+      addStatusMessage(`✅ 完了! ${assignedAnswers.length}件の解答を登録しました`)
       console.log('🎉 解答登録完了!')
 
       // 3秒後に管理画面に戻る
@@ -1381,8 +1564,16 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }:
             const registeredAnswers = await getAnswersByPdfId(pdfId)
 
             console.log(`📚 登録済み解答: ${registeredAnswers.length}件`)
+            console.log(`📦 解答リスト:`, registeredAnswers.map(a => ({
+              problemNumber: a.problemNumber,
+              correctAnswer: a.correctAnswer,
+              pageNumber: a.pageNumber,
+              problemPageNumber: a.problemPageNumber
+            })))
 
             for (const problem of response.result.problems) {
+              console.log(`🎯 AI検出: 問題番号="${problem.problemNumber}", 生徒解答="${problem.studentAnswer}"`)
+
               // 解答を正規化する関数
               const normalizeAnswer = (answer: string): string => {
                 return answer
@@ -1396,11 +1587,160 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }:
                   .trim()
               }
 
-              // 問題番号で解答を検索
-              const matchedAnswer = registeredAnswers.find(ans =>
-                ans.problemNumber === problem.problemNumber ||
-                ans.problemNumber === problem.problemNumber.replace(/[()（）]/g, '')
-              )
+              // 問題番号を正規化する関数（スペースと括弧の形式を統一）
+              const normalizeProblemNumber = (pn: string): string => {
+                if (!pn) return ''
+                return pn
+                  .replace(/\s+/g, '') // スペースを削除: "1 (1)" → "1(1)"
+                  .replace(/（/g, '(')  // 全角括弧を半角に
+                  .replace(/）/g, ')')
+                  .toLowerCase()
+                  .trim()
+              }
+
+              // === マッチングロジック: セクション → 問題番号の順で絞り込み ===
+              const normalizedAiProblem = normalizeProblemNumber(problem.problemNumber)
+
+              // AIが検出した印刷されたページ番号を取得
+              const printedPage = problem.printedPageNumber || response.result.printedPageNumber
+              console.log(`📄 AIが検出した印刷ページ番号: ${printedPage ?? '(検出できず)'}`)
+
+              // デバッグ: すべての登録済み解答の正規化結果を表示
+              console.log('🔍 デバッグ: 問題番号の比較')
+              console.log(`   AI検出: "${problem.problemNumber}" → 正規化: "${normalizedAiProblem}"`)
+              registeredAnswers.slice(0, 10).forEach((ans, i) => {
+                const normalized = normalizeProblemNumber(ans.problemNumber)
+                const isMatch = normalized === normalizedAiProblem
+                console.log(`   DB[${i}]: "${ans.problemNumber}" → 正規化: "${normalized}" ${isMatch ? '✅ MATCH' : ''} (problemPageNumber: ${ans.problemPageNumber})`)
+              })
+              if (registeredAnswers.length > 10) {
+                console.log(`   ... 残り ${registeredAnswers.length - 10} 件`)
+              }
+
+              let matchedAnswer: typeof registeredAnswers[0] | undefined = undefined
+
+              if (printedPage) {
+                // Step 1: まずセクション（ページ番号）で絞り込み
+                // printedPage以下で最大のproblemPageNumberを持つセクションを特定
+                const allPageNumbers = registeredAnswers
+                  .map(a => a.problemPageNumber)
+                  .filter((p): p is number => p !== undefined && p <= printedPage)
+
+                if (allPageNumbers.length > 0) {
+                  const targetSectionPage = Math.max(...allPageNumbers)
+                  console.log(`📂 対象セクション: 問題ページ ${targetSectionPage} (印刷ページ ${printedPage} 以下で最大)`)
+
+                  // Step 2: 対象セクション内で問題番号でマッチング
+                  const sectionAnswers = registeredAnswers.filter(ans =>
+                    ans.problemPageNumber === targetSectionPage
+                  )
+
+                  const matchingInSection = sectionAnswers.filter(ans => {
+                    if (!ans.problemNumber) return false
+                    const normalizedDbProblem = normalizeProblemNumber(ans.problemNumber)
+                    return normalizedDbProblem === normalizedAiProblem
+                  })
+
+                  if (matchingInSection.length === 1) {
+                    matchedAnswer = matchingInSection[0]
+                    console.log(`✅ セクション${targetSectionPage}内で一意に特定`)
+                  } else if (matchingInSection.length > 1) {
+                    console.log(`⚠️ セクション${targetSectionPage}内に${matchingInSection.length}件の候補 → AIの判定を使用`)
+                  } else {
+                    // セクション内に見つからない場合、問題番号でグローバル検索
+                    console.log(`⚠️ セクション${targetSectionPage}内に問題「${problem.problemNumber}」が見つかりません → グローバル検索`)
+
+                    const matchingAnswers = registeredAnswers.filter(ans => {
+                      if (!ans.problemNumber) return false
+                      const normalizedDbProblem = normalizeProblemNumber(ans.problemNumber)
+                      return normalizedDbProblem === normalizedAiProblem
+                    })
+
+                    if (matchingAnswers.length === 1) {
+                      matchedAnswer = matchingAnswers[0]
+                      console.log(`✅ 問題番号「${problem.problemNumber}」の解答が一意に特定されました (グローバル検索)`)
+                    } else if (matchingAnswers.length > 1) {
+                      // 複数候補がある場合、印刷ページに最も近いものを選択
+                      const closest = matchingAnswers.reduce((prev, curr) => {
+                        const prevDist = Math.abs((prev.problemPageNumber ?? 9999) - printedPage)
+                        const currDist = Math.abs((curr.problemPageNumber ?? 9999) - printedPage)
+                        return currDist < prevDist ? curr : prev
+                      })
+                      matchedAnswer = closest
+                      console.log(`📍 ${matchingAnswers.length}件の候補から最も近いページ(${closest.problemPageNumber})の解答を選択`)
+                    }
+                  }
+                } else {
+                  console.log(`⚠️ 印刷ページ${printedPage}以下のセクションが見つかりません → AIの判定を使用`)
+                }
+              } else {
+                // 印刷ページが検出できなかった場合のフォールバック
+                console.log(`⚠️ 印刷ページ番号が検出できませんでした → PDFページ番号(${pageNum})を使用`)
+
+                // PDFページ番号を使ってセクションを推定
+                // NOTE: PDFページ番号と印刷ページ番号は必ずしも一致しないが、近い値であることが多い
+                const allPageNumbers = registeredAnswers
+                  .map(a => a.problemPageNumber)
+                  .filter((p): p is number => p !== undefined && p <= pageNum)
+
+                if (allPageNumbers.length > 0) {
+                  const targetSectionPage = Math.max(...allPageNumbers)
+                  console.log(`📂 PDFページ${pageNum}から推定されるセクション: 問題ページ ${targetSectionPage}`)
+
+                  // セクション内で問題番号でマッチング
+                  const sectionAnswers = registeredAnswers.filter(ans =>
+                    ans.problemPageNumber === targetSectionPage
+                  )
+
+                  const matchingInSection = sectionAnswers.filter(ans => {
+                    if (!ans.problemNumber) return false
+                    const normalizedDbProblem = normalizeProblemNumber(ans.problemNumber)
+                    return normalizedDbProblem === normalizedAiProblem
+                  })
+
+                  if (matchingInSection.length === 1) {
+                    matchedAnswer = matchingInSection[0]
+                    console.log(`✅ セクション${targetSectionPage}内で一意に特定 (PDFページベース)`)
+                  } else if (matchingInSection.length > 1) {
+                    console.log(`⚠️ セクション${targetSectionPage}内に${matchingInSection.length}件の候補 → AIの判定を使用`)
+                  } else {
+                    // セクション内に見つからない場合、問題番号のみでマッチング
+                    console.log(`⚠️ セクション${targetSectionPage}内に問題「${problem.problemNumber}」が見つかりません`)
+
+                    const matchingAnswers = registeredAnswers.filter(ans => {
+                      if (!ans.problemNumber) return false
+                      const normalizedDbProblem = normalizeProblemNumber(ans.problemNumber)
+                      return normalizedDbProblem === normalizedAiProblem
+                    })
+
+                    if (matchingAnswers.length === 1) {
+                      matchedAnswer = matchingAnswers[0]
+                      console.log(`✅ 問題番号「${problem.problemNumber}」の解答が一意に特定されました (全体検索)`)
+                    } else if (matchingAnswers.length > 1) {
+                      console.log(`⚠️ ${matchingAnswers.length}件の候補があります → AIの判定を使用`)
+                    }
+                  }
+                } else {
+                  // セクションが見つからない場合、問題番号のみでマッチング（後方互換性）
+                  const matchingAnswers = registeredAnswers.filter(ans => {
+                    if (!ans.problemNumber) return false
+                    const normalizedDbProblem = normalizeProblemNumber(ans.problemNumber)
+                    return normalizedDbProblem === normalizedAiProblem
+                  })
+
+                  if (matchingAnswers.length === 1) {
+                    matchedAnswer = matchingAnswers[0]
+                    console.log(`✅ 問題番号「${problem.problemNumber}」の解答が一意に特定されました`)
+                  } else if (matchingAnswers.length > 1) {
+                    console.log(`⚠️ ${matchingAnswers.length}件の候補があります → AIの判定を使用`)
+                  }
+                }
+              }
+
+              // ログ出力
+              console.log(`🔎 マッチング結果: 問題番号="${problem.problemNumber}" (正規化: "${normalizedAiProblem}"), 印刷ページ=${printedPage ?? '不明'}, PDFページ=${pageNum}`)
+              console.log(`   見つかった解答:`, matchedAnswer ? { problemNumber: matchedAnswer.problemNumber, correctAnswer: matchedAnswer.correctAnswer, pageNumber: matchedAnswer.pageNumber, problemPageNumber: matchedAnswer.problemPageNumber } : '(AI判定を使用)')
+
 
               let isCorrect = false
               let correctAnswer = ''
@@ -1411,6 +1751,7 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }:
                 correctAnswer = matchedAnswer.correctAnswer
                 const normalizedStudent = normalizeAnswer(problem.studentAnswer)
                 const normalizedCorrect = normalizeAnswer(correctAnswer)
+
 
                 isCorrect = normalizedStudent === normalizedCorrect
 
@@ -1457,6 +1798,17 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }:
               problem.correctAnswer = correctAnswer
               problem.feedback = feedback
               problem.explanation = explanation
+
+              // 採点ソース情報を追加（デバッグ・確認用）
+              problem.gradingSource = matchedAnswer ? 'db' : 'ai'
+              if (matchedAnswer) {
+                problem.dbMatchedAnswer = {
+                  problemNumber: matchedAnswer.problemNumber,
+                  correctAnswer: matchedAnswer.correctAnswer,
+                  problemPageNumber: matchedAnswer.problemPageNumber,
+                  pageNumber: matchedAnswer.pageNumber
+                }
+              }
             }
 
             // 更新された結果を表示に反映

@@ -69,12 +69,20 @@ export interface SNSUsageHistoryRecord {
 export interface AnswerRecord {
   id: string; // ユニークID (pdfId_page_problem)
   pdfId: string; // 問題集のID
-  pageNumber: number; // 解答ページ番号
+  pageNumber: number; // 解答ページ番号（PDFのページ）
+  problemPageNumber?: number; // 問題ページ番号（解答ページから抽出）
   problemNumber: string; // 問題番号（例: "1", "問1", "A"）
   correctAnswer: string; // 正解（例: "12cm", "60°"）
   problemText?: string; // 問題文（オプション）
+  sectionName?: string; // AIが返したsectionName（デバッグ用）
   createdAt: number; // 登録日時
+  // AIの生の応答データ（デバッグ用）
+  rawAiResponse?: {
+    problemPage: number | string | null; // AIが返したproblemPage（生データ）
+    sectionName: string | null;           // AIが返したsectionName（生データ）
+  };
 }
+
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -751,4 +759,97 @@ export async function deleteAnswersByPdfId(pdfId: string): Promise<void> {
       resolve();
     }
   });
+}
+
+// ========================================
+// デバッグ用: 登録済み解答をコンソールに出力
+// ========================================
+
+// 全解答をダンプ（ブラウザコンソールから: window.dumpAllAnswers()）
+export async function dumpAllAnswers(): Promise<void> {
+  const db = await openDB();
+
+  return new Promise((resolve) => {
+    const transaction = db.transaction([ANSWER_STORE_NAME], 'readonly');
+    const objectStore = transaction.objectStore(ANSWER_STORE_NAME);
+    const request = objectStore.getAll();
+
+    request.onsuccess = () => {
+      const answers = request.result as AnswerRecord[];
+
+      console.log('='.repeat(80));
+      console.log('📚 登録済み解答一覧 (全' + answers.length + '件)');
+      console.log('='.repeat(80));
+
+      // PDF IDごとにグループ化
+      const byPdfId = answers.reduce((acc, ans) => {
+        if (!acc[ans.pdfId]) acc[ans.pdfId] = [];
+        acc[ans.pdfId].push(ans);
+        return acc;
+      }, {} as Record<string, AnswerRecord[]>);
+
+      for (const [pdfId, pdfAnswers] of Object.entries(byPdfId)) {
+        console.log(`\n📄 PDF: ${pdfId} (${pdfAnswers.length}件)`);
+        console.log('-'.repeat(60));
+
+        // 問題ページ番号でソート
+        pdfAnswers.sort((a, b) => {
+          const pageA = a.problemPageNumber ?? 9999;
+          const pageB = b.problemPageNumber ?? 9999;
+          if (pageA !== pageB) return pageA - pageB;
+          return a.problemNumber.localeCompare(b.problemNumber);
+        });
+
+        for (const ans of pdfAnswers) {
+          console.log(`  問題ページ: ${ans.problemPageNumber ?? '未設定'} | 問題番号: ${ans.problemNumber} | 正解: ${ans.correctAnswer}`);
+          if (ans.rawAiResponse) {
+            console.log(`    └─ AI生データ: problemPage=${ans.rawAiResponse.problemPage}, sectionName="${ans.rawAiResponse.sectionName ?? ''}"`);
+          }
+        }
+      }
+
+      console.log('\n' + '='.repeat(80));
+      console.log('💡 ヒント: 個別PDFの確認は window.dumpAnswersByPdf("PDF_ID") を使用');
+      console.log('='.repeat(80));
+
+      resolve();
+    };
+  });
+}
+
+// 特定PDFの解答をダンプ（ブラウザコンソールから: window.dumpAnswersByPdf("PDF_ID")）
+export async function dumpAnswersByPdf(pdfId: string): Promise<void> {
+  const answers = await getAnswersByPdfId(pdfId);
+
+  console.log('='.repeat(80));
+  console.log(`📚 PDF「${pdfId}」の登録済み解答 (${answers.length}件)`);
+  console.log('='.repeat(80));
+
+  // 問題ページ番号でソート
+  answers.sort((a, b) => {
+    const pageA = a.problemPageNumber ?? 9999;
+    const pageB = b.problemPageNumber ?? 9999;
+    if (pageA !== pageB) return pageA - pageB;
+    return a.problemNumber.localeCompare(b.problemNumber);
+  });
+
+  for (const ans of answers) {
+    console.log(`問題ページ: ${String(ans.problemPageNumber ?? '???').padStart(3)} | PDFページ: ${String(ans.pageNumber).padStart(3)} | 問題: ${ans.problemNumber.padEnd(10)} | 正解: ${ans.correctAnswer}`);
+    console.log(`  └─ セクション名: "${ans.sectionName ?? 'なし'}"`);
+    if (ans.rawAiResponse) {
+      console.log(`  └─ AI生データ: problemPage=${JSON.stringify(ans.rawAiResponse.problemPage)}, sectionName="${ans.rawAiResponse.sectionName ?? ''}"`);
+    }
+    console.log('');
+  }
+
+  console.log('='.repeat(80));
+}
+
+// グローバルに公開（ブラウザコンソールから呼び出せるように）
+if (typeof window !== 'undefined') {
+  (window as any).dumpAllAnswers = dumpAllAnswers;
+  (window as any).dumpAnswersByPdf = dumpAnswersByPdf;
+  console.log('🔧 デバッグ用コマンド利用可能:');
+  console.log('   - window.dumpAllAnswers() : 全解答をダンプ');
+  console.log('   - window.dumpAnswersByPdf("PDF_ID") : 特定PDFの解答をダンプ');
 }

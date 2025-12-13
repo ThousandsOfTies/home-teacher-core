@@ -161,9 +161,8 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
               {validProblems.map((problem, index) => (
                 <div
                   key={index}
-                  className={`problem-item ${
-                    problem.isCorrect ? 'correct' : 'incorrect'
-                  }`}
+                  className={`problem-item ${problem.isCorrect ? 'correct' : 'incorrect'
+                    }`}
                 >
                   <div className="problem-header">
                     <span className="result-icon">
@@ -205,6 +204,33 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
                       <p>{problem.explanation}</p>
                     </div>
                   )}
+
+                  {/* 採点ソース情報（デバッグ・確認用） */}
+                  <div className="grading-source" style={{
+                    marginTop: '12px',
+                    padding: '8px 12px',
+                    backgroundColor: problem.gradingSource === 'db' ? '#e8f5e9' : '#fff3e0',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    color: '#666'
+                  }}>
+                    <strong>採点ソース:</strong>{' '}
+                    {problem.gradingSource === 'db' ? (
+                      <span style={{ color: '#2e7d32' }}>
+                        📚 登録済み解答から判定
+                        {problem.dbMatchedAnswer && (
+                          <span style={{ display: 'block', marginTop: '4px', fontSize: '11px' }}>
+                            問題ページ: {problem.dbMatchedAnswer.problemPageNumber ?? '不明'},
+                            登録正解: {problem.dbMatchedAnswer.correctAnswer}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#e65100' }}>
+                        🤖 AIの推論による判定
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
