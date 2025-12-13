@@ -1852,7 +1852,16 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
             </div>
           )}
 
-          <div className="canvas-wrapper" ref={wrapperRef}>
+          <div
+            className="canvas-wrapper"
+            ref={wrapperRef}
+            style={{
+              cursor: isSelectionMode ? 'crosshair' :
+                isDrawingMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'20\' height=\'20\'%3E%3Ccircle cx=\'10\' cy=\'10\' r=\'3\' fill=\'%23' + penColor.substring(1) + '\' stroke=\'white\' stroke-width=\'1\'/%3E%3C/svg%3E") 10 10, crosshair' :
+                  isEraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\'%3E%3Crect x=\'4\' y=\'4\' width=\'16\' height=\'16\' fill=\'none\' stroke=\'%23666\' stroke-width=\'2\'/%3E%3C/svg%3E") 12 12, crosshair' :
+                    isPanning ? 'grabbing' : 'grab'
+            }}
+          >
             <div
               className="canvas-layer"
               style={{
