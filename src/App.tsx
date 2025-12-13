@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import AdminPanel from './components/admin/AdminPanel'
-import PDFViewer from './components/pdf/PDFViewer'
+import StudyPanel from './components/study/StudyPanel'
 import { PDFFileRecord } from './utils/indexedDB'
 
 type AppView = 'admin' | 'viewer'
@@ -58,7 +58,7 @@ function App() {
           onUpdate={handleUpdate}
         />
       ) : selectedPDF ? (
-        <PDFViewer
+        <StudyPanel
           pdfRecord={selectedPDF}
           pdfId={selectedPDF.id}
           onBack={handleBackToAdmin}

@@ -7,7 +7,7 @@ import { ICON_SVG } from '../../constants/icons'
 import { usePDFRenderer } from '../../hooks/pdf/usePDFRenderer'
 import { useDrawing, useEraser, useZoomPan, DrawingPath } from '@thousands-of-ties/drawing-common'
 import { useSelection } from '../../hooks/pdf/useSelection'
-import './PDFViewer.css'
+import './StudyPanel.css'
 
 // PDF.jsのworkerを設定（ローカルファイルを使用、Safari/Edge対応）
 // 開発環境と本番環境でパスを切り替え
@@ -43,14 +43,14 @@ const compressImage = (canvas: HTMLCanvasElement, maxSize: number = 1024): strin
   return tempCanvas.toDataURL('image/jpeg', isIOS ? 0.7 : 0.8)
 }
 
-interface PDFViewerProps {
+interface StudyPanelProps {
   pdfRecord: PDFFileRecord // PDFファイルレコード全体を受け取る
   pdfId: string // IndexedDBのレコードID
   onBack?: () => void // 管理画面に戻るコールバック
   answerRegistrationMode?: boolean // 解答登録モード
 }
 
-const PDFViewer = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }: PDFViewerProps) => {
+const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }: StudyPanelProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawingCanvasRef = useRef<HTMLCanvasElement>(null)
   const selectionCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -2520,4 +2520,4 @@ const PDFViewer = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }:
   )
 }
 
-export default PDFViewer
+export default StudyPanel
