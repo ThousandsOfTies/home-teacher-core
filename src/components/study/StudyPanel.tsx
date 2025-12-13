@@ -801,7 +801,22 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
 
   // 解答登録処理（指定ページ以降を全て処理）
   const processAnswersFromPage = async (startPage: number) => {
+    console.log('processAnswersFromPage called with:', startPage);
     const pdfDoc = pdfCanvasRef.current?.pdfDoc
+
+    if (!pdfDoc) {
+      console.error('❌ processAnswersFromPage: pdfDoc is missing', { ref: pdfCanvasRef.current });
+      addStatusMessage('❌ PDFドキュメントが取得できませんでした');
+      return;
+    }
+    if (!canvasRef.current) {
+      console.error('❌ processAnswersFromPage: canvasRef.current is missing');
+      // canvasRefは描画には必須だが、ここではAPI呼び出しのためのoffscreen canvas作成にviewport取得などで利用するかもしれない
+      // ただしコード上は tempCanvas を作っているので canvasRef 自体は不要かもしれないが、
+      // 既存コードのガード条件に従う。
+      return;
+    }
+
     if (!pdfDoc || !canvasRef.current) return
 
     setShowAnswerStartDialog(false)
