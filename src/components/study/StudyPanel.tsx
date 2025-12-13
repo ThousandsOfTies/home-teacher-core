@@ -97,7 +97,21 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
 
   const handlePageChange = (newPageNum: number) => {
     setPageNum(newPageNum)
+    // スライダー操作中でなければスライダー位置も更新
+    if (!isDraggingSlider) {
+      setSliderPage(newPageNum)
+    }
   }
+
+  const jumpToPage = (dPage: number) => {
+    if (pdfCanvasRef.current) {
+      pdfCanvasRef.current.jumpToPage(dPage)
+    }
+  }
+
+  // スライダー用の一時的な状態
+  const [sliderPage, setSliderPage] = useState(1)
+  const [isDraggingSlider, setIsDraggingSlider] = useState(false)
 
   // PDFドキュメントのロードはPDFCanvasが行うため、usePDFRenderer呼び出しは削除
 
@@ -1953,13 +1967,22 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
                   type="range"
                   min="1"
                   max={numPages}
-                  value={pageNum}
+                  value={sliderPage}
+                  onMouseDown={() => setIsDraggingSlider(true)}
+                  onTouchStart={() => setIsDraggingSlider(true)}
                   onChange={(e) => {
-                    const newPage = Number(e.target.value)
-                    setPageNum(newPage)
+                    setSliderPage(Number(e.target.value))
+                  }}
+                  onMouseUp={(e) => {
+                    setIsDraggingSlider(false)
+                    jumpToPage(Number(e.currentTarget.value))
+                  }}
+                  onTouchEnd={(e) => {
+                    setIsDraggingSlider(false)
+                    jumpToPage(Number(e.currentTarget.value))
                   }}
                   className="page-slider"
-                  title="ページ移動"
+                  title={`ページ移動: ${sliderPage}/${numPages}`}
                 />
               </div>
 

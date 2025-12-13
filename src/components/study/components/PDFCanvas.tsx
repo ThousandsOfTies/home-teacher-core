@@ -20,6 +20,7 @@ interface PDFCanvasProps {
 export interface PDFCanvasHandle {
     goToPrevPage: () => void
     goToNextPage: () => void
+    jumpToPage: (page: number) => void
     pageNum: number
     numPages: number
     isLoading: boolean
@@ -47,7 +48,8 @@ const PDFCanvas = forwardRef<PDFCanvasHandle, PDFCanvasProps>(({
         isLoading,
         error,
         goToPrevPage,
-        goToNextPage
+        goToNextPage,
+        jumpToPage
     } = usePDFRenderer(pdfRecord, containerRef, canvasRef, {
         onLoadStart,
         onLoadSuccess,
@@ -58,6 +60,7 @@ const PDFCanvas = forwardRef<PDFCanvasHandle, PDFCanvasProps>(({
     useImperativeHandle(ref, () => ({
         goToPrevPage,
         goToNextPage,
+        jumpToPage,
         pageNum,
         numPages,
         isLoading,

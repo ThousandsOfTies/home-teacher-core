@@ -155,6 +155,12 @@ export const usePDFRenderer = (
     }
   }
 
+  const jumpToPage = (page: number) => {
+    if (page >= 1 && page <= numPages) {
+      setPageNum(page)
+    }
+  }
+
   return {
     pdfDoc,
     pageNum,
@@ -163,6 +169,7 @@ export const usePDFRenderer = (
     isLoading,
     error,
     goToPrevPage,
-    goToNextPage
+    goToNextPage,
+    jumpToPage
   }
 }
