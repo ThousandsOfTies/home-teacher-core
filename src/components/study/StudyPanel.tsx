@@ -11,6 +11,9 @@ import './StudyPanel.css'
 
 // pdfjsLibの設定は削除
 
+// PDFレンダリングスケール（3倍解像度）
+const RENDER_SCALE = 3
+
 // 画像圧縮ヘルパー関数
 const compressImage = (canvas: HTMLCanvasElement, maxSize: number = 1024): string => {
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)

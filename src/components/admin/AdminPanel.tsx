@@ -1120,7 +1120,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                       {pdfAnswerStatus[record.id] ? (
                         <span style={{ fontSize: '20px', display: 'flex', alignItems: 'center', position: 'relative' }}>
                           🦉
-                          <span style={{ position: 'absolute', top: '-8px', right: '-8px', fontSize: '16px' }}>🎓</span>
+                          <span style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', fontSize: '14px' }}>🎓</span>
                         </span>
                       ) : (
                         <span style={{ fontSize: '20px' }}>🦉</span>
