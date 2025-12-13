@@ -2,514 +2,122 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { GoogleGenAI } from '@google/genai'
-import fs from 'fs'
 
 dotenv.config()
 
 const app = express()
 const port = process.env.PORT || 3003
 
-// 利用可能なGeminiモチE��のマッピング
-const AVAILABLE_MODELS: Record<string, { id: string; name: string; description: string }> = {
-  'gemini-2.5-flash': {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    description: '最新の高速安定版モチE���E�E025年6月リリース�E�E
-  },
-  'gemini-2.5-pro': {
-    id: 'gemini-2.5-pro',
-    name: 'Gemini 2.5 Pro',
-    description: '最新の高性能安定版モチE���E�E025年6月リリース�E�E
-  },
-  'gemini-2.0-flash-exp': {
-    id: 'gemini-2.0-flash-exp',
-    name: 'Gemini 2.0 Flash (Experimental)',
-    description: '実験版の高速モチE��'
-  },
-  'gemini-2.0-flash': {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    description: '安定版の高速モチE��'
-  },
-  'gemini-1.5-pro': {
-    id: 'gemini-1.5-pro',
-    name: 'Gemini 1.5 Pro',
-    description: '高性能な安定版モチE��'
-  },
-  'gemini-1.5-flash': {
-    id: 'gemini-1.5-flash',
-    name: 'Gemini 1.5 Flash',
-    description: '高速な安定版モチE��'
-  }
-}
-
-// CORS設定（セキュリチE��強化版�E�E
-const allowedOrigins = [
-  // 本番環墁E��EitHub Pages�E�E
-  'https://thousandsofties.github.io',
-
-  // スチE�Eジング環墁E��EitHub Pages�E�E
-  // Note: 同じドメインなので本番URLで両方カバ�EされめE
-
-  // 開発環墁E��Eocalhost全般を許可�E�E
-  /^http:\/\/localhost:\d+$/,
-  /^http:\/\/127\.0\.0\.1:\d+$/,
-]
-
-app.use(cors({
-  origin: (origin, callback) => {
-    // originがundefined = 同一オリジンリクエスト（許可�E�E
-    if (!origin) return callback(null, true)
-
-    // 許可リストチェチE���E�文字�Eまた�ERegex�E�E
-    const isAllowed = allowedOrigins.some(allowed => {
-      if (typeof allowed === 'string') {
-        return allowed === origin
-      } else {
-        return allowed.test(origin)
-      }
-    })
-
-    if (isAllowed) {
-      callback(null, true)
-    } else {
-      console.warn(`🚫 CORS blocked: ${origin}`)
-      callback(new Error('Not allowed by CORS'))
-    }
-  },
-  methods: ['POST', 'GET', 'OPTIONS'],
-  allowedHeaders: ['Content-Type'],
-  credentials: false
-}))
-
+// Increase payload size limit for base64 images
 app.use(express.json({ limit: '50mb' }))
+app.use(cors())
 
-// Gemini APIクライアンチE(新SDK)
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' })
+// Log API Key status (do not log the actual key)
+console.log(`API Key status: ${process.env.GEMINI_API_KEY ? 'Present' : 'Missing'}`)
 
-// シンプルなレート制限（メモリベ�Eス�E�E
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
-const RATE_LIMIT_WINDOW = 15 * 60 * 1000 // 15刁E
-const RATE_LIMIT_MAX = process.env.NODE_ENV === 'production' ? 20 : 100 // 開発環墁E��は100リクエストまで
-
-
-const checkRateLimit = (identifier: string): boolean => {
-  const now = Date.now()
-  const record = rateLimitMap.get(identifier)
-
-  if (!record || now > record.resetTime) {
-    // 新規また�E期限刁E��
-    rateLimitMap.set(identifier, { count: 1, resetTime: now + RATE_LIMIT_WINDOW })
-    return true
-  }
-
-  if (record.count >= RATE_LIMIT_MAX) {
-    // 制限趁E��
-    return false
-  }
-
-  // カウント増加
-  record.count++
-  return true
+if (!process.env.GEMINI_API_KEY) {
+  console.warn('⚠️ GEMINI_API_KEY is not set in environment variables.')
 }
-app.get('/api/models', (req, res) => {
-  res.json({
-    models: Object.values(AVAILABLE_MODELS),
-    default: process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp'
-  })
-})
 
-// ヘルスチェチE��
+// Initialize Google GenAI Client
+// Use gemini-2.0-flash-exp as default, or fallback to 1.5-flash if needed
+const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp'
+console.log(`Using Gemini Model: ${MODEL_NAME}`)
+
+const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    geminiApiKey: process.env.GEMINI_API_KEY ? '設定済み' : '未設宁E
-  })
+  res.json({ status: 'ok', model: MODEL_NAME })
 })
 
 app.post('/api/analyze-page', async (req, res) => {
-  const clientIp = req.ip || req.socket.remoteAddress || 'unknown'
-  if (!checkRateLimit(clientIp)) {
-    return res.status(429).json({
-      error: 'リクエストが多すぎまぁE,
-      details: '15刁E��に再度お試しください'
-    })
-  }
-
   try {
-    const { imageData, pageNumber, language } = req.body
+    const { imageData, pageNumber, language = 'ja' } = req.body
 
     if (!imageData) {
-      return res.status(400).json({ error: '画像データが忁E��でぁE })
+      return res.status(400).json({ error: 'imageData is required' })
     }
 
-    console.log(`🔍 汎用ペ�Eジ刁E��開姁E ペ�Eジ ${pageNumber}`)
+    // Base64 header removal if present
+    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '')
 
-    const base64Match = imageData.match(/^data:image\/(\w+);base64,(.+)$/)
-    if (!base64Match) {
-      return res.status(400).json({ error: '無効な画像データ形式でぁE })
-    }
+    console.log(`Processing page ${pageNumber}...`)
 
-    const mimeType = `image/${base64Match[1]}`
-    const base64Data = base64Match[2]
+    const prompt = `
+Analyze this image of a workbook page answer key.
+Extract all answer sets.
 
-    const langCode = language ? language.split('-')[0] : 'ja'
-    const responseLang = langCode === 'ja' ? 'Japanese' : 'English'
+The user is a Japanese student.
+The image likely contains problem numbers (like "1", "(1)", "問1") and their corresponding answers.
+It may also contain section headers (like "p.4", "第1回", "練成問題").
 
-    const universalPrompt = `あなた�E問題集・ドリルの解答�Eージを解析するAIです、E
-
-【タスク、E
-こ�E画像から、すべての問題番号と正解を漏れなく抽出してください、E
-
-【重要なルール、E
-1. 問題番号は忁E��「大問番号(小問番号)」�E形式で出力すること
-   侁E 1(1), 1(2), 2(1), 2(2) など
-   
-2. 横に並んでぁE��解答も全て抽出すること
-   侁E 、E (1) 105度 (2) 10度 (3) 47度 (4) 100度、E
-   ↁE1(1)=105度, 1(2)=10度, 1(3)=47度, 1(4)=100度
-   
-3. セクションヘッダーに「問題�E○�Eージ」と書ぁE��あれば、それをproblemPageとして記録
-
-4. 「解説」�E斁E��は無視して、答えの値のみを抽出
-
-【�E力形式、E
-忁E��以下�EJSON形式で出力してください�E�他�EチE��スト�E不要E��E
-
+Return ONLY a valid JSON object with the following structure:
 {
-  "pageType": "answer",
-  "pageNumber": 78,
+  "pageType": "answer", // or "problem" or "other"
+  "printedPageNumber": number | null, // The page number printed on the paper itself (e.g. at the bottom corners), NOT the PDF page number.
   "answers": [
-    {"problemNumber": "1(1)", "correctAnswer": "105度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA�E�問題�E6ペ�Eジ�E�E},
-    {"problemNumber": "1(2)", "correctAnswer": "10度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA�E�問題�E6ペ�Eジ�E�E},
-    {"problemNumber": "1(3)", "correctAnswer": "47度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA�E�問題�E6ペ�Eジ�E�E},
-    {"problemNumber": "1(4)", "correctAnswer": "100度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA�E�問題�E6ペ�Eジ�E�E}
+    {
+      "problemNumber": "string", // e.g. "1", "(1)", "問1"
+      "correctAnswer": "string", // e.g. "ア", "5cm", "took"
+      "problemPage": number | null, // If the answer key explicitly mentions which problem page it belongs to (e.g. "p.4の解答"), extract it.
+      "sectionName": "string | null" // The section header this answer belongs to (e.g. "練成問題A", "p.4")
+    }
   ]
 }
 
-もしこれが問題�Eージ�E�解答�EージではなぁE���E場合�E:
-{
-  "pageType": "problem",
-  "pageNumber": 6,
-  "problems": [{"problemNumber": "1(1)", "type": "計箁E, "hasDiagram": false}]
-}
+Rules:
+1. Extract ALL answers visible on the page.
+2. Be precise with problem numbers.
+3. If there are multiple columns, process them in logical reading order (usually top-down, left-right).
+4. If you see a page number printed on the corner of the paper, set it to "printedPageNumber".
+5. Use "sectionName" to capture hierarchial context (big headers).
+`
 
-【最重要、E
-- すべての小問を漏れなく抽出すること
-- 、E2)」だけでなく、E(2)」�Eように大問番号を忁E��付けること
-- 解説斁E�E無視し、答えの数値・記号のみを抽出すること`
-
-    const startTime = Date.now()
-
-    const result = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
+    const response = await client.models.generateContent({
+      model: MODEL_NAME,
       contents: [
         {
           role: 'user',
           parts: [
+            { text: prompt },
             {
               inlineData: {
-                mimeType: mimeType,
+                mimeType: 'image/jpeg',
                 data: base64Data
               }
-            },
-            { text: universalPrompt }
+            }
           ]
         }
       ],
       config: {
-        temperature: 0.1,
-        maxOutputTokens: 4096,
-        topP: 0.95,
-        topK: 40,
+        responseMimeType: 'application/json'
       }
     })
 
-    const elapsedTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(2))
-
-    let responseText = ''
-    if (result.candidates && result.candidates.length > 0) {
-      const candidate = result.candidates[0]
-      if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
-        responseText = candidate.content.parts[0].text || ''
-      }
-    }
-
+    const responseText = response.data.candidates?.[0]?.content?.parts?.[0]?.text
     if (!responseText) {
-      throw new Error('APIからレスポンスを取得できませんでした')
+      throw new Error('Empty response from Gemini')
     }
 
-    let analyzedData
-    try {
-      const jsonStart = responseText.indexOf('{')
-      const jsonEnd = responseText.lastIndexOf('}') + 1
-      if (jsonStart !== -1 && jsonEnd > jsonStart) {
-        const jsonString = responseText.substring(jsonStart, jsonEnd)
-        analyzedData = JSON.parse(jsonString)
-      } else {
-        throw new Error('JSON構造が見つかりません')
-      }
-    } catch (parseError) {
-      console.error('❁EJSONパ�Eス失敁E', parseError)
-      console.error('レスポンス:', responseText.substring(0, 500))
-      return res.status(500).json({
-        error: 'ペ�Eジ刁E��に失敗しました',
-        details: 'AIレスポンスの解析エラー',
-        rawResponse: responseText.substring(0, 500)
-      })
-    }
+    // Clean up potential markdown code blocks
+    const jsonStr = responseText.replace(/```json\n?|\n?```/g, '')
+    const result = JSON.parse(jsonStr)
 
-    const pageType = analyzedData.pageType || 'unknown'
-    const itemCount = analyzedData.problems?.length || analyzedData.answers?.length || 0
+    // Add metadata
+    result.pdfPage = pageNumber
 
-    console.log(`✁Eペ�Eジ刁E��完亁E ${elapsedTime}秒`)
-    console.log(`📄 ペ�EジタイチE ${pageType}, アイチE��数: ${itemCount}`)
-
-    // チE��チE��: 解答�Eージの場合、各解答�EproblemPageを表示
-    if (pageType === 'answer' && analyzedData.answers) {
-      console.log(`📋 解答詳細:`)
-      analyzedData.answers.forEach((ans: any, i: number) => {
-        console.log(`   ${i + 1}. ${ans.problemNumber} = "${ans.correctAnswer}" (問題�Eージ: ${ans.problemPage ?? '未設宁E})`)
-      })
-    }
-
-    res.json({
-      success: true,
-      pageType: pageType,
-      pageNumber: pageNumber,
-      data: analyzedData,
-      responseTime: elapsedTime
-    })
+    console.log(`Page ${pageNumber} analyzed successfully. Found ${result.answers?.length || 0} answers.`)
+    res.json({ success: true, data: result, pageType: result.pageType, result: result }) // compatibility
 
   } catch (error) {
-    console.error('❁Eペ�Eジ刁E��エラー:', error)
+    console.error('Error in /api/analyze-page:', error)
     res.status(500).json({
-      error: 'ペ�Eジ刁E��中にエラーが発生しました',
-      details: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : 'Internal Server Error',
+      details: String(error)
     })
   }
 })
-
-app.post('/api/grade-with-context', async (req, res) => {
-  const clientIp = req.ip || req.socket.remoteAddress || 'unknown'
-  if (!checkRateLimit(clientIp)) {
-    return res.status(429).json({
-      error: 'リクエストが多すぎまぁE,
-      details: '15刁E��に再度お試しください'
-    })
-  }
-
-  try {
-    const { pageFullImage, croppedImage, pageNumber, language, model } = req.body
-
-    if (!pageFullImage || !croppedImage) {
-      return res.status(400).json({ error: 'ペ�Eジ全体画像と刁E��出し画像�E両方が忁E��でぁE })
-    }
-
-    console.log(`📖 斁E��ベ�Eス採点開姁E ペ�Eジ ${pageNumber}`)
-
-    const langCode = language ? language.split('-')[0] : 'ja'
-    const responseLang = langCode === 'ja' ? 'Japanese' : 'English'
-
-    // 両方の画像を処琁E
-    const pageMatch = pageFullImage.match(/^data:image\/(\w+);base64,(.+)$/)
-    const cropMatch = croppedImage.match(/^data:image\/(\w+);base64,(.+)$/)
-
-    // チE��チE��: 画像サイズを確誁E
-    console.log(`🖼�E�E 画像サイズ確誁E`)
-    console.log(`   フルペ�Eジ: ${pageFullImage.length} bytes`)
-    console.log(`   刁E��取り: ${croppedImage.length} bytes`)
-
-    if (!pageMatch || !cropMatch) {
-      return res.status(400).json({ error: '無効な画像データ形式でぁE })
-    }
-
-    const contextPrompt = `You are analyzing student work with context awareness.
-
-IMAGE ORDER (VERY IMPORTANT):
-- IMAGE 1 (FIRST): Full page showing ALL problems (REFERENCE ONLY - DO NOT GRADE THIS)
-- IMAGE 2 (SECOND): Cropped area showing ONE problem (THIS IS WHAT YOU MUST GRADE)
-
-Your task:
-1. Look at IMAGE 1 (full page) to:
-   a. Find the PRINTED PAGE NUMBER(s) visible on the page (e.g., "p.4", "5ペ�Eジ", "4", "5" in corners/margins)
-   b. Identify which printed page the cropped problem belongs to
-   c. Identify the exact problem number
-
-2. Many workbooks show 2 printed pages per PDF page (a spread/見開ぁE. Look for page numbers in:
-   - Top corners (left page number on left, right page number on right)
-   - Bottom corners
-   - Headers or footers
-   - Examples: "4", "5", "p.4", "4ペ�Eジ"
-
-3. Determine the EXACT problem number by considering:
-   - Position on the page (top/middle/bottom, left/right)
-   - Which printed page (left or right) the problem appears on
-   - Sub-problem numbers like (1), (2), (3) if visible
-
-4. Look at IMAGE 2 (cropped) to see what the student actually answered
-5. Extract the student's answer from IMAGE 2 (cropped) ONLY
-6. Grade ONLY what is visible in IMAGE 2 (cropped)
-
-CRITICAL RULES (READ CAREFULLY):
-- IMAGE 1 is for identifying the problem number AND printed page number - DO NOT grade it
-- IMAGE 2 is the ONLY thing you should grade
-- The student wrote their answer in IMAGE 2, not IMAGE 1
-- DO NOT grade blank/empty problems visible in IMAGE 1
-- ONLY grade the answer visible in IMAGE 2
-- Ignore all other problems visible in IMAGE 1
-
-EXAMPLE:
-- IMAGE 1 shows: A spread with page 4 (left) and page 5 (right), Problems 1(1), 1(2) on page 4
-- IMAGE 2 shows: Problem 1(1) with answer "59°" (from the left side = page 4)
-- printedPageNumber should be: 4 (not the PDF page, but the printed page number visible in IMAGE 1)
-
-Return ONLY valid JSON:
-{
-  "printedPageNumber": <number or null - the page number printed on the workbook page where the problem is located>,
-  "problemNumber": "exact problem number (e.g., '1(1)', '1(2)', '2')",
-  "confidence": "high/medium/low",
-  "positionReasoning": "brief explanation: which side of the spread (left/right), what printed page number you found",
-  "problemText": "problem text from IMAGE 2 (cropped)",
-  "studentAnswer": "student's answer from IMAGE 2 (cropped) ONLY",
-  "isCorrect": true or false (based on the answer in IMAGE 2),
-  "correctAnswer": "correct answer (if you can determine it from IMAGE 2)",
-  "feedback": "encouraging feedback about the answer in IMAGE 2",
-  "explanation": "detailed explanation about the answer in IMAGE 2"
-}
-
-IMPORTANT for printedPageNumber:
-- This is the PAGE NUMBER PRINTED ON THE WORKBOOK, not the PDF page number
-- Look for numbers like "4", "5", "p.4", "4ペ�Eジ" in corners/margins of IMAGE 1
-- If the problem is on the LEFT side of a spread, use the left page's number
-- If the problem is on the RIGHT side, use the right page's number
-- Return as a number (e.g., 4), not a string
-- If no page number is visible, return null
-
-FINAL REMINDER:
-- Grade ONLY the answer visible in IMAGE 2 (the cropped image)
-- DO NOT mention or grade other problems from IMAGE 1
-- The correct answer should match what's asked in IMAGE 2, not other problems
-
-LANGUAGE: ${responseLang}`
-
-    const startTime = Date.now()
-
-    const preferredModelName = model || process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp'
-
-    const result = await ai.models.generateContent({
-      model: preferredModelName,
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            // 画僁E: ペ�Eジ全佁E
-            {
-              inlineData: {
-                mimeType: pageMatch[1] === 'png' ? 'image/png' : 'image/jpeg',
-                data: pageMatch[2]
-              }
-            },
-            // 画僁E: 刁E��出し部刁E
-            {
-              inlineData: {
-                mimeType: cropMatch[1] === 'png' ? 'image/png' : 'image/jpeg',
-                data: cropMatch[2]
-              }
-            },
-            // プロンプト
-            { text: contextPrompt }
-          ]
-        }
-      ],
-      config: {
-        temperature: 0.3,
-        maxOutputTokens: 4096,
-        topP: 0.95,
-        topK: 40,
-      }
-    })
-
-    const elapsedTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(2))
-
-    let responseText = ''
-    if (result.candidates && result.candidates.length > 0) {
-      const candidate = result.candidates[0]
-      if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
-        responseText = candidate.content.parts[0].text || ''
-      }
-    }
-
-    if (!responseText) {
-      throw new Error('APIからレスポンスを取得できませんでした')
-    }
-
-    // JSONを抽出
-    let gradingData
-    try {
-      const jsonStart = responseText.indexOf('{')
-      const jsonEnd = responseText.lastIndexOf('}') + 1
-      if (jsonStart !== -1 && jsonEnd > jsonStart) {
-        const jsonString = responseText.substring(jsonStart, jsonEnd)
-        gradingData = JSON.parse(jsonString)
-      } else {
-        throw new Error('JSON構造が見つかりません')
-      }
-    } catch (parseError) {
-      console.error('❁EJSONパ�Eス失敁E', parseError)
-      console.error('レスポンス:', responseText.substring(0, 500))
-      return res.status(500).json({
-        error: '採点結果の解析に失敗しました',
-        details: 'AIレスポンスの解析エラー',
-        rawResponse: responseText.substring(0, 500)
-      })
-    }
-
-    console.log(`✁E斁E��ベ�Eス解析完亁E ${elapsedTime}秒`)
-    console.log(`   印刷ペ�Eジ番号: ${gradingData.printedPageNumber ?? '(検�Eできず)'}`)
-    console.log(`   問題番号: ${gradingData.problemNumber} (信頼度: ${gradingData.confidence})`)
-    console.log(`   生徒�E解筁E "${gradingData.studentAnswer}"`)
-    console.log(`   位置推宁E ${gradingData.positionReasoning}`)
-
-    // Metadata structure normalization
-    const problemWithMetadata = {
-      ...gradingData,
-      matchingMetadata: {
-        method: 'context',
-        confidence: gradingData.confidence,
-        reasoning: gradingData.positionReasoning
-      }
-    };
-
-    res.json({
-      success: true,
-      result: {
-        problems: [problemWithMetadata],
-        overallComment: `問題番号の特宁E ${gradingData.positionReasoning}`,
-        printedPageNumber: gradingData.printedPageNumber  // 印刷ペ�Eジ番号をレスポンスに含める
-      },
-      modelName: preferredModelName,
-      responseTime: elapsedTime
-    })
-
-  } catch (error) {
-    console.error('❁E斁E��ベ�Eス採点エラー:', error)
-    res.status(500).json({
-      error: '採点中にエラーが発生しました',
-      details: error instanceof Error ? error.message : String(error)
-    })
-  }
-})
-
-
 
 app.listen(port, () => {
-  console.log(`\n🚀 APIサーバ�Eが起動しました!`)
-  console.log(`   http://localhost:${port}`)
-  console.log(`\n🤁EGemini API Key: ${process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your-api-key-here' ? '設定済み ✁E : '未設宁E❁E}`)
-  if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'your-api-key-here') {
-    console.log('\n⚠�E�E .envファイルにGEMINI_API_KEYを設定してください')
-    console.log('   https://makersuite.google.com/app/apikey\n')
-  }
+  console.log(`Server running at http://localhost:${port}`)
 })
