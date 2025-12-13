@@ -152,6 +152,8 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
   // 履歴管理（ページ遷移でリセット）
   const [history, setHistory] = useState<DrawingPath[][]>([])
 
+
+
   useEffect(() => {
     setHistory([])
   }, [pageNum])
@@ -308,6 +310,10 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
   const [isProcessingAnswers, setIsProcessingAnswers] = useState(false)
   const [showAnswerStartDialog, setShowAnswerStartDialog] = useState(false)
   const [answersProcessed, setAnswersProcessed] = useState(0)
+
+  useEffect(() => {
+    console.log('State changed:', { isProcessingAnswers, showAnswerStartDialog });
+  }, [isProcessingAnswers, showAnswerStartDialog]);
 
   // useSelection hook を使用して矩形選択機能を管理
   const {
@@ -1607,8 +1613,13 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
               /* 解答登録モード: シンプルなツールバー */
               <>
                 <button
-                  onClick={() => setShowAnswerStartDialog(true)}
+                  onClick={() => {
+                    console.log('🦉 解答登録ボタンがクリックされました');
+                    setShowAnswerStartDialog(true);
+                  }}
                   style={{
+                    position: 'relative',
+                    zIndex: 1000,
                     padding: '12px 24px',
                     backgroundColor: '#3498db',
                     color: 'white',

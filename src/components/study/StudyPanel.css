@@ -65,6 +65,8 @@
   background-color: white;
   border-bottom: 1px solid #ddd;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  position: relative;
+  z-index: 100;
 }
 
 .toolbar button {
@@ -162,7 +164,8 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 2rem 2rem 3rem 2rem; /* 下側に余裕を持たせる */
+  padding: 2rem 2rem 3rem 2rem;
+  /* 下側に余裕を持たせる */
   min-height: 0;
   /* flexアイテムがコンテナをはみ出さないようにする */
 }
