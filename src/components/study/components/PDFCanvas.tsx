@@ -2,12 +2,8 @@ import { useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { PDFFileRecord } from '../../../utils/indexedDB'
 import { usePDFRenderer } from '../../../hooks/pdf/usePDFRenderer'
 
-// PDF.jsのworker設定（StudyPanelから移動）
+// PDF.jsのworker設定は usePDFRenderer.ts で一元管理するため削除
 import * as pdfjsLib from 'pdfjs-dist'
-const isProduction = window.location.hostname === 'thousandsofties.github.io'
-pdfjsLib.GlobalWorkerOptions.workerSrc = isProduction
-    ? '/HomeTeacher/pdf.worker.min.js'
-    : '/pdf.worker.min.js'
 
 interface PDFCanvasProps {
     pdfRecord: PDFFileRecord

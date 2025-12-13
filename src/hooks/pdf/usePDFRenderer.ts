@@ -3,7 +3,12 @@ import * as pdfjsLib from 'pdfjs-dist'
 import { PDFFileRecord } from '../../utils/indexedDB'
 
 // PDF.jsのworkerを設定（ローカルファイルを使用、Safari/Edge対応）
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/HomeTeacher/pdf.worker.min.js'
+// PDF.jsのworkerを設定
+// ベースURLを動的に取得してworkerのパスを構築
+const baseUrl = import.meta.env.BASE_URL
+// 末尾がスラッシュで終わることを保証
+const safeBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
+pdfjsLib.GlobalWorkerOptions.workerSrc = `${safeBaseUrl}pdf.worker.min.js`
 
 interface UsePDFRendererOptions {
   onLoadStart?: () => void
@@ -114,7 +119,7 @@ export const usePDFRenderer = (
         ]) as pdfjsLib.PDFDocumentProxy
         setPdfDoc(pdf)
         setNumPages(pdf.numPages)
-        
+
         // 保存されている最後のページ番号を復元
         if (pdfRecord.lastPageNumber && pdfRecord.lastPageNumber <= pdf.numPages) {
           setPageNum(pdfRecord.lastPageNumber)
@@ -122,7 +127,7 @@ export const usePDFRenderer = (
         } else {
           setPageNum(1)
         }
-        
+
         setIsLoading(false)
         optionsRef.current?.onLoadSuccess?.(pdf.numPages)
       } catch (error) {

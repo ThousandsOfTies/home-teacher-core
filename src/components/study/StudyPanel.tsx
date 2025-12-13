@@ -424,7 +424,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
     const loadDrawings = async () => {
       try {
         const record = await getPDFRecord(pdfId) // pdfIdはpropsから来ているのでクロージャで参照可能
-        if (record && Object.keys(record.drawings).length > 0) {
+        if (record && record.drawings && Object.keys(record.drawings).length > 0) {
           const restoredMap = new Map<number, DrawingPath[]>()
           Object.entries(record.drawings).forEach(([pageNumStr, jsonStr]) => {
             const pageNum = parseInt(pageNumStr, 10)
@@ -1843,7 +1843,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
                 color={penColor}
                 size={penSize}
                 eraserSize={eraserSize}
-                paths={drawingPaths.get(pageNum) || []}
+                paths={drawingPaths?.get(pageNum) || []}
                 isCtrlPressed={isCtrlPressed}
                 stylusOnly={false}
                 onPathAdd={handlePathAddWrapper}
