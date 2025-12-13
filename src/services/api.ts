@@ -1,4 +1,40 @@
-import { GradeResponse, ModelInfoResponse, AnalyzePageResponse } from '../types'
+// 型定義
+export interface AnalyzePageResponse {
+  success: boolean
+  pageType: 'answer' | 'problem' | 'other'
+  data: {
+    answers: Array<{
+      problemNumber: string
+      correctAnswer: string
+      problemPage: number | null
+      sectionName?: string
+    }>
+    printedPageNumber?: number | null
+  }
+}
+
+export interface GradeResponse {
+  isCorrect: boolean
+  correctAnswer: string
+  feedback: string
+  explanation: string
+  confidence?: string
+  extractedText?: string
+}
+
+export type GradingResult = GradeResponse // Alias for compatibility with StudyPanel
+
+export interface ModelInfo {
+  id: string
+  name: string
+  description?: string
+}
+
+export interface ModelInfoResponse {
+  default: string
+  models: ModelInfo[]
+}
+
 
 // 環境変数からAPIのベースURLを取得（Viteの環境変数）
 // see: https://vitejs.dev/guide/env-and-mode.html

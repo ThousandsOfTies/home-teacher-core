@@ -1,12 +1,12 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
-import { GoogleGenAI } from '@google/genai'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
 dotenv.config()
 
 const app = express()
-const port = process.env.PORT || 3003
+const port = process.env.PORT || 8080
 
 // Increase payload size limit for base64 images
 app.use(express.json({ limit: '50mb' }))
@@ -24,7 +24,8 @@ if (!process.env.GEMINI_API_KEY) {
 const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp'
 console.log(`Using Gemini Model: ${MODEL_NAME}`)
 
-const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
+const model = genAI.getGenerativeModel({ model: MODEL_NAME })
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', model: MODEL_NAME })
@@ -73,41 +74,31 @@ Rules:
 5. Use "sectionName" to capture hierarchial context (big headers).
 `
 
-    const response = await client.models.generateContent({
-      model: MODEL_NAME,
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                mimeType: 'image/jpeg',
-                data: base64Data
-              }
-            }
-          ]
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          mimeType: "image/jpeg",
+          data: base64Data
         }
-      ],
-      config: {
-        responseMimeType: 'application/json'
       }
-    })
+    ])
+    const response = await result.response
+    const responseText = response.text()
 
-    const responseText = response.data.candidates?.[0]?.content?.parts?.[0]?.text
     if (!responseText) {
       throw new Error('Empty response from Gemini')
     }
 
     // Clean up potential markdown code blocks
     const jsonStr = responseText.replace(/```json\n?|\n?```/g, '')
-    const result = JSON.parse(jsonStr)
+    const parsedData = JSON.parse(jsonStr)
 
     // Add metadata
-    result.pdfPage = pageNumber
+    parsedData.pdfPage = pageNumber
 
-    console.log(`Page ${pageNumber} analyzed successfully. Found ${result.answers?.length || 0} answers.`)
-    res.json({ success: true, data: result, pageType: result.pageType, result: result }) // compatibility
+    console.log(`Page ${pageNumber} analyzed successfully. Found ${parsedData.answers?.length || 0} answers.`)
+    res.json({ success: true, data: parsedData, pageType: parsedData.pageType, result: parsedData }) // compatibility
 
   } catch (error) {
     console.error('Error in /api/analyze-page:', error)
