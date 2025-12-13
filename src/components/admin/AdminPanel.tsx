@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { PDFFileRecord, getAppSettings, saveAppSettings } from '../../utils/indexedDB';
 import { getPlatformInfo } from '../../utils/storageManager';
-import GradingHistory from '../grading/GradingHistory';
+import GradingHistory from './GradingHistory';
 import { usePDFRecords } from '../../hooks/admin/usePDFRecords';
 import { useSNSLinks } from '../../hooks/admin/useSNSLinks';
 import { useStorage } from '../../hooks/admin/useStorage';

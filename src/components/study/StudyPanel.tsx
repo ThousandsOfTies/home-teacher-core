@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import { GradingResult as GradingResultType, getAvailableModels, ModelInfo } from '../../services/api'
-import GradingResult from '../grading/GradingResult'
+import GradingResult from './GradingResult'
 import { savePDFRecord, getPDFRecord, getAllSNSLinks, SNSLinkRecord, PDFFileRecord, saveGradingHistory, generateGradingHistoryId, getAppSettings, saveAppSettings } from '../../utils/indexedDB'
 import { ICON_SVG } from '../../constants/icons'
 import { usePDFRenderer } from '../../hooks/pdf/usePDFRenderer'
