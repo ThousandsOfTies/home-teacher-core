@@ -951,8 +951,15 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
           ?
         </button>
         <div className="admin-header">
+          {/* 開発モードと本番モードでパスを切り替え */}
           <div className="logo-container">
-            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Tuto Tuto" className="app-logo" />
+            <img
+              src={import.meta.env.DEV
+                ? `/icons/${import.meta.env.MODE}/logo.png`
+                : `${import.meta.env.BASE_URL}logo.png`}
+              alt="Tuto Tuto"
+              className="app-logo"
+            />
             <span className="logo-text">TutoTuto</span>
           </div>
 
@@ -1084,39 +1091,49 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                       }}
                       title={pdfAnswerStatus[record.id] ? "解答登録済み" : "解答を登録"}
                       style={{
-                        background: 'none',
+                        background: pdfAnswerStatus[record.id] ? '#d5f4e6' : '#f0f0f0',
                         border: 'none',
                         cursor: 'pointer',
-                        padding: '8px',
+                        padding: '8px 12px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        borderRadius: '6px',
+                        borderRadius: '20px',
                         transition: 'all 0.2s',
-                        color: pdfAnswerStatus[record.id] ? '#27ae60' : '#95a5a6',
-                        fontSize: '24px',
+                        color: pdfAnswerStatus[record.id] ? '#27ae60' : '#7f8c8d',
+                        fontSize: '20px',
                         marginLeft: 'auto',
-                        position: 'relative'
+                        marginRight: '8px',
+                        position: 'relative',
+                        flexShrink: 0, // 縮小されないようにする
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = pdfAnswerStatus[record.id] ? '#d5f4e6' : '#e3f2fd';
-                        e.currentTarget.style.transform = 'scale(1.15)';
+                        e.currentTarget.style.backgroundColor = pdfAnswerStatus[record.id] ? '#a3e4d7' : '#e0e0e0';
+                        e.currentTarget.style.transform = 'scale(1.05)';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.backgroundColor = pdfAnswerStatus[record.id] ? '#d5f4e6' : '#f0f0f0';
                         e.currentTarget.style.transform = 'scale(1)';
                       }}
                     >
-                      <span style={{ position: 'relative', display: 'inline-block' }}>
-                        🦉
+                      <span style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '14px',
+                        fontWeight: '600'
+                      }}>
+                        <span style={{ fontSize: '20px' }}>🦉</span>
+                        {!pdfAnswerStatus[record.id] && <span>登録</span>}
                         {pdfAnswerStatus[record.id] && (
                           <span style={{
-                            position: 'absolute',
-                            top: '-10px',
-                            left: '50%',
-                            transform: 'translateX(-50%)',
-                            fontSize: '16px'
-                          }}>🎓</span>
+                            fontSize: '12px',
+                            backgroundColor: '#27ae60',
+                            color: 'white',
+                            padding: '2px 6px',
+                            borderRadius: '10px'
+                          }}>済</span>
                         )}
                       </span>
                     </button>
