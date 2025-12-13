@@ -48,7 +48,7 @@ export const usePDFRecords = () => {
     return canvas.toDataURL('image/jpeg', 0.7)
   }
 
-  const handleFileSelect = async (onSelectPDF: (record: PDFFileRecord) => void) => {
+  const handleFileSelect = async () => {
     setUploading(true)
     try {
       let file: File | null = null
@@ -156,7 +156,6 @@ export const usePDFRecords = () => {
       await loadPDFRecords()
 
       // 自動的に開くのを無効化（ユーザーリクエスト: ファイル一覧のままにする）
-      // onSelectPDF(newRecord)
     } catch (error) {
       console.error('Failed to add PDF:', error)
       setErrorMessage(`Failed to add PDF: ${error}`)

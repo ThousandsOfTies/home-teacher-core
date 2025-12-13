@@ -1166,7 +1166,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
               </div>
             )}
 
-            <button className="add-button" onClick={() => handleFileSelect(onSelectPDF)}>
+            <button className="add-button" onClick={() => handleFileSelect()}>
               <span className="add-button-icon">+</span>
               <span>PDF</span>
             </button>
