@@ -155,8 +155,8 @@ export const usePDFRecords = () => {
       await savePDFRecord(newRecord)
       await loadPDFRecords()
 
-      // 自動的に開く
-      onSelectPDF(newRecord)
+      // 自動的に開くのを無効化（ユーザーリクエスト: ファイル一覧のままにする）
+      // onSelectPDF(newRecord)
     } catch (error) {
       console.error('Failed to add PDF:', error)
       setErrorMessage(`Failed to add PDF: ${error}`)
@@ -167,6 +167,11 @@ export const usePDFRecords = () => {
 
   const handleDeleteRecord = async (id: string) => {
     try {
+      // PDFに関連する解答データも削除
+      const { deleteAnswersByPdfId } = await import('../../utils/indexedDB')
+      await deleteAnswersByPdfId(id)
+      console.log(`🗑️ PDF ${id} の解答データを削除しました`)
+
       await deletePDFRecord(id)
       await loadPDFRecords()
     } catch (error) {
@@ -174,6 +179,7 @@ export const usePDFRecords = () => {
       setErrorMessage('Failed to delete')
     }
   }
+
 
   return {
     pdfRecords,

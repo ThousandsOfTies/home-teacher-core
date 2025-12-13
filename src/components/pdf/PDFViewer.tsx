@@ -7,6 +7,7 @@ import { ICON_SVG } from '../../constants/icons'
 import { usePDFRenderer } from '../../hooks/pdf/usePDFRenderer'
 import { useDrawing, useEraser, useZoomPan, DrawingPath } from '@thousands-of-ties/drawing-common'
 import { useSelection, SelectionRect } from '../../hooks/pdf/useSelection'
+import { matchAndGrade } from './grading'
 import './PDFViewer.css'
 
 // PDF.jsのworkerを設定（ローカルファイルを使用、Safari/Edge対応）
