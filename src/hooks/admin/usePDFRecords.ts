@@ -3,7 +3,10 @@ import { getAllPDFRecords, deletePDFRecord, savePDFRecord, generatePDFId, PDFFil
 import * as pdfjsLib from 'pdfjs-dist'
 
 // Workerの設定
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
+// Workerの設定（ローカルファイルを使用）
+const baseUrl = import.meta.env.BASE_URL
+const safeBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
+pdfjsLib.GlobalWorkerOptions.workerSrc = `${safeBaseUrl}pdf.worker.min.js`
 
 export const usePDFRecords = () => {
   const [pdfRecords, setPdfRecords] = useState<PDFFileRecord[]>([])
