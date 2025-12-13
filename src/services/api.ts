@@ -1,20 +1,20 @@
-// 開発環境: localhost:3003、本番環境: Cloud Run
-// VITE_API_URLが設定されていない場合は、本番環境（GitHub Pages）かローカル開発かを判定
+// 開発環墁E localhost:3003、本番環墁E Cloud Run
+// VITE_API_URLが設定されてぁE��ぁE��合�E、本番環墁E��EitHub Pages�E�かローカル開発かを判宁E
 const getApiBaseUrl = () => {
-  // 環境変数が明示的に設定されている場合はそれを使用
+  // 環墁E��数が�E示皁E��設定されてぁE��場合�Eそれを使用
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL
   }
 
-  // 本番環境（GitHub Pages）かどうかを判定
+  // 本番環墁E��EitHub Pages�E�かどぁE��を判宁E
   const isProduction = window.location.hostname === 'thousandsofties.github.io'
 
   if (isProduction) {
-    // Cloud Run ステージングURL（developブランチ用）
+    // Cloud Run スチE�EジングURL�E�Eevelopブランチ用�E�E
     return 'https://hometeacher-api-staging-n5ja4qrrqq-an.a.run.app/api'
   }
 
-  // ローカル開発環境
+  // ローカル開発環墁E
   return 'http://localhost:3003/api'
 }
 
@@ -28,7 +28,7 @@ export interface Problem {
   correctAnswer: string
   feedback: string
   explanation: string
-  printedPageNumber?: number  // AIが検出した印刷されたページ番号（見開きPDF対応）
+  printedPageNumber?: number  // AIが検�Eした印刷された�Eージ番号�E�見開きPDF対応！E
   matchingMetadata?: {
     method: 'exact' | 'ai' | 'context' | 'hybrid';
     confidence?: string;
@@ -36,9 +36,9 @@ export interface Problem {
     candidates?: string[];
     similarity?: number;
   }
-  // 採点ソース情報（デバッグ・確認用）
-  gradingSource?: 'db' | 'ai';  // 正解の判定元：DBの登録解答 or AIの推論
-  dbMatchedAnswer?: {           // DBから取得した解答情報（マッチした場合）
+  // 採点ソース惁E���E�デバッグ・確認用�E�E
+  gradingSource?: 'db' | 'ai';  // 正解の判定�E�E�DBの登録解筁Eor AIの推諁E
+  dbMatchedAnswer?: {           // DBから取得した解答情報�E��EチE��した場合！E
     problemNumber: string;
     correctAnswer: string;
     problemPageNumber?: number;
@@ -50,7 +50,7 @@ export interface GradingResult {
   problems: Problem[]
   overallComment: string
   rawResponse?: string
-  printedPageNumber?: number  // AIが検出した印刷されたページ番号（見開きPDF対応）
+  printedPageNumber?: number  // AIが検�Eした印刷された�Eージ番号�E�見開きPDF対応！E
 }
 
 export interface GradeResponse {
@@ -61,87 +61,8 @@ export interface GradeResponse {
   error?: string
 }
 
-export const gradeWork = async (
-  imageData: string,
-  pageNumber: number,
-  problemContext?: string,
-  model?: string
-): Promise<GradeResponse> => {
-  try {
-    // ユーザーの言語設定を取得（例: 'ja', 'en-US', 'zh-CN'）
-    const userLanguage = navigator.language
 
-    console.log('採点リクエスト送信:', {
-      url: `${API_BASE_URL}/grade`,
-      pageNumber,
-      language: userLanguage,
-      model: model || 'default',
-      imageDataSize: imageData.length
-    })
-
-    const response = await fetch(`${API_BASE_URL}/grade`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        imageData,
-        pageNumber,
-        problemContext,
-        language: userLanguage,
-        model: model || undefined, // モデルが指定されている場合のみ送信
-      }),
-    })
-
-    console.log('サーバーレスポンス:', {
-      status: response.status,
-      statusText: response.statusText,
-      contentType: response.headers.get('content-type')
-    })
-
-    if (!response.ok) {
-      // レスポンスボディを取得してエラーを詳細に表示
-      const contentType = response.headers.get('content-type')
-      let errorMessage = '採点に失敗しました'
-
-      try {
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json()
-          errorMessage = errorData.error || errorData.details || errorMessage
-        } else {
-          const errorText = await response.text()
-          errorMessage = errorText || `HTTPエラー: ${response.status} ${response.statusText}`
-        }
-      } catch (parseError) {
-        errorMessage = `HTTPエラー: ${response.status} ${response.statusText}`
-      }
-
-      throw new Error(errorMessage)
-    }
-
-    // レスポンスボディが空でないか確認
-    const responseText = await response.text()
-    if (!responseText || responseText.trim() === '') {
-      throw new Error('サーバーから空のレスポンスが返されました')
-    }
-
-    // JSONをパース
-    try {
-      const result = JSON.parse(responseText)
-      console.log('採点結果を受信:', result)
-      return result
-    } catch (parseError) {
-      console.error('JSONパースエラー:', parseError)
-      console.error('レスポンステキスト:', responseText.substring(0, 500))
-      throw new Error('サーバーからの応答を解析できませんでした: ' + (parseError instanceof Error ? parseError.message : String(parseError)))
-    }
-  } catch (error) {
-    console.error('API Error:', error)
-    throw error
-  }
-}
-
-// 文脈ベース採点（2画像送信：フルページ + 選択範囲）
+// 斁E��ベ�Eス採点�E�E画像送信�E�フルペ�Eジ + 選択篁E���E�E
 export const gradeWorkWithContext = async (
   fullPageImageData: string,
   croppedImageData: string,
@@ -151,7 +72,7 @@ export const gradeWorkWithContext = async (
   try {
     const userLanguage = navigator.language
 
-    console.log('🎯 文脈ベース採点リクエスト送信:', {
+    console.log('🎯 斁E��ベ�Eス採点リクエスト送信:', {
       url: `${API_BASE_URL}/grade-with-context`,
       pageNumber,
       language: userLanguage,
@@ -195,16 +116,16 @@ export const gradeWorkWithContext = async (
 
     const responseText = await response.text()
     if (!responseText || responseText.trim() === '') {
-      throw new Error('サーバーから空のレスポンスが返されました')
+      throw new Error('サーバ�Eから空のレスポンスが返されました')
     }
 
     try {
       const result = JSON.parse(responseText)
-      console.log('✅ 文脈ベース採点結果を受信:', result)
+      console.log('✁E斁E��ベ�Eス採点結果を受信:', result)
       return result
     } catch (parseError) {
-      console.error('JSONパースエラー:', parseError)
-      throw new Error('サーバーからの応答を解析できませんでした')
+      console.error('JSONパ�Eスエラー:', parseError)
+      throw new Error('サーバ�Eからの応答を解析できませんでした')
     }
   } catch (error) {
     console.error('Context-based Grading API Error:', error)
@@ -236,17 +157,17 @@ export const getAvailableModels = async (): Promise<ModelsResponse> => {
   try {
     const response = await fetch(`${API_BASE_URL}/models`)
     if (!response.ok) {
-      throw new Error('モデル一覧の取得に失敗しました')
+      throw new Error('モチE��一覧の取得に失敗しました')
     }
     return await response.json()
   } catch (error) {
     console.error('Models API Error:', error)
-    // フォールバック: デフォルトのモデルリストを返す
+    // フォールバック: チE��ォルト�EモチE��リストを返す
     return {
       models: [
-        { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash (Experimental)', description: '実験版の高速モデル' },
-        { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: '高性能な安定版モデル' },
-        { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: '高速な安定版モデル' }
+        { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash (Experimental)', description: '実験版の高速モチE��' },
+        { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: '高性能な安定版モチE��' },
+        { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: '高速な安定版モチE��' }
       ],
       default: 'gemini-2.0-flash-exp'
     }
@@ -254,143 +175,19 @@ export const getAvailableModels = async (): Promise<ModelsResponse> => {
 }
 
 // ========================================
-// 解答抽出API（採点精度改善 PoC）
-// ========================================
-
-export interface ExtractedAnswer {
-  problemNumber: string
-  correctAnswer: string
-}
-
-export interface ExtractAnswersResponse {
-  success: boolean
-  pageNumber: number
-  answers: ExtractedAnswer[]
-  pageInfo?: {
-    totalProblems?: number
-    description?: string
-  }
-  responseTime?: number
-  error?: string
-}
-
-// 解答ページから解答を抽出
-export const extractAnswers = async (
-  imageData: string,
-  pageNumber: number
-): Promise<ExtractAnswersResponse> => {
-  try {
-    const userLanguage = navigator.language
-
-    console.log('📖 解答抽出リクエスト送信:', {
-      url: `${API_BASE_URL}/extract-answers`,
-      pageNumber,
-      imageDataSize: imageData.length
-    })
-
-    const response = await fetch(`${API_BASE_URL}/extract-answers`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        imageData,
-        pageNumber,
-        language: userLanguage,
-      }),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTPエラー: ${response.status}`)
-    }
-
-    const result = await response.json()
-    console.log('📝 解答抽出結果:', result)
-    return result
-
-  } catch (error) {
-    console.error('❌ 解答抽出エラー:', error)
-    throw error
-  }
-}
-
-// ========================================
-// 問題ページ分析API
-// ========================================
-
-export interface AnalyzedProblem {
-  problemNumber: string
-  type: string
-  hasDiagram: boolean
-  topic?: string
-}
-
-export interface AnalyzeProblemPageResponse {
-  success: boolean
-  pageNumber: number
-  problems: AnalyzedProblem[]
-  totalProblems: number
-  pageType?: string
-  responseTime?: number
-  error?: string
-}
-
-// 問題ページの構造を分析
-export const analyzeProblemPage = async (
-  imageData: string,
-  pageNumber: number
-): Promise<AnalyzeProblemPageResponse> => {
-  try {
-    const userLanguage = navigator.language
-
-    console.log('🔍 問題ページ分析リクエスト送信:', {
-      url: `${API_BASE_URL}/analyze-problem-page`,
-      pageNumber,
-      imageDataSize: imageData.length
-    })
-
-    const response = await fetch(`${API_BASE_URL}/analyze-problem-page`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        imageData,
-        pageNumber,
-        language: userLanguage,
-      }),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTPエラー: ${response.status}`)
-    }
-
-    const result = await response.json()
-    console.log('📊 問題ページ分析結果:', result)
-    return result
-
-  } catch (error) {
-    console.error('❌ 問題ページ分析エラー:', error)
-    throw error
-  }
-}
-
-// ========================================
-// 汎用ページ分析API（問題/解答自動判定）
+// 汎用ペ�Eジ刁E��API�E�問顁E解答�E動判定！E
 // ========================================
 
 export interface UniversalPageResponse {
   success: boolean
   pageType: 'problem' | 'answer' | 'unknown'
   pageNumber: number
-  data: any // ページタイプに応じて problems または answers
+  data: any // ペ�Eジタイプに応じて problems また�E answers
   responseTime?: number
   error?: string
 }
 
-// ページを分析（問題ページか解答ページか自動判定）
+// ペ�Eジを�E析（問題�Eージか解答�Eージか�E動判定！E
 export const analyzePage = async (
   imageData: string,
   pageNumber: number
@@ -398,7 +195,7 @@ export const analyzePage = async (
   try {
     const userLanguage = navigator.language
 
-    console.log('🔍 汎用ページ分析リクエスト送信:', {
+    console.log('🔍 汎用ペ�Eジ刁E��リクエスト送信:', {
       url: `${API_BASE_URL}/analyze-page`,
       pageNumber,
       imageDataSize: imageData.length
@@ -422,11 +219,11 @@ export const analyzePage = async (
     }
 
     const result = await response.json()
-    console.log(`📄 ページ分析結果 (${result.pageType}):`, result)
+    console.log(`📄 ペ�Eジ刁E��結果 (${result.pageType}):`, result)
     return result
 
   } catch (error) {
-    console.error('❌ 汎用ページ分析エラー:', error)
+    console.error('❁E汎用ペ�Eジ刁E��エラー:', error)
     throw error
   }
 }
