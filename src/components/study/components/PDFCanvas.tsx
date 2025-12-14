@@ -128,7 +128,8 @@ const PDFCanvas = forwardRef<PDFCanvasHandle, PDFCanvasProps>(({
                 renderTaskRef.current = null
             }
         }
-    }, [pdfDoc, pageNum, renderScale, onPageRendered])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pdfDoc, pageNum, renderScale])
 
     // canvas要素自体への参照が必要な場合（useZoomPanなどで使われる）
     // ただし、forwardRefで公開しているのはHandleなので、canvasRefへのアクセス方法を検討する必要がある

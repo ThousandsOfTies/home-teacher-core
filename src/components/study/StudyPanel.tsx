@@ -448,6 +448,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
 
   // ページレンダリング完了通知を受け取るコールバック
   const handlePageRendered = () => {
+    console.log('📄 handlePageRendered called, isInitialDrawLoad:', isInitialDrawLoad)
     // 描画キャンバスのサイズを更新
     if (drawingCanvasRef.current && canvasRef.current) {
       drawingCanvasRef.current.width = canvasRef.current.width
@@ -466,13 +467,19 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
       setIsInitialDrawLoad(false)
     }
 
-    // ページ読み込み後、自動的に画面フィット＆中央配置
-    requestAnimationFrame(() => {
-      applyFitAndCenter()
+    // ページ読み込み後、自動的に画面フィット＆中央配置（初回のみ）
+    if (isInitialDrawLoad) {
+      console.log('📄 Initial load - applying fit and center')
+      requestAnimationFrame(() => {
+        applyFitAndCenter()
 
-      // renderPage完了を通知（これにより再描画useEffectがトリガーされる）
+        // renderPage完了を通知（これにより再描画useEffectがトリガーされる）
+        setRenderCompleteCounter(prev => prev + 1)
+      })
+    } else {
+      console.log('📄 Not initial load - skipping fit and center')
       setRenderCompleteCounter(prev => prev + 1)
-    })
+    }
   }
 
   // 初回ロード時: PDFを中央に配置
@@ -1766,10 +1773,12 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
             // 消しゴムモード時はカーソル位置を追跡
             if (isEraserMode && containerRef.current) {
               const rect = containerRef.current.getBoundingClientRect()
-              setEraserCursorPos({
+              const pos = {
                 x: e.clientX - rect.left,
                 y: e.clientY - rect.top
-              })
+              }
+              console.log('🔴 Eraser cursor:', pos)
+              setEraserCursorPos(pos)
             }
           }}
           onMouseUp={stopPanning}
@@ -1914,25 +1923,26 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
               }}
             />
 
-            {/* 消しゴムの範囲表示（半透明円） */}
-            {isEraserMode && eraserCursorPos && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: `${eraserCursorPos.x}px`,
-                  top: `${eraserCursorPos.y}px`,
-                  width: `${eraserSize * 2 * zoom}px`,
-                  height: `${eraserSize * 2 * zoom}px`,
-                  borderRadius: '50%',
-                  backgroundColor: 'rgba(255, 100, 100, 0.2)',
-                  border: '2px solid rgba(255, 100, 100, 0.6)',
-                  pointerEvents: 'none',
-                  transform: 'translate(-50%, -50%)',
-                  zIndex: 1000
-                }}
-              />
-            )}
           </div>
+
+          {/* 消しゴムの範囲表示（半透明円）- canvas-containerの直下に配置 */}
+          {isEraserMode && eraserCursorPos && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${eraserCursorPos.x}px`,
+                top: `${eraserCursorPos.y}px`,
+                width: `${eraserSize * 2 * zoom}px`,
+                height: `${eraserSize * 2 * zoom}px`,
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255, 100, 100, 0.2)',
+                border: '2px solid rgba(255, 100, 100, 0.6)',
+                pointerEvents: 'none',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 9999
+              }}
+            />
+          )}
 
           {/* ページナビゲーション（右端） */}
           {numPages > 1 && (
