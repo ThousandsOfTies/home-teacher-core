@@ -1974,7 +1974,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
                   value={pageNum}
                   onChange={(e) => {
                     const newPage = Number(e.target.value)
-                    setPageNum(newPage)
+                    pdfCanvasRef.current?.goToPage(newPage)
                   }}
                   className="page-slider"
                   title="ページ移動"
