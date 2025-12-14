@@ -1117,14 +1117,32 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                         e.currentTarget.style.transform = 'scale(1)';
                       }}
                     >
-                      {pdfAnswerStatus[record.id] ? (
-                        <span style={{ fontSize: '20px', display: 'flex', alignItems: 'center', position: 'relative' }}>
-                          🦉
-                          <span style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', fontSize: '14px' }}>🎓</span>
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '20px' }}>🦉</span>
-                      )}
+                      <span style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '14px',
+                        fontWeight: '600'
+                      }}>
+                        {pdfAnswerStatus[record.id] ? (
+                          <div style={{ position: 'relative', height: '24px', width: '28px', marginRight: '4px' }}>
+                            <span style={{ fontSize: '20px', position: 'absolute', bottom: '-2px', left: '50%', transform: 'translateX(-50%)' }}>🦉</span>
+                            <span style={{
+                              fontSize: '14px',
+                              position: 'absolute',
+                              top: '-10px',
+                              left: '50%',
+                              transform: 'translateX(-50%)',
+                              zIndex: 1
+                            }}>🎓</span>
+                          </div>
+                        ) : (
+                          <>
+                            <span style={{ fontSize: '20px' }}>🦉</span>
+                            <span>登録</span>
+                          </>
+                        )}
+                      </span>
                     </button>
 
                     {/* 削除ボタン */}
