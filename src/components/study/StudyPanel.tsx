@@ -238,7 +238,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
     resetZoom: hookResetZoom,
     lastWheelCursor,
     applyPanLimit
-  } = useZoomPan(containerRef, RENDER_SCALE, minFitZoom, () => {
+  } = useZoomPan(wrapperRef, RENDER_SCALE, minFitZoom, () => {
     // フィットサイズより小さくしようとしたら、フィット表示に戻す
     if (applyFitAndCenterRef.current) {
       applyFitAndCenterRef.current()
@@ -448,7 +448,6 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
 
   // ページレンダリング完了通知を受け取るコールバック
   const handlePageRendered = () => {
-    console.log('📄 handlePageRendered called, isInitialDrawLoad:', isInitialDrawLoad)
     // 描画キャンバスのサイズを更新
     if (drawingCanvasRef.current && canvasRef.current) {
       drawingCanvasRef.current.width = canvasRef.current.width
@@ -469,7 +468,6 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
 
     // ページ読み込み後、自動的に画面フィット＆中央配置（初回のみ）
     if (isInitialDrawLoad) {
-      console.log('📄 Initial load - applying fit and center')
       requestAnimationFrame(() => {
         applyFitAndCenter()
 
@@ -477,7 +475,6 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
         setRenderCompleteCounter(prev => prev + 1)
       })
     } else {
-      console.log('📄 Not initial load - skipping fit and center')
       setRenderCompleteCounter(prev => prev + 1)
     }
   }
@@ -1773,12 +1770,10 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
             // 消しゴムモード時はカーソル位置を追跡
             if (isEraserMode && containerRef.current) {
               const rect = containerRef.current.getBoundingClientRect()
-              const pos = {
+              setEraserCursorPos({
                 x: e.clientX - rect.left,
                 y: e.clientY - rect.top
-              }
-              console.log('🔴 Eraser cursor:', pos)
-              setEraserCursorPos(pos)
+              })
             }
           }}
           onMouseUp={stopPanning}
