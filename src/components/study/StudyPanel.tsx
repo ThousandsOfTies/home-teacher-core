@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { GradingResult as GradingResultType, getAvailableModels, ModelInfo } from '../../services/api'
+import { GradingResult as GradingResultType, GradingResponseResult, getAvailableModels, ModelInfo } from '../../services/api'
 import GradingResult from './GradingResult'
 import { savePDFRecord, getPDFRecord, getAllSNSLinks, SNSLinkRecord, PDFFileRecord, saveGradingHistory, generateGradingHistoryId, getAppSettings, saveAppSettings } from '../../utils/indexedDB'
 import { ICON_SVG } from '../../constants/icons'
@@ -280,7 +280,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
   const [eraserCursorPos, setEraserCursorPos] = useState<{ x: number, y: number } | null>(null)
 
   const [isGrading, setIsGrading] = useState(false)
-  const [gradingResult, setGradingResult] = useState<GradingResultType | null>(null)
+  const [gradingResult, setGradingResult] = useState<GradingResponseResult | null>(null)
   const [gradingError, setGradingError] = useState<string | null>(null)
   const [gradingModelName, setGradingModelName] = useState<string | null>(null)
   const [gradingResponseTime, setGradingResponseTime] = useState<number | null>(null)
@@ -450,15 +450,23 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
   const handlePageRendered = () => {
     // 描画キャンバスのサイズを更新
     if (drawingCanvasRef.current && canvasRef.current) {
-      drawingCanvasRef.current.width = canvasRef.current.width
-      drawingCanvasRef.current.height = canvasRef.current.height
+      if (drawingCanvasRef.current.width !== canvasRef.current.width) {
+        drawingCanvasRef.current.width = canvasRef.current.width
+      }
+      if (drawingCanvasRef.current.height !== canvasRef.current.height) {
+        drawingCanvasRef.current.height = canvasRef.current.height
+      }
     }
 
     // 矩形選択Canvas（canvas-wrapperの外にあるので、wrapperサイズに合わせる）
     if (selectionCanvasRef.current && wrapperRef.current) {
       const wrapper = wrapperRef.current
-      selectionCanvasRef.current.width = wrapper.clientWidth
-      selectionCanvasRef.current.height = wrapper.clientHeight
+      if (selectionCanvasRef.current.width !== wrapper.clientWidth) {
+        selectionCanvasRef.current.width = wrapper.clientWidth
+      }
+      if (selectionCanvasRef.current.height !== wrapper.clientHeight) {
+        selectionCanvasRef.current.height = wrapper.clientHeight
+      }
     }
 
     // 初回ロードフラグをクリア
@@ -1847,6 +1855,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
                 onPageChange={handlePageChange}
               />
               <DrawingCanvas
+                ref={drawingCanvasRef}
                 width={canvasRef.current?.width}
                 height={canvasRef.current?.height}
                 className="drawing-canvas"
