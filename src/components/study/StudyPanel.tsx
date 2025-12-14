@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { GradingResult as GradingResultType, getAvailableModels, ModelInfo } from '../../services/api'
+import { GradingResult as GradingResultType, GradingResponseResult, getAvailableModels, ModelInfo } from '../../services/api'
 import GradingResult from './GradingResult'
 import { savePDFRecord, getPDFRecord, getAllSNSLinks, SNSLinkRecord, PDFFileRecord, saveGradingHistory, generateGradingHistoryId, getAppSettings, saveAppSettings } from '../../utils/indexedDB'
 import { ICON_SVG } from '../../constants/icons'
@@ -97,21 +97,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
 
   const handlePageChange = (newPageNum: number) => {
     setPageNum(newPageNum)
-    // スライダー操作中でなければスライダー位置も更新
-    if (!isDraggingSlider) {
-      setSliderPage(newPageNum)
-    }
   }
-
-  const jumpToPage = (dPage: number) => {
-    if (pdfCanvasRef.current) {
-      pdfCanvasRef.current.jumpToPage(dPage)
-    }
-  }
-
-  // スライダー用の一時的な状態
-  const [sliderPage, setSliderPage] = useState(1)
-  const [isDraggingSlider, setIsDraggingSlider] = useState(false)
 
   // PDFドキュメントのロードはPDFCanvasが行うため、usePDFRenderer呼び出しは削除
 
@@ -151,8 +137,6 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
 
   // 履歴管理（ページ遷移でリセット）
   const [history, setHistory] = useState<DrawingPath[][]>([])
-
-
 
   useEffect(() => {
     setHistory([])
@@ -296,7 +280,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
   const [eraserCursorPos, setEraserCursorPos] = useState<{ x: number, y: number } | null>(null)
 
   const [isGrading, setIsGrading] = useState(false)
-  const [gradingResult, setGradingResult] = useState<GradingResultType | null>(null)
+  const [gradingResult, setGradingResult] = useState<GradingResponseResult | null>(null)
   const [gradingError, setGradingError] = useState<string | null>(null)
   const [gradingModelName, setGradingModelName] = useState<string | null>(null)
   const [gradingResponseTime, setGradingResponseTime] = useState<number | null>(null)
@@ -310,10 +294,6 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
   const [isProcessingAnswers, setIsProcessingAnswers] = useState(false)
   const [showAnswerStartDialog, setShowAnswerStartDialog] = useState(false)
   const [answersProcessed, setAnswersProcessed] = useState(0)
-
-  useEffect(() => {
-    console.log('State changed:', { isProcessingAnswers, showAnswerStartDialog });
-  }, [isProcessingAnswers, showAnswerStartDialog]);
 
   // useSelection hook を使用して矩形選択機能を管理
   const {
@@ -470,15 +450,23 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
   const handlePageRendered = () => {
     // 描画キャンバスのサイズを更新
     if (drawingCanvasRef.current && canvasRef.current) {
-      drawingCanvasRef.current.width = canvasRef.current.width
-      drawingCanvasRef.current.height = canvasRef.current.height
+      if (drawingCanvasRef.current.width !== canvasRef.current.width) {
+        drawingCanvasRef.current.width = canvasRef.current.width
+      }
+      if (drawingCanvasRef.current.height !== canvasRef.current.height) {
+        drawingCanvasRef.current.height = canvasRef.current.height
+      }
     }
 
     // 矩形選択Canvas（canvas-wrapperの外にあるので、wrapperサイズに合わせる）
     if (selectionCanvasRef.current && wrapperRef.current) {
       const wrapper = wrapperRef.current
-      selectionCanvasRef.current.width = wrapper.clientWidth
-      selectionCanvasRef.current.height = wrapper.clientHeight
+      if (selectionCanvasRef.current.width !== wrapper.clientWidth) {
+        selectionCanvasRef.current.width = wrapper.clientWidth
+      }
+      if (selectionCanvasRef.current.height !== wrapper.clientHeight) {
+        selectionCanvasRef.current.height = wrapper.clientHeight
+      }
     }
 
     // 初回ロードフラグをクリア
@@ -486,13 +474,17 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
       setIsInitialDrawLoad(false)
     }
 
-    // ページ読み込み後、自動的に画面フィット＆中央配置
-    requestAnimationFrame(() => {
-      applyFitAndCenter()
+    // ページ読み込み後、自動的に画面フィット＆中央配置（初回のみ）
+    if (isInitialDrawLoad) {
+      requestAnimationFrame(() => {
+        applyFitAndCenter()
 
-      // renderPage完了を通知（これにより再描画useEffectがトリガーされる）
+        // renderPage完了を通知（これにより再描画useEffectがトリガーされる）
+        setRenderCompleteCounter(prev => prev + 1)
+      })
+    } else {
       setRenderCompleteCounter(prev => prev + 1)
-    })
+    }
   }
 
   // 初回ロード時: PDFを中央に配置
@@ -801,22 +793,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
 
   // 解答登録処理（指定ページ以降を全て処理）
   const processAnswersFromPage = async (startPage: number) => {
-    console.log('processAnswersFromPage called with:', startPage);
     const pdfDoc = pdfCanvasRef.current?.pdfDoc
-
-    if (!pdfDoc) {
-      console.error('❌ processAnswersFromPage: pdfDoc is missing', { ref: pdfCanvasRef.current });
-      addStatusMessage('❌ PDFドキュメントが取得できませんでした');
-      return;
-    }
-    if (!canvasRef.current) {
-      console.error('❌ processAnswersFromPage: canvasRef.current is missing');
-      // canvasRefは描画には必須だが、ここではAPI呼び出しのためのoffscreen canvas作成にviewport取得などで利用するかもしれない
-      // ただしコード上は tempCanvas を作っているので canvasRef 自体は不要かもしれないが、
-      // 既存コードのガード条件に従う。
-      return;
-    }
-
     if (!pdfDoc || !canvasRef.current) return
 
     setShowAnswerStartDialog(false)
@@ -1071,9 +1048,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
 
     } catch (error) {
       console.error('❌ 解答登録エラー:', error)
-      const errorMsg = error instanceof Error ? error.message : String(error)
-      addStatusMessage(`❌ 解答登録エラー: ${errorMsg}`)
-      alert(`解答登録中にエラーが発生しました:\n${errorMsg}`)
+      addStatusMessage('❌ 解答登録エラー')
     } finally {
       setIsProcessingAnswers(false)
     }
@@ -1630,13 +1605,8 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
               /* 解答登録モード: シンプルなツールバー */
               <>
                 <button
-                  onClick={() => {
-                    console.log('🦉 解答登録ボタンがクリックされました');
-                    setShowAnswerStartDialog(true);
-                  }}
+                  onClick={() => setShowAnswerStartDialog(true)}
                   style={{
-                    position: 'relative',
-                    zIndex: 1000,
                     padding: '12px 24px',
                     backgroundColor: '#3498db',
                     color: 'white',
@@ -1803,9 +1773,22 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
           className="canvas-container"
           ref={containerRef}
           onMouseDown={startPanning}
-          onMouseMove={doPanning}
+          onMouseMove={(e) => {
+            doPanning(e)
+            // 消しゴムモード時はカーソル位置を追跡
+            if (isEraserMode && containerRef.current) {
+              const rect = containerRef.current.getBoundingClientRect()
+              setEraserCursorPos({
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+              })
+            }
+          }}
           onMouseUp={stopPanning}
-          onMouseLeave={stopPanning}
+          onMouseLeave={() => {
+            stopPanning()
+            setEraserCursorPos(null)
+          }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -1849,16 +1832,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
             </div>
           )}
 
-          <div
-            className="canvas-wrapper"
-            ref={wrapperRef}
-            style={{
-              cursor: isSelectionMode ? 'crosshair' :
-                isDrawingMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'20\' height=\'20\'%3E%3Ccircle cx=\'10\' cy=\'10\' r=\'3\' fill=\'%23' + penColor.substring(1) + '\' stroke=\'white\' stroke-width=\'1\'/%3E%3C/svg%3E") 10 10, crosshair' :
-                  isEraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\'%3E%3Crect x=\'4\' y=\'4\' width=\'16\' height=\'16\' fill=\'none\' stroke=\'%23666\' stroke-width=\'2\'/%3E%3C/svg%3E") 12 12, crosshair' :
-                    isPanning ? 'grabbing' : 'grab'
-            }}
-          >
+          <div className="canvas-wrapper" ref={wrapperRef}>
             <div
               className="canvas-layer"
               style={{
@@ -1881,6 +1855,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
                 onPageChange={handlePageChange}
               />
               <DrawingCanvas
+                ref={drawingCanvasRef}
                 width={canvasRef.current?.width}
                 height={canvasRef.current?.height}
                 className="drawing-canvas"
@@ -1952,25 +1927,26 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
               }}
             />
 
-            {/* 消しゴムの範囲表示（半透明円） */}
-            {isEraserMode && eraserCursorPos && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: `${eraserCursorPos.x}px`,
-                  top: `${eraserCursorPos.y}px`,
-                  width: `${eraserSize * 2 * zoom}px`,
-                  height: `${eraserSize * 2 * zoom}px`,
-                  borderRadius: '50%',
-                  backgroundColor: 'rgba(255, 100, 100, 0.2)',
-                  border: '2px solid rgba(255, 100, 100, 0.6)',
-                  pointerEvents: 'none',
-                  transform: 'translate(-50%, -50%)',
-                  zIndex: 1000
-                }}
-              />
-            )}
           </div>
+
+          {/* 消しゴムの範囲表示（半透明円）- canvas-containerの直下に配置 */}
+          {isEraserMode && eraserCursorPos && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${eraserCursorPos.x}px`,
+                top: `${eraserCursorPos.y}px`,
+                width: `${eraserSize * 2 * zoom}px`,
+                height: `${eraserSize * 2 * zoom}px`,
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255, 100, 100, 0.2)',
+                border: '2px solid rgba(255, 100, 100, 0.6)',
+                pointerEvents: 'none',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 9999
+              }}
+            />
+          )}
 
           {/* ページナビゲーション（右端） */}
           {numPages > 1 && (
@@ -2004,22 +1980,13 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
                   type="range"
                   min="1"
                   max={numPages}
-                  value={sliderPage}
-                  onMouseDown={() => setIsDraggingSlider(true)}
-                  onTouchStart={() => setIsDraggingSlider(true)}
+                  value={pageNum}
                   onChange={(e) => {
-                    setSliderPage(Number(e.target.value))
-                  }}
-                  onMouseUp={(e) => {
-                    setIsDraggingSlider(false)
-                    jumpToPage(Number(e.currentTarget.value))
-                  }}
-                  onTouchEnd={(e) => {
-                    setIsDraggingSlider(false)
-                    jumpToPage(Number(e.currentTarget.value))
+                    const newPage = Number(e.target.value)
+                    pdfCanvasRef.current?.goToPage(newPage)
                   }}
                   className="page-slider"
-                  title={`ページ移動: ${sliderPage}/${numPages}`}
+                  title="ページ移動"
                 />
               </div>
 

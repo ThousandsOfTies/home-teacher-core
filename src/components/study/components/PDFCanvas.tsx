@@ -20,7 +20,7 @@ interface PDFCanvasProps {
 export interface PDFCanvasHandle {
     goToPrevPage: () => void
     goToNextPage: () => void
-    jumpToPage: (page: number) => void
+    goToPage: (page: number) => void
     pageNum: number
     numPages: number
     isLoading: boolean
@@ -44,12 +44,12 @@ const PDFCanvas = forwardRef<PDFCanvasHandle, PDFCanvasProps>(({
     const {
         pdfDoc,
         pageNum,
+        setPageNum,
         numPages,
         isLoading,
         error,
         goToPrevPage,
-        goToNextPage,
-        jumpToPage
+        goToNextPage
     } = usePDFRenderer(pdfRecord, containerRef, canvasRef, {
         onLoadStart,
         onLoadSuccess,
@@ -60,7 +60,11 @@ const PDFCanvas = forwardRef<PDFCanvasHandle, PDFCanvasProps>(({
     useImperativeHandle(ref, () => ({
         goToPrevPage,
         goToNextPage,
-        jumpToPage,
+        goToPage: (page: number) => {
+            if (page >= 1 && page <= numPages) {
+                setPageNum(page)
+            }
+        },
         pageNum,
         numPages,
         isLoading,
@@ -131,7 +135,8 @@ const PDFCanvas = forwardRef<PDFCanvasHandle, PDFCanvasProps>(({
                 renderTaskRef.current = null
             }
         }
-    }, [pdfDoc, pageNum, renderScale, onPageRendered])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pdfDoc, pageNum, renderScale])
 
     // canvas要素自体への参照が必要な場合（useZoomPanなどで使われる）
     // ただし、forwardRefで公開しているのはHandleなので、canvasRefへのアクセス方法を検討する必要がある

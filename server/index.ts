@@ -6,7 +6,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 dotenv.config()
 
 const app = express()
-const port = process.env.PORT || 8080
+const port = process.env.PORT || 3003
 
 // Increase payload size limit for base64 images
 app.use(express.json({ limit: '50mb' }))
@@ -24,6 +24,7 @@ if (!process.env.GEMINI_API_KEY) {
 const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp'
 console.log(`Using Gemini Model: ${MODEL_NAME}`)
 
+// Initialize the Google Generative AI client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
 const model = genAI.getGenerativeModel({ model: MODEL_NAME })
 
@@ -36,53 +37,227 @@ app.post('/api/analyze-page', async (req, res) => {
     const { imageData, pageNumber, language = 'ja' } = req.body
 
     if (!imageData) {
-      return res.status(400).json({ error: 'imageData is required' })
+      return res.status(400).json({ error: '画像データが必要です' })
     }
 
-    // Base64 header removal if present
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '')
+    console.log(`🔍 汎用ページ分析開始: ページ ${pageNumber}`)
 
-    console.log(`Processing page ${pageNumber}...`)
+    // Base64データの抽出
+    const base64Match = imageData.match(/^data:image\/(jpeg|png|webp);base64,(.+)$/)
+    if (!base64Match) {
+      return res.status(400).json({ error: '無効な画像データ形式です' })
+    }
 
-    const prompt = `
-Analyze this image of a workbook page answer key.
-Extract all answer sets.
+    const mimeType = `image/${base64Match[1]}`
+    const base64Data = base64Match[2]
 
-The user is a Japanese student.
-The image likely contains problem numbers (like "1", "(1)", "問1") and their corresponding answers.
-It may also contain section headers (like "p.4", "第1回", "練成問題").
+    // 日本語プロンプト（最も精度が高かったバージョン）
+    const universalPrompt = `あなたは問題集・ドリルの解答ページを解析するAIです。
 
-Return ONLY a valid JSON object with the following structure:
+【タスク】
+この画像から、すべての問題番号と正解を漏れなく抽出してください。
+
+【重要なルール】
+1. 問題番号は必ず「大問番号(小問番号)」の形式で出力すること
+   例: 1(1), 1(2), 2(1), 2(2) など
+   
+2. 横に並んでいる解答も全て抽出すること
+   例: 「1 (1) 105度 (2) 10度 (3) 47度 (4) 100度」
+   → 1(1)=105度, 1(2)=10度, 1(3)=47度, 1(4)=100度
+   
+3. セクションヘッダーに「問題は○ページ」と書いてあれば、それをproblemPageとして記録
+
+4. 「解説」の文章は無視して、答えの値のみを抽出すること
+
+【出力形式】
+必ず以下のJSON形式で出力してください（他のテキストは不要）:
+
 {
-  "pageType": "answer", // or "problem" or "other"
-  "printedPageNumber": number | null, // The page number printed on the paper itself (e.g. at the bottom corners), NOT the PDF page number.
+  "pageType": "answer",
+  "pageNumber": 78,
   "answers": [
-    {
-      "problemNumber": "string", // e.g. "1", "(1)", "問1"
-      "correctAnswer": "string", // e.g. "ア", "5cm", "took"
-      "problemPage": number | null, // If the answer key explicitly mentions which problem page it belongs to (e.g. "p.4の解答"), extract it.
-      "sectionName": "string | null" // The section header this answer belongs to (e.g. "練成問題A", "p.4")
-    }
+    {"problemNumber": "1(1)", "correctAnswer": "105度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA（問題は6ページ）"},
+    {"problemNumber": "1(2)", "correctAnswer": "10度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA（問題は6ページ）"},
+    {"problemNumber": "1(3)", "correctAnswer": "47度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA（問題は6ページ）"},
+    {"problemNumber": "1(4)", "correctAnswer": "100度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA（問題は6ページ）"}
   ]
 }
 
-Rules:
-1. Extract ALL answers visible on the page.
-2. Be precise with problem numbers.
-3. If there are multiple columns, process them in logical reading order (usually top-down, left-right).
-4. If you see a page number printed on the corner of the paper, set it to "printedPageNumber".
-5. Use "sectionName" to capture hierarchial context (big headers).
-`
+もしこれが問題ページ（解答ページではない）の場合は:
+{
+  "pageType": "problem",
+  "pageNumber": 6,
+  "problems": [{"problemNumber": "1(1)", "type": "計算", "hasDiagram": false}]
+}
+
+【最重要】
+- すべての小問を漏れなく抽出すること
+- 「(2)」だけでなく「1(2)」のように大問番号を必ず付けること
+- 解説文は無視し、答えの数値・記号のみを抽出すること`
+
+    const startTime = Date.now()
 
     const result = await model.generateContent([
-      prompt,
       {
         inlineData: {
-          mimeType: "image/jpeg",
+          mimeType: mimeType,
           data: base64Data
         }
-      }
+      },
+      { text: universalPrompt }
     ])
+
+    const elapsedTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(2))
+
+    const response = await result.response
+    const responseText = response.text()
+
+    if (!responseText) {
+      throw new Error('APIからレスポンスを取得できませんでした')
+    }
+
+    // JSONを抽出
+    let analyzedData
+    try {
+      const jsonStart = responseText.indexOf('{')
+      const jsonEnd = responseText.lastIndexOf('}') + 1
+      if (jsonStart !== -1 && jsonEnd > jsonStart) {
+        const jsonString = responseText.substring(jsonStart, jsonEnd)
+        analyzedData = JSON.parse(jsonString)
+      } else {
+        throw new Error('JSON構造が見つかりません')
+      }
+    } catch (parseError) {
+      console.error('❌ JSONパース失敗:', parseError)
+      console.error('レスポンス:', responseText.substring(0, 500))
+      return res.status(500).json({
+        error: 'ページ分析に失敗しました',
+        details: 'AIレスポンスの解析エラー',
+        rawResponse: responseText.substring(0, 500)
+      })
+    }
+
+    // Add metadata
+    analyzedData.pdfPage = pageNumber
+
+    const pageType = analyzedData.pageType || 'unknown'
+    const itemCount = analyzedData.answers?.length || analyzedData.problems?.length || 0
+
+    console.log(`✅ ページ分析完了: ${elapsedTime}秒`)
+    console.log(`📄 ページタイプ: ${pageType}, アイテム数: ${itemCount}`)
+
+    // デバッグ: 解答ページの場合、各解答のproblemPageを表示
+    if (pageType === 'answer' && analyzedData.answers) {
+      console.log(`📋 解答詳細:`)
+      analyzedData.answers.forEach((ans: any, i: number) => {
+        console.log(`   ${i + 1}. ${ans.problemNumber} = "${ans.correctAnswer}" (問題ページ: ${ans.problemPage ?? '未設定'})`)
+      })
+    }
+
+    res.json({
+      success: true,
+      data: analyzedData,
+      pageType: analyzedData.pageType,
+      result: analyzedData,
+      responseTime: elapsedTime
+    })
+
+  } catch (error) {
+    console.error('❌ ページ分析エラー:', error)
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Internal Server Error',
+      details: String(error)
+    })
+  }
+})
+
+app.post('/api/grade-work-with-context', async (req, res) => {
+  try {
+    const { fullPageImageData, croppedImageData, pageNumber, model: requestModel } = req.body
+
+    if (!fullPageImageData || !croppedImageData) {
+      return res.status(400).json({ error: 'Both fullPageImageData and croppedImageData are required' })
+    }
+
+    const startTime = Date.now()
+    console.log(`Grading work for page ${pageNumber}...`)
+
+    // Use requested model or default
+    const currentModelName = requestModel || MODEL_NAME
+    const currentModel = genAI.getGenerativeModel({ model: currentModelName })
+
+    // Determine response language
+    const language = 'ja' // Default to Japanese as per original implementation
+    const langCode = language ? language.split('-')[0] : 'ja'
+    const responseLang = langCode === 'ja' ? 'Japanese' : 'English'
+
+    // Restore the detailed prompt from the working version
+    const contextPrompt = `
+Your task:
+1. Look at IMAGE 1 (full page) to:
+   a. Find the PRINTED PAGE NUMBER(s) visible on the page (e.g., "p.4", "5ページ", "4", "5" in corners/margins)
+   b. Identify which printed page the cropped problem belongs to
+2. Look at IMAGE 2 (cropped) to:
+   a. Identify the problem number (e.g. "1(1)", "Q2", "問3") - use IMAGE 1 for context if cut off
+   b. Read the student's handwritten answer
+   c. Grade the answer (Correct/Incorrect) against standard math/subject rules or visible answer keys in IMAGE 1 (if available)
+
+IMPORTANT RULES:
+- Grade ONLY the answer visible in IMAGE 2 (the cropped image)
+- DO NOT mention or grade other problems from IMAGE 1
+- The correct answer should match what's asked in IMAGE 2, not other problems
+- The student wrote their answer in IMAGE 2, not IMAGE 1
+
+Return valid JSON:
+{
+  "problemNumber": "exact problem number (e.g., '1(1)', '1(2)', '2')",
+  "confidence": "high/medium/low",
+  "positionReasoning": "brief explanation: which side of the spread (left/right), what printed page number you found",
+  "problemText": "problem text from IMAGE 2 (cropped)",
+  "studentAnswer": "student's answer from IMAGE 2 (cropped) ONLY",
+  "isCorrect": true or false (based on the answer in IMAGE 2),
+  "correctAnswer": "correct answer (if you can determine it from IMAGE 2)",
+  "feedback": "encouraging feedback about the answer in IMAGE 2",
+  "explanation": "detailed explanation about the answer in IMAGE 2",
+  "overallComment": "overall comment",
+  "printedPageNumber": number | null // The page number printed on the workbook page where the problem is located
+}
+
+LANGUAGE: ${responseLang}`
+
+    // Extract mime types and clean base64
+    const pageMatch = fullPageImageData.match(/^data:(image\/(png|jpeg));base64,(.+)$/)
+    const cropMatch = croppedImageData.match(/^data:(image\/(png|jpeg));base64,(.+)$/)
+
+    if (!pageMatch || !cropMatch) {
+      // Fallback for clean base64 strings passed without header
+      // This handles the case where clean base64 is sent or header format varies
+    }
+
+    // Robust data preparation
+    const fullPageData = pageMatch ? pageMatch[3] : fullPageImageData.replace(/^data:image\/\w+;base64,/, '')
+    const fullPageMime = pageMatch ? pageMatch[1] : 'image/jpeg'
+
+    const cropData = cropMatch ? cropMatch[3] : croppedImageData.replace(/^data:image\/\w+;base64,/, '')
+    const cropMime = cropMatch ? cropMatch[1] : 'image/jpeg'
+
+    const result = await currentModel.generateContent([
+      // Image Order is Important as per prompt instructions
+      {
+        inlineData: {
+          mimeType: fullPageMime,
+          data: fullPageData
+        }
+      },
+      {
+        inlineData: {
+          mimeType: cropMime,
+          data: cropData
+        }
+      },
+      { text: contextPrompt }
+    ])
+
     const response = await result.response
     const responseText = response.text()
 
@@ -90,18 +265,42 @@ Rules:
       throw new Error('Empty response from Gemini')
     }
 
-    // Clean up potential markdown code blocks
-    const jsonStr = responseText.replace(/```json\n?|\n?```/g, '')
-    const parsedData = JSON.parse(jsonStr)
+    const jsonStr = responseText.replace(/```json\n?|\n?```/g, '') // Basic markdown cleanup
+    let gradingData
+    try {
+      gradingData = JSON.parse(jsonStr)
+    } catch (e) {
+      console.error("JSON Parse Error:", e)
+      console.log("Raw Response:", responseText)
+      throw new Error("Failed to parse AI response")
+    }
 
-    // Add metadata
-    parsedData.pdfPage = pageNumber
+    // Measure time
+    const elapsedTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(2))
 
-    console.log(`Page ${pageNumber} analyzed successfully. Found ${parsedData.answers?.length || 0} answers.`)
-    res.json({ success: true, data: parsedData, pageType: parsedData.pageType, result: parsedData }) // compatibility
+    // Construct response matching the structure expected by client logic (similar to old_index.ts)
+    // The previous logic wrapped the single result in an array 'problems'
+    const problemWithMetadata = {
+      ...gradingData,
+      gradingSource: 'ai-context', // Flag to indicate AI graded this
+    }
+
+    const responseData = {
+      success: true,
+      modelName: currentModelName,
+      responseTime: elapsedTime,
+      result: {
+        problems: [problemWithMetadata],
+        printedPageNumber: gradingData.printedPageNumber,
+        overallComment: gradingData.overallComment || gradingData.positionReasoning
+      }
+    }
+
+    console.log(`Grading complete. Problem: ${gradingData.problemNumber}, Correct: ${gradingData.isCorrect}`)
+    res.json(responseData)
 
   } catch (error) {
-    console.error('Error in /api/analyze-page:', error)
+    console.error('Error in /api/grade-work-with-context:', error)
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Internal Server Error',
       details: String(error)

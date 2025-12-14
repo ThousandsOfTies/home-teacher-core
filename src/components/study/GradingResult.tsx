@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { GradingResult as GradingResultType } from '../../services/api'
+import { GradingResponseResult } from '../../services/api'
 import { SNSLinkRecord } from '../../utils/indexedDB'
 import { getSNSIcon } from '../../constants/sns'
 import './GradingResult.css'
 
 interface GradingResultProps {
-  result: GradingResultType | null
+  result: GradingResponseResult | null
   onClose: () => void
   snsLinks?: SNSLinkRecord[]
   timeLimitMinutes?: number // SNS利用時間制限（分）

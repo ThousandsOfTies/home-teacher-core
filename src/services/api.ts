@@ -1,28 +1,6 @@
-// 型定義
-export interface AnalyzePageResponse {
-  success: boolean
-  pageType: 'answer' | 'problem' | 'other'
-  data: {
-    answers: Array<{
-      problemNumber: string
-      correctAnswer: string
-      problemPage: number | null
-      sectionName?: string
-    }>
-    printedPageNumber?: number | null
-  }
-}
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
-export interface GradeResponse {
-  isCorrect: boolean
-  correctAnswer: string
-  feedback: string
-  explanation: string
-  confidence?: string
-  extractedText?: string
-}
-
-export type GradingResult = GradeResponse // Alias for compatibility with StudyPanel
+const API_BASE_URL = 'http://localhost:3003'
 
 export interface ModelInfo {
   id: string
@@ -30,22 +8,75 @@ export interface ModelInfo {
   description?: string
 }
 
-export interface ModelInfoResponse {
-  default: string
+export interface AvailableModelsResponse {
   models: ModelInfo[]
+  default: string
 }
 
+export interface Answer {
+  problemNumber: string
+  correctAnswer: string
+  problemPage: number | null
+  sectionName?: string
+}
 
-// 環境変数からAPIのベースURLを取得（Viteの環境変数）
-// see: https://vitejs.dev/guide/env-and-mode.html
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://hometeacher-api-736494768812.asia-northeast1.run.app'
+export interface AnalyzePageResponse {
+  success: boolean
+  data: {
+    pageType: string
+    answers: Answer[]
+  }
+  pageType: string
+  result: any
+  error?: string
+}
 
-console.log('🔌 API Base URL:', API_BASE_URL)
+export interface GradingResult {
+  problemNumber: string
+  studentAnswer: string
+  correctAnswer?: string
+  isCorrect?: boolean
+  explanation?: string
+  feedback?: string
+  confidence?: string | number
+  printedPageNumber?: number | null
+  problemText?: string
+  positionReasoning?: string
+  overallComment?: string
+  gradingSource?: string
+  dbMatchedAnswer?: any
+  matchingMetadata?: any
+}
 
-/**
- * 汎用的なページ解析API
- * 画像全体を送信して、問題番号と正答のペア、およびセクション名を抽出する
- */
+export interface GradingResponseResult {
+  pageType?: string
+  printedPageNumber?: number | null
+  problems: GradingResult[]
+  overallComment?: string
+  rawResponse?: string
+}
+
+export interface GradeResponse {
+  success: boolean
+  modelName?: string
+  responseTime?: number
+  result: GradingResponseResult
+  error?: string
+}
+
+export const getAvailableModels = async (): Promise<AvailableModelsResponse> => {
+  // TODO: Fetch from server if endpoint exists
+  // For now return hardcoded list matching server capabilities
+  return {
+    models: [
+      { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash Exp' },
+      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+    ],
+    default: 'gemini-2.0-flash-exp'
+  }
+}
+
 export const analyzePage = async (
   imageData: string,
   pageNumber: number,
@@ -66,84 +97,52 @@ export const analyzePage = async (
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTPエラー: ${response.status} ${response.statusText}`)
+      throw new Error(errorData.error || `HTTP Error: ${response.status}`)
     }
 
     const result = await response.json()
-    console.log(`📄 ページ解析結果 (${result.pageType}):`, result)
+    console.log(`✅ Page Analysis Result (${result.pageType}):`, result)
     return result
   } catch (error) {
-    console.error('❌ ページ解析エラー:', error)
+    console.error('❌ Page Analysis Error:', error)
     throw error
   }
 }
 
-/**
- * コンテキスト付き採点API
- * 問題の切り抜き画像と、ページ全体のコンテキスト画像を送信して採点を行う
- */
 export const gradeWorkWithContext = async (
-  problemImage: string,
-  contextImage: string,
-  problemNumber: string,
-  studentAnswer: string, // 手書き文字認識結果など（オプショナル）
+  fullPageImageData: string,
+  croppedImageData: string,
   pageNumber: number,
   model?: string
 ): Promise<GradeResponse> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/grade`, {
+    const response = await fetch(`${API_BASE_URL}/api/grade-work-with-context`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        imageData: problemImage, // 切り抜き画像
-        contextImage,            // ページ全体（低解像度）
-        problemNumber,
-        studentAnswer,
+        fullPageImageData,
+        croppedImageData,
         pageNumber,
-        model
+        model,
       }),
     })
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      console.error('API Error Response:', errorData);
-      throw new Error(errorData.error || `HTTPエラー: ${response.status}`)
+      throw new Error(errorData.error || `HTTP Error: ${response.status}`)
     }
 
     const result = await response.json()
+    console.log(`✅ Grading Result:`, result)
     return result
   } catch (error) {
-    console.error('❌ 採点エラー:', error)
-    throw error
-  }
-}
-
-/**
- * 利用可能なAIモデル一覧を取得
- */
-export const getAvailableModels = async (): Promise<ModelInfoResponse> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/models`)
-    if (!response.ok) {
-      // エンドポイントがない場合はデフォルトを返す（後方互換性）
-      return {
-        default: 'gemini-1.5-flash',
-        models: [
-          { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Default)', description: '高速・低コスト' },
-          { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: '高精度・推論能力が高い' }
-        ]
-      }
-    }
-    return await response.json()
-  } catch (error) {
-    console.warn('⚠️ モデル一覧取得失敗、デフォルトを使用:', error)
+    console.error('❌ Grading Error:', error)
     return {
-      default: 'gemini-1.5-flash',
-      models: [
-        { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Default)', description: '高速・低コスト' }
-      ]
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+      result: { problems: [] }
     }
   }
 }
