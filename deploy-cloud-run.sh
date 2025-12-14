@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 # TutoTuto API - Google Cloud Run デプロイスクリプト
 
@@ -7,7 +8,7 @@ echo "🚀 TutoTuto APIをGoogle Cloud Runにデプロイします..."
 # シークレットの確認
 echo "ℹ️  GEMINI_API_KEYはSecret Managerから読み込まれます"
 
-# プロジェクトIDとリージョンの設定（必要に応じて変更）
+# プロジェクトIDとリージョンの設定
 PROJECT_ID=$(gcloud config get-value project)
 REGION="asia-northeast1"  # 東京リージョン
 SERVICE_NAME="hometeacher-api"
@@ -19,10 +20,10 @@ echo "  サービス名: $SERVICE_NAME"
 echo ""
 
 # Cloud Runにデプロイ
-gcloud run deploy $SERVICE_NAME \
+gcloud run deploy "$SERVICE_NAME" \
   --source . \
   --platform managed \
-  --region $REGION \
+  --region "$REGION" \
   --allow-unauthenticated \
   --min-instances 0 \
   --max-instances 10 \
@@ -32,14 +33,8 @@ gcloud run deploy $SERVICE_NAME \
   --set-env-vars "NODE_ENV=production,GEMINI_MODEL=gemini-2.0-flash-exp" \
   --update-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest"
 
-if [ $? -eq 0 ]; then
-  echo ""
-  echo "✅ デプロイ完了！"
-  echo ""
-  echo "サービスURL:"
-  gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)'
-else
-  echo ""
-  echo "❌ デプロイに失敗しました"
-  exit 1
-fi
+echo ""
+echo "✅ デプロイ完了！"
+echo ""
+echo "サービスURL:"
+gcloud run services describe "$SERVICE_NAME" --region "$REGION" --format 'value(status.url)'
