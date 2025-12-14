@@ -69,6 +69,10 @@ app.post('/api/analyze-page', async (req, res) => {
 
 4. 「解説」の文章は無視して、答えの値のみを抽出すること
 
+5. 複数の値を求める問題の場合（例: x と y を求めよ）:
+   - 解答が「x=107°, y=47°」のように複数ある場合は、そのまま全て含めること
+   - 例: correctAnswer: "x=107°, y=47°" または "x=107度, y=47度"
+
 【出力形式】
 必ず以下のJSON形式で出力してください（他のテキストは不要）:
 
@@ -78,7 +82,7 @@ app.post('/api/analyze-page', async (req, res) => {
   "answers": [
     {"problemNumber": "1(1)", "correctAnswer": "105度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA（問題は6ページ）"},
     {"problemNumber": "1(2)", "correctAnswer": "10度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA（問題は6ページ）"},
-    {"problemNumber": "1(3)", "correctAnswer": "47度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA（問題は6ページ）"},
+    {"problemNumber": "1(3)", "correctAnswer": "x=107度, y=47度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA（問題は6ページ）"},
     {"problemNumber": "1(4)", "correctAnswer": "100度", "problemPage": 6, "sectionName": "平面図形Ⅰ レベルA（問題は6ページ）"}
   ]
 }
@@ -93,7 +97,8 @@ app.post('/api/analyze-page', async (req, res) => {
 【最重要】
 - すべての小問を漏れなく抽出すること
 - 「(2)」だけでなく「1(2)」のように大問番号を必ず付けること
-- 解説文は無視し、答えの数値・記号のみを抽出すること`
+- 解説文は無視し、答えの数値・記号のみを抽出すること
+- 複数値の解答（x, y など）は全ての値を含めること`
 
     const startTime = Date.now()
 
@@ -196,31 +201,41 @@ app.post('/api/grade-work-with-context', async (req, res) => {
 Your task:
 1. Look at IMAGE 1 (full page) to:
    a. Find the PRINTED PAGE NUMBER(s) visible on the page (e.g., "p.4", "5ページ", "4", "5" in corners/margins)
-   b. Identify which printed page the cropped problem belongs to
+   b. Understand the PROBLEM STRUCTURE of the page:
+      - Identify ALL major problem numbers (大問: 1, 2, 3...)
+      - Identify how sub-problems are organized (小問: (1), (2), (3)...)
+      - Note the position of the cropped area within this structure
+   c. Identify which printed page the cropped problem belongs to
+
 2. Look at IMAGE 2 (cropped) to:
-   a. Identify the problem number (e.g. "1(1)", "Q2", "問3") - use IMAGE 1 for context if cut off
-   b. Read the student's handwritten answer
-   c. Grade the answer (Correct/Incorrect) against standard math/subject rules or visible answer keys in IMAGE 1 (if available)
+   a. Identify the COMPLETE problem number by combining:
+      - The major problem number (大問) from IMAGE 1's structure
+      - The sub-problem number (小問) visible in IMAGE 2
+      - Example: If IMAGE 1 shows this is under 問1 and IMAGE 2 shows (3), return "1(3)"
+   b. Read the student's handwritten answer (include ALL values if multiple, e.g., "x=107°, y=47°")
+   c. Grade the answer (Correct/Incorrect) against standard math/subject rules
 
 IMPORTANT RULES:
+- ALWAYS include the major problem number (大問番号) in problemNumber
+- If you see "(3)" in the cropped image, look at IMAGE 1 to find which major problem it belongs to
+- Example: "(3)" under 大問1 should be returned as "1(3)", not just "3" or "(3)"
 - Grade ONLY the answer visible in IMAGE 2 (the cropped image)
 - DO NOT mention or grade other problems from IMAGE 1
-- The correct answer should match what's asked in IMAGE 2, not other problems
-- The student wrote their answer in IMAGE 2, not IMAGE 1
+- For multi-value answers (x and y), include ALL values in studentAnswer
 
 Return valid JSON:
 {
-  "problemNumber": "exact problem number (e.g., '1(1)', '1(2)', '2')",
+  "problemNumber": "COMPLETE problem number with major+sub (e.g., '1(3)', '2(1)', NOT just '3' or '(3)')",
   "confidence": "high/medium/low",
-  "positionReasoning": "brief explanation: which side of the spread (left/right), what printed page number you found",
+  "positionReasoning": "explain: which major problem (大問) this belongs to based on IMAGE 1 layout, and the sub-problem number",
   "problemText": "problem text from IMAGE 2 (cropped)",
-  "studentAnswer": "student's answer from IMAGE 2 (cropped) ONLY",
+  "studentAnswer": "student's answer from IMAGE 2 - include ALL values (e.g., 'x=107°, y=47°')",
   "isCorrect": true or false (based on the answer in IMAGE 2),
-  "correctAnswer": "correct answer (if you can determine it from IMAGE 2)",
+  "correctAnswer": "correct answer if determinable",
   "feedback": "encouraging feedback about the answer in IMAGE 2",
   "explanation": "detailed explanation about the answer in IMAGE 2",
   "overallComment": "overall comment",
-  "printedPageNumber": number | null // The page number printed on the workbook page where the problem is located
+  "printedPageNumber": number | null // The page number printed on the workbook page
 }
 
 LANGUAGE: ${responseLang}`
