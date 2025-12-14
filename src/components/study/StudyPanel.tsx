@@ -238,7 +238,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
     resetZoom: hookResetZoom,
     lastWheelCursor,
     applyPanLimit
-  } = useZoomPan(wrapperRef, RENDER_SCALE, minFitZoom, () => {
+  } = useZoomPan(containerRef, RENDER_SCALE, minFitZoom, () => {
     // フィットサイズより小さくしようとしたら、フィット表示に戻す
     if (applyFitAndCenterRef.current) {
       applyFitAndCenterRef.current()
@@ -1761,9 +1761,22 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
           className="canvas-container"
           ref={containerRef}
           onMouseDown={startPanning}
-          onMouseMove={doPanning}
+          onMouseMove={(e) => {
+            doPanning(e)
+            // 消しゴムモード時はカーソル位置を追跡
+            if (isEraserMode && containerRef.current) {
+              const rect = containerRef.current.getBoundingClientRect()
+              setEraserCursorPos({
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+              })
+            }
+          }}
           onMouseUp={stopPanning}
-          onMouseLeave={stopPanning}
+          onMouseLeave={() => {
+            stopPanning()
+            setEraserCursorPos(null)
+          }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
