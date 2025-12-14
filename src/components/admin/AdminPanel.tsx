@@ -1124,16 +1124,23 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                         fontSize: '14px',
                         fontWeight: '600'
                       }}>
-                        <span style={{ fontSize: '20px' }}>🦉</span>
-                        {!pdfAnswerStatus[record.id] && <span>登録</span>}
-                        {pdfAnswerStatus[record.id] && (
-                          <span style={{
-                            fontSize: '12px',
-                            backgroundColor: '#27ae60',
-                            color: 'white',
-                            padding: '2px 6px',
-                            borderRadius: '10px'
-                          }}>済</span>
+                        {pdfAnswerStatus[record.id] ? (
+                          <div style={{ position: 'relative', height: '24px', width: '28px', marginRight: '4px' }}>
+                            <span style={{ fontSize: '20px', position: 'absolute', bottom: '-2px', left: '50%', transform: 'translateX(-50%)' }}>🦉</span>
+                            <span style={{
+                              fontSize: '14px',
+                              position: 'absolute',
+                              top: '-10px',
+                              left: '50%',
+                              transform: 'translateX(-50%)',
+                              zIndex: 1
+                            }}>🎓</span>
+                          </div>
+                        ) : (
+                          <>
+                            <span style={{ fontSize: '20px' }}>🦉</span>
+                            <span>登録</span>
+                          </>
                         )}
                       </span>
                     </button>
