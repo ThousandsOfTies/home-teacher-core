@@ -20,7 +20,7 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 // Initialize Google GenAI Client
-// Use gemini-2.0-flash-exp as default, or fallback to 1.5-flash if needed
+// Use gemini-2.0-flash-exp for both (fast and cost-effective)
 const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp'
 console.log(`Using Gemini Model: ${MODEL_NAME}`)
 
@@ -189,7 +189,7 @@ app.post('/api/grade-work-with-context', async (req, res) => {
 
     // Use requested model or default
     const currentModelName = requestModel || MODEL_NAME
-    const currentModel = genAI.getGenerativeModel({ model: currentModelName })
+    const currentModel = requestModel ? genAI.getGenerativeModel({ model: currentModelName }) : model
 
     // Determine response language
     const language = 'ja' // Default to Japanese as per original implementation

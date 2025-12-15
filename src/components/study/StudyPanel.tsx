@@ -1230,8 +1230,8 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
       const fullPageCanvas = document.createElement('canvas')
       const pdfCanvas = canvasRef.current
 
-      // 低解像度版（位置情報用）
-      const fullPageScale = 0.3  // 30%に縮小
+      // フルページ画像（問題構造認識用に高解像度）
+      const fullPageScale = 0.5  // 50%に縮小（問題番号の認識精度向上のため）
       fullPageCanvas.width = Math.round(pdfCanvas.width * fullPageScale)
       fullPageCanvas.height = Math.round(pdfCanvas.height * fullPageScale)
 
@@ -1453,34 +1453,43 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
               let correctAnswer = ''
               let feedback = ''
               let explanation = ''
+              let gradingSource = 'ai' // デフォルトはAI
 
-              if (matchedAnswer) {
-                correctAnswer = matchedAnswer.correctAnswer
+              // === 新しいロジック: AI優先、DBはフォールバック ===
+
+              // Step 1: まずAIの判定を採用
+              isCorrect = problem.isCorrect || false
+              correctAnswer = problem.correctAnswer || ''
+              feedback = problem.feedback || ''
+              explanation = problem.explanation || ''
+
+              console.log(`🤖 AI判定: 問題${problem.problemNumber} → ${isCorrect ? '✓ 正解' : '✗ 不正解'}`)
+
+              // Step 2: AIが「不正解」と判定した場合のみ、DBを確認（セーフティネット）
+              if (!isCorrect && matchedAnswer) {
                 const normalizedStudent = normalizeAnswer(problem.studentAnswer)
-                const normalizedCorrect = normalizeAnswer(correctAnswer)
+                const normalizedDbCorrect = normalizeAnswer(matchedAnswer.correctAnswer)
 
-
-                isCorrect = normalizedStudent === normalizedCorrect
-
-                console.log(`🔍 問題${problem.problemNumber}:`)
+                console.log(`📚 DB確認（AIが不正解と判定したため）:`)
                 console.log(`   生徒: "${problem.studentAnswer}" → "${normalizedStudent}"`)
-                console.log(`   正解: "${correctAnswer}" → "${normalizedCorrect}"`)
-                console.log(`   判定: ${isCorrect ? '✓ 正解' : '✗ 不正解'}`)
+                console.log(`   DB正解: "${matchedAnswer.correctAnswer}" → "${normalizedDbCorrect}"`)
 
-                if (isCorrect) {
+                // DBの正解と生徒の解答が一致すれば、正解に上書き
+                if (normalizedStudent === normalizedDbCorrect) {
+                  isCorrect = true
+                  correctAnswer = matchedAnswer.correctAnswer
                   feedback = '正解です！よくできました！'
                   explanation = `正解は ${correctAnswer} です。`
+                  gradingSource = 'db_override' // DBで上書きしたことを記録
+                  console.log(`   ✅ DBで正解に上書き！`)
                 } else {
-                  feedback = '惜しい！もう一度確認してみましょう。'
-                  explanation = `正解は ${correctAnswer} です。あなたの解答「${problem.studentAnswer}」を見直してみてください。`
+                  console.log(`   ❌ DBでも不一致、AIの判定を維持`)
                 }
-              } else {
-                // ⚠️ DBに正解がない → AIの判定を採用
-                console.log(`🤖 問題${problem.problemNumber}: AI判定使用`)
-                isCorrect = problem.isCorrect || false
-                correctAnswer = problem.correctAnswer || ''
-                feedback = problem.feedback || '採点結果を確認してください。'
-                explanation = problem.explanation || ''
+              }
+
+              // Step 3: AIが正解と判定した場合はそのまま
+              if (problem.isCorrect) {
+                gradingSource = 'ai'
               }
 
               const historyRecord = {
@@ -1507,8 +1516,8 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
               problem.explanation = explanation
 
               // 採点ソース情報を追加（デバッグ・確認用）
-              problem.gradingSource = matchedAnswer ? 'db' : 'ai'
-              if (matchedAnswer) {
+              problem.gradingSource = gradingSource
+              if (matchedAnswer && gradingSource === 'db_override') {
                 problem.dbMatchedAnswer = {
                   problemNumber: matchedAnswer.problemNumber,
                   correctAnswer: matchedAnswer.correctAnswer,
