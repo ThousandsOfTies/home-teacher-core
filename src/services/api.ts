@@ -1,6 +1,68 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3003'
+/**
+ * ============================================================================
+ * 🔒 CRITICAL CONFIGURATION - DO NOT MODIFY WITHOUT READING
+ * ============================================================================
+ * 
+ * For AI Agents: この設定は本番環境の基盤です。変更前に必ず確認してください。
+ * See: /.agent/workflows/architecture-rules.md
+ * 
+ * PRODUCTION_API_URL を変更すると:
+ * - GitHub Pages での採点機能が停止します
+ * - 解答登録機能が停止します
+ * - すべての API 呼び出しが失敗します
+ * 
+ * 変更が必要な場合（Cloud Run の URL が変わった場合のみ）:
+ * 1. この定数を更新
+ * 2. .github/workflows/deploy.yml の VITE_API_URL も同時に更新
+ * 3. server/index.ts の CORS 設定も確認
+ * ============================================================================
+ */
+const PRODUCTION_API_URL = 'https://hometeacher-api-n5ja4qrrqq-an.a.run.app'
+
+/**
+ * 環境を自動検出して適切な API URL を返す
+ * 
+ * 優先順位:
+ * 1. 環境変数 VITE_API_URL（ビルド時に deploy.yml で注入）
+ * 2. GitHub Pages の自動検出（*.github.io）
+ * 3. 本番環境フォールバック（localhost 以外）
+ * 4. ローカル開発用 localhost（開発時のみ）
+ * 
+ * この関数のロジックを変更する場合は、必ず GitHub Pages で動作確認してください。
+ */
+const getApiBaseUrl = (): string => {
+  // 1. First, check environment variable (set during build in deploy.yml)
+  const envUrl = import.meta.env.VITE_API_URL
+  if (envUrl) {
+    console.log('🌐 API Base URL (from env):', envUrl)
+    return envUrl
+  }
+
+  // 2. Auto-detect GitHub Pages deployment
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname
+
+    // If running on GitHub Pages, use production API
+    if (hostname === 'thousandsofties.github.io' || hostname.endsWith('.github.io')) {
+      console.log('🌐 API Base URL (GitHub Pages auto-detect):', PRODUCTION_API_URL)
+      return PRODUCTION_API_URL
+    }
+
+    // If not localhost and not GitHub Pages, still use production (safer default)
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      console.log('🌐 API Base URL (production fallback):', PRODUCTION_API_URL)
+      return PRODUCTION_API_URL
+    }
+  }
+
+  // 3. Fallback to localhost only for local development
+  console.log('🌐 API Base URL (localhost dev):', 'http://localhost:3003')
+  return 'http://localhost:3003'
+}
+
+const API_BASE_URL = getApiBaseUrl()
 
 export interface ModelInfo {
   id: string
