@@ -20,8 +20,8 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 // Initialize Google GenAI Client
-// Use gemini-2.0-flash-exp for both (fast and cost-effective)
-const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp'
+// Use gemini-3-flash for both (fast and cost-effective)
+const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3-flash'
 console.log(`Using Gemini Model: ${MODEL_NAME}`)
 
 // Initialize the Google Generative AI client
