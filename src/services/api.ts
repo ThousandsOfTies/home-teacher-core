@@ -131,11 +131,13 @@ export const getAvailableModels = async (): Promise<AvailableModelsResponse> => 
   // For now return hardcoded list matching server capabilities
   return {
     models: [
+      { id: 'gemini-3-flash', name: 'Gemini 3 Flash (latest)' },
+      { id: 'gemini-25-flash', name: 'Gemini 2.5 Flash' },
       { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash Exp' },
       { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
       { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
     ],
-    default: 'gemini-2.0-flash-exp'
+      defau: 'gemini-3-flash'
   }
 }
 
