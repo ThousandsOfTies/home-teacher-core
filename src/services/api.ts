@@ -137,7 +137,7 @@ export const getAvailableModels = async (): Promise<AvailableModelsResponse> => 
       { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
       { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
     ],
-    default: 'gemini-3-flash-preview'
+    default: 'gemini-2.0-flash-exp'
   }
 }
 
