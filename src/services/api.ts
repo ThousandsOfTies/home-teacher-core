@@ -19,7 +19,7 @@
  * 3. server/index.ts の CORS 設定も確認
  * ============================================================================
  */
-const PRODUCTION_API_URL = 'https://hometeacher-api-n5ja4qrrqq-an.a.run.app'
+const PRODUCTION_API_URL = 'https://hometeacher-api-736494768812.asia-northeast1.run.app'
 
 /**
  * 環境を自動検出して適切な API URL を返す
