@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { GradingResult as GradingResultType, GradingResponseResult, getAvailableModels, ModelInfo } from '../../services/api'
 import GradingResult from './GradingResult'
 import { savePDFRecord, getPDFRecord, getAllSNSLinks, SNSLinkRecord, PDFFileRecord, saveGradingHistory, generateGradingHistoryId, getAppSettings, saveAppSettings } from '../../utils/indexedDB'
@@ -659,6 +659,15 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
     if (e.touches.length !== 2 || initialPinchDistanceRef.current === null || !pinchCenterRef.current) {
       return
+      // 消しゴムモード時は1本指タッチでもカーソル位置を追跡（Apple Pencil対応）
+      if (isEraserMode && e.touches.length === 1 && containerRef.current) {
+        const touch = e.touches[0]
+        const rect = containerRef.current.getBoundingClientRect()
+        setEraserCursorPos({
+          x: touch.clientX - rect.left,
+          y: touch.clientY - rect.top
+        })
+      }
     }
 
     e.preventDefault()
