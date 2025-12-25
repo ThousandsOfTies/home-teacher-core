@@ -193,101 +193,56 @@ app.post('/api/analyze-page', async (req, res) => {
   }
 })
 
-app.post('/api/grade-work-with-context', async (req, res) => {
+// 簡素化された採点API（切り抜き画像のみ）
+app.post('/api/grade-work', async (req, res) => {
   try {
-    const { fullPageImageData, croppedImageData, pageNumber, model: requestModel } = req.body
+    const { croppedImageData, model: requestModel } = req.body
 
-    if (!fullPageImageData || !croppedImageData) {
-      return res.status(400).json({ error: 'Both fullPageImageData and croppedImageData are required' })
+    if (!croppedImageData) {
+      return res.status(400).json({ error: 'croppedImageData is required' })
     }
 
     const startTime = Date.now()
-    console.log(`Grading work for page ${pageNumber}...`)
+    console.log('Grading work (simplified)...')
 
     // Use requested model or default
     const currentModelName = requestModel || MODEL_NAME
     const currentModel = requestModel ? genAI.getGenerativeModel({ model: currentModelName }) : model
 
-    // Determine response language
-    const language = 'ja' // Default to Japanese as per original implementation
-    const langCode = language ? language.split('-')[0] : 'ja'
-    const responseLang = langCode === 'ja' ? 'Japanese' : 'English'
+    // シンプルなプロンプト（切り抜き画像のみ）
+    const simplePrompt = `
+あなたは小中学生の家庭教師です。以下の画像には生徒の解答が写っています。
 
-    // Restore the detailed prompt from the working version
-    const contextPrompt = `
-Your task:
-1. Look at IMAGE 1 (full page) to:
-   a. Find the PRINTED PAGE NUMBER(s) visible on the page (e.g., "p.4", "5ページ", "4", "5" in corners/margins)
-   b. Understand the PROBLEM STRUCTURE of the page:
-      - Identify ALL major problem numbers (大問: 1, 2, 3...)
-      - Identify how sub-problems are organized (小問: (1), (2), (3)...)
-      - Note the position of the cropped area within this structure
-   c. Identify which printed page the cropped problem belongs to
+この画像を見て：
+1. 問題番号を特定してください（例: 1(1), 2(3) など）
+2. 生徒の手書き解答を読み取ってください
+3. 正誤判定をしてください
+4. 正解とフィードバックを提供してください
 
-2. Look at IMAGE 2 (cropped) to:
-   a. Identify the COMPLETE problem number by combining:
-      - The major problem number (大問) from IMAGE 1's structure
-      - The sub-problem number (小問) visible in IMAGE 2
-      - Example: If IMAGE 1 shows this is under 問1 and IMAGE 2 shows (3), return "1(3)"
-   b. Read the student's handwritten answer (include ALL values if multiple, e.g., "x=107°, y=47°")
-   c. Grade the answer (Correct/Incorrect) against standard math/subject rules
-
-IMPORTANT RULES:
-- ALWAYS include the major problem number (大問番号) in problemNumber
-- If you see "(3)" in the cropped image, look at IMAGE 1 to find which major problem it belongs to
-- Example: "(3)" under 大問1 should be returned as "1(3)", not just "3" or "(3)"
-- Grade ONLY the answer visible in IMAGE 2 (the cropped image)
-- DO NOT mention or grade other problems from IMAGE 1
-- For multi-value answers (x and y), include ALL values in studentAnswer
-
-Return valid JSON:
+日本語で回答してください。以下のJSON形式で返してください：
 {
-  "problemNumber": "COMPLETE problem number with major+sub (e.g., '1(3)', '2(1)', NOT just '3' or '(3)')",
-  "confidence": "high/medium/low",
-  "positionReasoning": "explain: which major problem (大問) this belongs to based on IMAGE 1 layout, and the sub-problem number",
-  "problemText": "problem text from IMAGE 2 (cropped)",
-  "studentAnswer": "student's answer from IMAGE 2 - include ALL values (e.g., 'x=107°, y=47°')",
-  "isCorrect": true or false (based on the answer in IMAGE 2),
-  "correctAnswer": "correct answer if determinable",
-  "feedback": "encouraging feedback about the answer in IMAGE 2",
-  "explanation": "detailed explanation about the answer in IMAGE 2",
-  "overallComment": "overall comment",
-  "printedPageNumber": number | null // The page number printed on the workbook page
+  "problemNumber": "問題番号（例: '1(1)', '2(3)'）",
+  "studentAnswer": "生徒の解答",
+  "isCorrect": true または false,
+  "correctAnswer": "正解",
+  "feedback": "励ましのフィードバック",
+  "explanation": "解説"
 }
+`
 
-LANGUAGE: ${responseLang}`
-
-    // Extract mime types and clean base64
-    const pageMatch = fullPageImageData.match(/^data:(image\/(png|jpeg));base64,(.+)$/)
+    // Extract mime type and clean base64
     const cropMatch = croppedImageData.match(/^data:(image\/(png|jpeg));base64,(.+)$/)
-
-    if (!pageMatch || !cropMatch) {
-      // Fallback for clean base64 strings passed without header
-      // This handles the case where clean base64 is sent or header format varies
-    }
-
-    // Robust data preparation
-    const fullPageData = pageMatch ? pageMatch[3] : fullPageImageData.replace(/^data:image\/\w+;base64,/, '')
-    const fullPageMime = pageMatch ? pageMatch[1] : 'image/jpeg'
-
     const cropData = cropMatch ? cropMatch[3] : croppedImageData.replace(/^data:image\/\w+;base64,/, '')
     const cropMime = cropMatch ? cropMatch[1] : 'image/jpeg'
 
     const result = await currentModel.generateContent([
-      // Image Order is Important as per prompt instructions
-      {
-        inlineData: {
-          mimeType: fullPageMime,
-          data: fullPageData
-        }
-      },
       {
         inlineData: {
           mimeType: cropMime,
           data: cropData
         }
       },
-      { text: contextPrompt }
+      { text: simplePrompt }
     ])
 
     const response = await result.response
@@ -297,7 +252,7 @@ LANGUAGE: ${responseLang}`
       throw new Error('Empty response from Gemini')
     }
 
-    const jsonStr = responseText.replace(/```json\n?|\n?```/g, '') // Basic markdown cleanup
+    const jsonStr = responseText.replace(/```json\n?|\n?```/g, '')
     let gradingData
     try {
       gradingData = JSON.parse(jsonStr)
@@ -307,14 +262,11 @@ LANGUAGE: ${responseLang}`
       throw new Error("Failed to parse AI response")
     }
 
-    // Measure time
     const elapsedTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(2))
 
-    // Construct response matching the structure expected by client logic (similar to old_index.ts)
-    // The previous logic wrapped the single result in an array 'problems'
     const problemWithMetadata = {
       ...gradingData,
-      gradingSource: 'ai-context', // Flag to indicate AI graded this
+      gradingSource: 'ai-simple',
     }
 
     const responseData = {
@@ -323,13 +275,97 @@ LANGUAGE: ${responseLang}`
       responseTime: elapsedTime,
       result: {
         problems: [problemWithMetadata],
-        printedPageNumber: gradingData.printedPageNumber,
-        overallComment: gradingData.overallComment || gradingData.positionReasoning
+        overallComment: gradingData.feedback
       }
     }
 
     console.log(`Grading complete. Problem: ${gradingData.problemNumber}, Correct: ${gradingData.isCorrect}`)
     res.json(responseData)
+
+  } catch (error) {
+    console.error('Error in /api/grade-work:', error)
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Internal Server Error',
+      details: String(error)
+    })
+  }
+})
+
+// 後方互換性のため旧APIも維持（新APIにリダイレクト）
+app.post('/api/grade-work-with-context', async (req, res) => {
+  console.log('⚠️ /api/grade-work-with-context is deprecated, using simple grading')
+  // 旧APIが呼ばれても新しいシンプルなロジックを使用
+  const { croppedImageData, model: requestModel } = req.body
+
+  try {
+    const startTime = Date.now()
+    const currentModelName = requestModel || MODEL_NAME
+    const currentModel = requestModel ? genAI.getGenerativeModel({ model: currentModelName }) : model
+
+    const simplePrompt = `
+あなたは小中学生の家庭教師です。以下の画像には生徒の解答が写っています。
+
+この画像を見て：
+1. 問題番号を特定してください（例: 1(1), 2(3) など）
+2. 生徒の手書き解答を読み取ってください
+3. 正誤判定をしてください
+4. 正解とフィードバックを提供してください
+
+日本語で回答してください。以下のJSON形式で返してください：
+{
+  "problemNumber": "問題番号（例: '1(1)', '2(3)'）",
+  "studentAnswer": "生徒の解答",
+  "isCorrect": true または false,
+  "correctAnswer": "正解",
+  "feedback": "励ましのフィードバック",
+  "explanation": "解説"
+}
+`
+
+    const cropMatch = croppedImageData.match(/^data:(image\/(png|jpeg));base64,(.+)$/)
+    const cropData = cropMatch ? cropMatch[3] : croppedImageData.replace(/^data:image\/\w+;base64,/, '')
+    const cropMime = cropMatch ? cropMatch[1] : 'image/jpeg'
+
+    const result = await currentModel.generateContent([
+      {
+        inlineData: {
+          mimeType: cropMime,
+          data: cropData
+        }
+      },
+      { text: simplePrompt }
+    ])
+
+    const response = await result.response
+    const responseText = response.text()
+
+    if (!responseText) {
+      throw new Error('Empty response from Gemini')
+    }
+
+    const jsonStr = responseText.replace(/```json\n?|\n?```/g, '')
+    let gradingData
+    try {
+      gradingData = JSON.parse(jsonStr)
+    } catch (e) {
+      console.error("JSON Parse Error:", e)
+      throw new Error("Failed to parse AI response")
+    }
+
+    const elapsedTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(2))
+
+    res.json({
+      success: true,
+      modelName: currentModelName,
+      responseTime: elapsedTime,
+      result: {
+        problems: [{
+          ...gradingData,
+          gradingSource: 'ai-simple',
+        }],
+        overallComment: gradingData.feedback
+      }
+    })
 
   } catch (error) {
     console.error('Error in /api/grade-work-with-context:', error)

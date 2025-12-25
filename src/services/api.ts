@@ -116,22 +116,19 @@ export const getAvailableModels = async (): Promise<AvailableModelsResponse> => 
   return response.json()
 }
 
-export const gradeWorkWithContext = async (
-  fullPageImageData: string,
+// 簡素化された採点API（切り抜き画像のみ）
+export const gradeWork = async (
   croppedImageData: string,
-  pageNumber: number,
   model?: string
 ): Promise<GradeResponse> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/grade-work-with-context`, {
+    const response = await fetch(`${API_BASE_URL}/api/grade-work`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        fullPageImageData,
         croppedImageData,
-        pageNumber,
         model,
       }),
     })
@@ -153,3 +150,15 @@ export const gradeWorkWithContext = async (
     }
   }
 }
+
+// 後方互換性のための旧API（非推奨）
+export const gradeWorkWithContext = async (
+  fullPageImageData: string,
+  croppedImageData: string,
+  pageNumber: number,
+  model?: string
+): Promise<GradeResponse> => {
+  console.warn('⚠️ gradeWorkWithContext is deprecated, use gradeWork instead')
+  return gradeWork(croppedImageData, model)
+}
+

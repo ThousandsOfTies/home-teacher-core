@@ -351,29 +351,14 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     setGradingError(null)
 
     try {
-      // アクティブなペインからキャンバスを取得
-      const activePane = activeTab === 'A' ? paneARef : paneBRef
-      const activePage = activeTab === 'A' ? pageA : pageB
-      const pdfCanvas = activePane.current?.getCanvas()
-      if (!pdfCanvas) throw new Error("PDF Canvas not available")
-
-      const fullPageCanvas = document.createElement('canvas')
-      const fullPageScale = 0.5
-      fullPageCanvas.width = Math.round(pdfCanvas.width * fullPageScale)
-      fullPageCanvas.height = Math.round(pdfCanvas.height * fullPageScale)
-      const fullPageCtx = fullPageCanvas.getContext('2d')!
-      fullPageCtx.drawImage(pdfCanvas, 0, 0, fullPageCanvas.width, fullPageCanvas.height)
-      const fullPageImageData = compressImage(fullPageCanvas, 800)
-
+      // 切り抜き画像のみ使用（簡素化）
       const croppedImageData = selectionPreview
 
-      // APIに送信
+      // APIに送信（簡素化：切り抜き画像のみ）
       addStatusMessage('🎯 AI採点中...')
-      const { gradeWorkWithContext } = await import('../../services/api')
-      const response = await gradeWorkWithContext(
-        fullPageImageData,
+      const { gradeWork } = await import('../../services/api')
+      const response = await gradeWork(
         croppedImageData,
-        activePage,
         selectedModel !== 'default' ? selectedModel : undefined
       )
 
@@ -505,17 +490,22 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   }
 
   // テキストモードのトグル
+  // 1回目クリック: モード切替のみ
+  // 2回目クリック（既にテキストモード中）: 詳細設定ポップアップ表示
   const toggleTextMode = () => {
-    const newState = !isTextMode
-    setIsTextMode(newState)
-    if (newState) {
+    if (isTextMode) {
+      // 既にテキストモードなら詳細設定ポップアップをトグル
+      setShowTextPopup(prev => !prev)
+    } else {
+      // モードをオンにする
+      setIsTextMode(true)
       setIsDrawingMode(false)
       setIsEraserMode(false)
       setIsSelectionMode(false)
       setShowPenPopup(false)
       setShowEraserPopup(false)
+      setShowTextPopup(false) // 最初はポップアップを表示しない
     }
-    setShowTextPopup(newState)
   }
 
   // テキスト追加のハンドラ（PDFPaneからのクリックイベント用）
@@ -1029,7 +1019,9 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                   backgroundColor: isResizing ? '#3498db' : '#ccc',
                   cursor: 'col-resize',
                   flexShrink: 0,
-                  transition: 'background-color 0.2s'
+                  transition: 'background-color 0.2s',
+                  zIndex: 10000,  // 選択オーバーレイ(9999)より上
+                  position: 'relative'
                 }}
               />
             )}
@@ -1249,11 +1241,20 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                 </div>
               </div>
               <div className="confirm-buttons">
-                <button onClick={handleCancelSelection} className="cancel-button">
-                  やり直す
+                <button
+                  onClick={handleCancelSelection}
+                  className="cancel-button"
+                  disabled={isGrading}
+                >
+                  {isGrading ? 'キャンセル' : 'やり直す'}
                 </button>
-                <button onClick={confirmAndGrade} className="confirm-button">
-                  採点する
+                <button
+                  onClick={confirmAndGrade}
+                  className="confirm-button"
+                  disabled={isGrading}
+                  style={isGrading ? { opacity: 0.7, cursor: 'wait' } : undefined}
+                >
+                  {isGrading ? '⏳ 採点中...' : '採点する'}
                 </button>
               </div>
             </div>
