@@ -183,8 +183,8 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
   // ページ状態
   // 保存されたレコードから初期化
-  const [pageA, setPageA] = useState(pdfRecord.lastPageNumber || 1)
-  const [pageB, setPageB] = useState(1)
+  const [pageA, setPageA] = useState(pdfRecord.lastPageNumberA || 1)
+  const [pageB, setPageB] = useState(pdfRecord.lastPageNumberB || 1)
 
   // PDF Document Loading
   const { pdfDoc, numPages, isLoading, error: pdfError } = usePDFRenderer(pdfRecord, {
@@ -209,6 +209,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   // AI Model State
   const [selectedModel, setSelectedModel] = useState<string>('default')
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
+  const [defaultModelName, setDefaultModelName] = useState<string>('Gemini 2.0 Flash')
 
   // Load available models from server
   useEffect(() => {
@@ -216,6 +217,9 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
       .then(response => {
         if (response.models) {
           setAvailableModels(response.models.filter(m => m.id !== 'default'))
+        }
+        if (response.default) {
+          setDefaultModelName(response.default)
         }
       })
       .catch(err => console.error('Failed to load models:', err))
@@ -619,15 +623,24 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   // ページ番号の永続化（デバウンス付き）
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (pdfRecord && pageA > 0 && pageA !== pdfRecord.lastPageNumber) {
-        console.log('💾 ページ番号を保存:', pageA)
-        updatePDFRecord(pdfRecord.id, { lastPageNumber: pageA }).catch(err => {
+      const updates: Partial<{ lastPageNumberA: number; lastPageNumberB: number }> = {}
+
+      if (pageA > 0 && pageA !== pdfRecord.lastPageNumberA) {
+        updates.lastPageNumberA = pageA
+      }
+      if (pageB > 0 && pageB !== pdfRecord.lastPageNumberB) {
+        updates.lastPageNumberB = pageB
+      }
+
+      if (Object.keys(updates).length > 0) {
+        console.log('💾 ページ番号を保存:', updates)
+        updatePDFRecord(pdfRecord.id, updates).catch(err => {
           console.error('ページ保存に失敗:', err)
         })
       }
     }, 500)
     return () => clearTimeout(timer)
-  }, [pageA, pdfRecord.id, pdfRecord.lastPageNumber])
+  }, [pageA, pageB, pdfRecord.id, pdfRecord.lastPageNumberA, pdfRecord.lastPageNumberB])
 
   // 矩形選択モードをキャンセル
   const handleCancelSelection = () => {
@@ -952,6 +965,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                 eraserSize={eraserSize}
                 drawingPaths={drawingPaths.get(pageA) || []}
                 isCtrlPressed={isCtrlPressed}
+                splitMode={isSplitView}
                 onPageChange={handlePageAChange}
                 onPathAdd={(path) => handlePathAdd(pageA, path)}
                 onPathsChange={(paths) => handlePathsChange(pageA, paths)}
@@ -977,6 +991,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                 eraserSize={eraserSize}
                 drawingPaths={drawingPaths.get(pageB) || []}
                 isCtrlPressed={isCtrlPressed}
+                splitMode={isSplitView}
                 onPageChange={handlePageBChange}
                 onPathAdd={(path) => handlePathAdd(pageB, path)}
                 onPathsChange={(paths) => handlePathsChange(pageB, paths)}
@@ -1159,7 +1174,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                     cursor: 'pointer'
                   }}
                 >
-                  <option value="default">デフォルト (Gemini 2.0 Flash)</option>
+                  <option value="default">デフォルト ({defaultModelName})</option>
                   {availableModels.map(model => (
                     <option key={model.id} value={model.id}>
                       {model.name}
@@ -1167,7 +1182,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                   ))}
                 </select>
                 <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                  {selectedModel === 'default' && '✨ Gemini 2.0 Flash を使用'}
+                  {selectedModel === 'default' && `✨ ${defaultModelName} を使用`}
                   {availableModels.find(m => m.id === selectedModel)?.description}
                 </div>
               </div>

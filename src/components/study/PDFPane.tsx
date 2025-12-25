@@ -22,6 +22,9 @@ interface PDFPaneProps {
     eraserSize: number
     isCtrlPressed: boolean
 
+    // スプリット表示モード（高さフィット＋左寄せ）
+    splitMode?: boolean
+
     // レイアウト
     className?: string
     style?: React.CSSProperties
@@ -51,6 +54,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         size,
         eraserSize,
         isCtrlPressed,
+        splitMode = false,
         className,
         style
     } = props
@@ -96,6 +100,15 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
     // レイアウト準備完了フラグ（ジャンプ防止用）
     const [isLayoutReady, setIsLayoutReady] = React.useState(false)
+
+    // 初回フィット完了フラグ（ズームレベル保持のため、ページ変更後はfitToScreenしない）
+    const initialFitDoneRef = useRef(false)
+
+    // splitMode変更時はinitialFitDoneRefをリセットして再フィットを許可
+    useEffect(() => {
+        console.log('📏 PDFPane: splitMode変更、再フィットを許可', { splitMode })
+        initialFitDoneRef.current = false
+    }, [splitMode])
 
     // RAFキャンセル用ref
     const rafIdRef = useRef<number | null>(null)
@@ -143,9 +156,19 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     const maxH = window.innerHeight - 120
                     const effectiveH = (containerH > window.innerHeight) ? maxH : containerH
 
-                    console.log('📏 PDFPane: Clamping height', { containerH, windowH: window.innerHeight, effectiveH })
-
-                    fitToScreen(canvasRef.current.width, canvasRef.current.height, effectiveH)
+                    // 初回のみfitToScreen、以降はズームレベルを維持
+                    if (!initialFitDoneRef.current) {
+                        console.log('📏 PDFPane: 初回フィット実行', { containerH, effectiveH, splitMode })
+                        fitToScreen(
+                            canvasRef.current.width,
+                            canvasRef.current.height,
+                            effectiveH,
+                            splitMode ? { fitToHeight: true, alignLeft: true } : undefined
+                        )
+                        initialFitDoneRef.current = true
+                    } else {
+                        console.log('📏 PDFPane: ズームレベル維持（ページ変更）')
+                    }
                 } catch (e) {
                     console.error('❌ PDFPane: Error in fitToScreen', e)
                 }
@@ -178,27 +201,36 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     }, [fitToScreen])
 
     // Resize Observer to maintain fit/center
+    // ただし初回フィット後はズームを維持するためスキップ
     useEffect(() => {
         if (!containerRef.current || !canvasRef.current) return
 
         const ro = new ResizeObserver(() => {
             if (isPanningRef.current) return // Skip auto-fit during panning
+            if (initialFitDoneRef.current) return // ズームを維持するため初回フィット後はスキップ
             if (!canvasRef.current || !containerRef.current) return
 
             requestAnimationFrame(() => {
                 if (isPanningRef.current) return // Double check in RAF
+                if (initialFitDoneRef.current) return
                 if (!canvasRef.current || !containerRef.current) return
 
                 const containerH = containerRef.current.clientHeight
                 const maxH = window.innerHeight - 80
                 const effectiveH = (containerH > window.innerHeight) ? maxH : containerH
-                fitToScreenRef.current(canvasRef.current.width, canvasRef.current.height, effectiveH)
+                console.log('📏 PDFPane: ResizeObserver fitToScreen', { splitMode })
+                fitToScreenRef.current(
+                    canvasRef.current.width,
+                    canvasRef.current.height,
+                    effectiveH,
+                    splitMode ? { fitToHeight: true, alignLeft: true } : undefined
+                )
             })
         })
 
         ro.observe(containerRef.current)
         return () => ro.disconnect()
-    }, []) // Zero dependencies to prevent recreation on state changes
+    }, [splitMode]) // splitModeの変更時に再作成
     // Check useZoomPan definition. fitToScreen is created on every render?
     // We should fix useZoomPan to use useCallback for fitToScreen.
 

@@ -15,7 +15,8 @@ export interface PDFFileRecord {
   thumbnail?: string; // 先頭ページのサムネイル画像（Base64）
   fileData?: Blob; // Blob形式のPDFデータ（v6から）
   lastOpened: number; // タイムスタンプ
-  lastPageNumber?: number; // 最後に開いていたページ番号
+  lastPageNumberA?: number; // 最後に開いていたページ番号 (A面)
+  lastPageNumberB?: number; // 最後に開いていたページ番号 (B面)
   drawings: Record<number, string>; // ページ番号 -> JSON文字列のマップ
 }
 
