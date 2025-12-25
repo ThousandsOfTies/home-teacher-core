@@ -104,11 +104,24 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     // 初回フィット完了フラグ（ズームレベル保持のため、ページ変更後はfitToScreenしない）
     const initialFitDoneRef = useRef(false)
 
-    // splitMode変更時はinitialFitDoneRefをリセットして再フィットを許可
+    // splitMode変更時は再フィットを実行
     useEffect(() => {
-        console.log('📏 PDFPane: splitMode変更、再フィットを許可', { splitMode })
-        initialFitDoneRef.current = false
-    }, [splitMode])
+        if (!canvasRef.current || !containerRef.current) return
+
+        console.log('📏 PDFPane: splitMode変更、再フィット実行', { splitMode })
+
+        const containerH = containerRef.current.clientHeight
+        const maxH = window.innerHeight - 120
+        const effectiveH = (containerH > window.innerHeight) ? maxH : containerH
+
+        fitToScreen(
+            canvasRef.current.width,
+            canvasRef.current.height,
+            effectiveH,
+            splitMode ? { fitToHeight: true, alignLeft: true } : undefined
+        )
+        setIsLayoutReady(true)
+    }, [splitMode, fitToScreen])
 
     // RAFキャンセル用ref
     const rafIdRef = useRef<number | null>(null)
@@ -200,39 +213,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         fitToScreenRef.current = fitToScreen
     }, [fitToScreen])
 
-    // Resize Observer to maintain fit/center
-    // ただし初回フィット後はズームを維持するためスキップ
-    useEffect(() => {
-        if (!containerRef.current || !canvasRef.current) return
-
-        const ro = new ResizeObserver(() => {
-            if (isPanningRef.current) return // Skip auto-fit during panning
-            if (initialFitDoneRef.current) return // ズームを維持するため初回フィット後はスキップ
-            if (!canvasRef.current || !containerRef.current) return
-
-            requestAnimationFrame(() => {
-                if (isPanningRef.current) return // Double check in RAF
-                if (initialFitDoneRef.current) return
-                if (!canvasRef.current || !containerRef.current) return
-
-                const containerH = containerRef.current.clientHeight
-                const maxH = window.innerHeight - 80
-                const effectiveH = (containerH > window.innerHeight) ? maxH : containerH
-                console.log('📏 PDFPane: ResizeObserver fitToScreen', { splitMode })
-                fitToScreenRef.current(
-                    canvasRef.current.width,
-                    canvasRef.current.height,
-                    effectiveH,
-                    splitMode ? { fitToHeight: true, alignLeft: true } : undefined
-                )
-            })
-        })
-
-        ro.observe(containerRef.current)
-        return () => ro.disconnect()
-    }, [splitMode]) // splitModeの変更時に再作成
-    // Check useZoomPan definition. fitToScreen is created on every render?
-    // We should fix useZoomPan to use useCallback for fitToScreen.
+    // Note: ResizeObserver removed - リサイズ時の自動フィットは不要
+    // 初回表示時のみfitToScreenを実行（handlePageRenderedで処理）
 
     // Reset layout ready when page changes
     useEffect(() => {
@@ -379,8 +361,16 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
     useImperativeHandle(ref, () => ({
         resetZoom: () => {
-            if (canvasRef.current) {
-                fitToScreen(canvasRef.current.width, canvasRef.current.height)
+            if (canvasRef.current && containerRef.current) {
+                const containerH = containerRef.current.clientHeight
+                const maxH = window.innerHeight - 120
+                const effectiveH = (containerH > window.innerHeight) ? maxH : containerH
+                fitToScreen(
+                    canvasRef.current.width,
+                    canvasRef.current.height,
+                    effectiveH,
+                    splitMode ? { fitToHeight: true, alignLeft: true } : undefined
+                )
             } else {
                 resetZoom()
             }
@@ -416,7 +406,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             return compositeCanvas
         },
         get pdfDoc() { return pdfDoc }
-    }))
+    }), [splitMode, fitToScreen, resetZoom, setZoom, handleUndo, pdfDoc])
 
     // Eraser cursor state
     const [eraserCursorPos, setEraserCursorPos] = React.useState<{ x: number, y: number } | null>(null)
@@ -574,7 +564,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
                         transformOrigin: '0 0',
                         transition: 'none',
-                        opacity: 1
+                        opacity: isLayoutReady ? 1 : 0,
+                        visibility: isLayoutReady ? 'visible' : 'hidden'
                     }}
                 >
                     <PDFCanvas
@@ -636,7 +627,15 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         className="page-nav-button"
                         onClick={() => {
                             if (canvasRef.current && containerRef.current) {
-                                fitToScreen(canvasRef.current.width, canvasRef.current.height)
+                                const containerH = containerRef.current.clientHeight
+                                const maxH = window.innerHeight - 120
+                                const effectiveH = (containerH > window.innerHeight) ? maxH : containerH
+                                fitToScreen(
+                                    canvasRef.current.width,
+                                    canvasRef.current.height,
+                                    effectiveH,
+                                    splitMode ? { fitToHeight: true, alignLeft: true } : undefined
+                                )
                             }
                         }}
                         title="画面に合わせる"
