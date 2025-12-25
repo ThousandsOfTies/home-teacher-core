@@ -15,6 +15,7 @@ interface PDFPaneProps {
     drawingPaths: DrawingPath[]
     onPathAdd: (path: DrawingPath) => void
     onPathsChange: (paths: DrawingPath[]) => void
+    onUndo?: () => void
     tool: 'pen' | 'eraser' | 'none'
     color: string
     size: number
@@ -44,6 +45,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         drawingPaths,
         onPathAdd,
         onPathsChange,
+        onUndo,
         tool,
         color,
         size,
@@ -97,6 +99,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
     // RAFキャンセル用ref
     const rafIdRef = useRef<number | null>(null)
+
+    // 2本指タップでUndo用
+    const twoFingerTapRef = useRef<{ time: number, startPos: { x: number, y: number }[] } | null>(null)
 
     // Page Rendered Handler
 
@@ -330,13 +335,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     // Storing duplicate paths in local state IS redundant.
 
     const handleUndo = () => {
-        // Parent should handle undo if managing state.
-        // We will expose a way or expect parent to trigger re-render with less paths.
-        // Wait, StudyPanel calls `undo` on ref. This is "Action at a distance".
-        // Better: StudyPanel handles undo button click -> modifies `drawingPaths` state.
-        // PDFPane just renders `drawingPaths`.
-        // So `handleUndo` here is useless if state is lifted.
-        console.warn('Undo should be handled by parent state update')
+        if (onUndo) {
+            onUndo()
+        }
     }
 
     // No local state sync needed
@@ -478,9 +479,18 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // Ignore events on pager bar
                 if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
 
-                if (e.touches.length > 1) {
+                if (e.touches.length === 2) {
+                    // 2本指タップ検出用に開始時刻と位置を記録
+                    twoFingerTapRef.current = {
+                        time: Date.now(),
+                        startPos: [
+                            { x: e.touches[0].clientX, y: e.touches[0].clientY },
+                            { x: e.touches[1].clientX, y: e.touches[1].clientY }
+                        ]
+                    }
                     startPanning(e as any)
-                } else if (!isCtrlPressed) {
+                } else if (e.touches.length === 1 && !isCtrlPressed) {
+                    twoFingerTapRef.current = null
                     const rect = containerRef.current?.getBoundingClientRect()
                     if (rect) {
                         const x = (e.touches[0].clientX - rect.left - panOffset.x) / zoom
@@ -512,6 +522,15 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
             }}
             onTouchEnd={(e) => {
+                // 2本指タップでUndo判定
+                if (twoFingerTapRef.current && e.touches.length === 0) {
+                    const elapsed = Date.now() - twoFingerTapRef.current.time
+                    // 300ms以内で、移動距離が小さい場合はタップと判定
+                    if (elapsed < 300) {
+                        handleUndo()
+                    }
+                    twoFingerTapRef.current = null
+                }
                 stopDrawing()
                 stopPanning()
             }}

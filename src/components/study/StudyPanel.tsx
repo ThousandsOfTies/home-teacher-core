@@ -496,14 +496,6 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
     // But we can reset here.
   }
 
-  // ズームリセット
-  const resetZoom = () => {
-    paneARef.current?.resetZoom()
-    if (isSplitView) {
-      paneBRef.current?.resetZoom()
-    }
-  }
-
   // 描画モードの切り替え
   const toggleDrawingMode = () => {
     if (isDrawingMode) {
@@ -728,9 +720,20 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
     addStatusMessage('選択をクリアしました。再度範囲を選択してください')
   }
 
-  // Ctrl+Z Undo
-  const undo = () => {
-    paneARef.current?.undo()
+  // Ctrl+Z Undo - アクティブなページの最後の描画を削除
+  const handleUndo = () => {
+    const activePage = activeTab === 'A' ? pageA : pageB
+    setDrawingPaths(prev => {
+      const newMap = new Map(prev)
+      const currentPaths = newMap.get(activePage) || []
+      if (currentPaths.length > 0) {
+        const newPaths = currentPaths.slice(0, -1)
+        newMap.set(activePage, newPaths)
+        // Save to DB
+        saveDrawing(pdfId, activePage, JSON.stringify(newPaths))
+      }
+      return newMap
+    })
   }
 
   // 解答登録処理
@@ -1131,7 +1134,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
                 <div className="divider"></div>
 
                 <button
-                  onClick={undo}
+                  onClick={handleUndo}
                   title="元に戻す (Ctrl+Z)"
                 >
                   ↩️
@@ -1225,6 +1228,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
                 onPageChange={handlePageAChange}
                 onPathAdd={(path) => handlePathAdd(pageA, path)}
                 onPathsChange={(paths) => handlePathsChange(pageA, paths)}
+                onUndo={handleUndo}
               />
             )}
 
@@ -1249,6 +1253,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
                 onPageChange={handlePageBChange}
                 onPathAdd={(path) => handlePathAdd(pageB, path)}
                 onPathsChange={(paths) => handlePathsChange(pageB, paths)}
+                onUndo={handleUndo}
               />
             )}
 
