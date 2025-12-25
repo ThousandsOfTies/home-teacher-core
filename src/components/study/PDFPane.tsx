@@ -2,6 +2,7 @@ import React, { useRef, useEffect, forwardRef, useImperativeHandle, useState } f
 import { PDFFileRecord } from '../../utils/indexedDB'
 import PDFCanvas, { PDFCanvasHandle } from './components/PDFCanvas'
 import { DrawingPath, DrawingCanvas, useDrawing, useZoomPan, doPathsIntersect, isScratchPattern } from '@thousands-of-ties/drawing-common'
+import { RENDER_SCALE } from '../../constants/pdf'
 import './StudyPanel.css'
 
 interface PDFPaneProps {
@@ -65,7 +66,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     const selectionCanvasRef = useRef<HTMLCanvasElement>(null)
 
     // ズーム/パン
-    const RENDER_SCALE = 3.0
     const {
         zoom,
         panOffset,
