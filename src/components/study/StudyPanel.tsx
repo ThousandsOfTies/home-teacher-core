@@ -279,24 +279,21 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
     const loadDrawings = async () => {
       try {
         const record = await getPDFRecord(pdfId)
-        if (record?.drawings) {
-          const newMap = new Map<number, DrawingPath[]>()
-          for (const [pageStr, pathsJson] of Object.entries(record.drawings)) {
-            const page = parseInt(pageStr, 10)
-            try {
-              const paths = JSON.parse(pathsJson as string) as DrawingPath[]
-              if (paths.length > 0) {
-                newMap.set(page, paths)
-              }
-            } catch (e) {
-              console.error(`描画データのパースに失敗: ページ ${page}`, e)
-            }
-          }
-          if (newMap.size > 0) {
-            console.log(`📝 描画を復元: ${newMap.size}ページ`)
-            setDrawingPaths(newMap)
+        if (!record?.drawings) return
+
+        const newMap = new Map<number, DrawingPath[]>()
+        for (const [pageStr, pathsJson] of Object.entries(record.drawings)) {
+          const page = parseInt(pageStr, 10)
+          const paths = JSON.parse(pathsJson as string) as DrawingPath[]
+          if (paths.length > 0) {
+            newMap.set(page, paths)
           }
         }
+
+        if (newMap.size === 0) return
+
+        console.log(`📝 描画を復元: ${newMap.size}ページ`)
+        setDrawingPaths(newMap)
       } catch (e) {
         console.error('描画の読み込みに失敗:', e)
       }
@@ -393,99 +390,98 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
       addStatusMessage(`✅ 採点完了 (${response.result.problems.length}問)`)
 
       // --- DETAILED MATCHING LOGIC ---
-      if (response.result.problems && response.result.problems.length > 0) {
-        const { getAnswersByPdfId } = await import('../../utils/indexedDB')
-        const registeredAnswers = await getAnswersByPdfId(pdfId)
+      if (!response.result.problems?.length) return
 
-        for (const problem of response.result.problems) {
-          // Helper functions
-          const normalizeAnswer = (answer: string): string => {
-            return answer.toLowerCase().replace(/\s+/g, '').replace(/°|度/g, '').replace(/[Xx×]/g, '*').replace(/[（(]/g, '(').replace(/[）)]/g, ')').replace(/,/g, '.').trim()
-          }
-          const normalizeProblemNumber = (pn: string): string => {
-            if (!pn) return ''
-            return pn.replace(/\s+/g, '').replace(/（/g, '(').replace(/）/g, ')').toLowerCase().trim()
-          }
+      const { getAnswersByPdfId } = await import('../../utils/indexedDB')
+      const registeredAnswers = await getAnswersByPdfId(pdfId)
 
-          const normalizedAiProblem = normalizeProblemNumber(problem.problemNumber)
-          const printedPage = problem.printedPageNumber || response.result.printedPageNumber
-          let matchedAnswer: typeof registeredAnswers[0] | undefined = undefined
-
-          if (printedPage) {
-            const allPageNumbers = registeredAnswers.map(a => a.problemPageNumber).filter((p): p is number => p !== undefined && p <= printedPage)
-            if (allPageNumbers.length > 0) {
-              const targetSectionPage = Math.max(...allPageNumbers)
-              const sectionAnswers = registeredAnswers.filter(ans => ans.problemPageNumber === targetSectionPage)
-              const matchingInSection = sectionAnswers.filter(ans => normalizeProblemNumber(ans.problemNumber) === normalizedAiProblem)
-              if (matchingInSection.length === 1) matchedAnswer = matchingInSection[0]
-              else if (matchingInSection.length === 0) {
-                // Global search fallback
-                const matchingAnswers = registeredAnswers.filter(ans => normalizeProblemNumber(ans.problemNumber) === normalizedAiProblem)
-                if (matchingAnswers.length === 1) matchedAnswer = matchingAnswers[0]
-                else if (matchingAnswers.length > 1) {
-                  matchedAnswer = matchingAnswers.reduce((prev, curr) => Math.abs((prev.problemPageNumber ?? 9999) - printedPage) < Math.abs((curr.problemPageNumber ?? 9999) - printedPage) ? curr : prev)
-                }
-              }
-            }
-          } else {
-            // Fallback using PDF page
-            const matchingAnswers = registeredAnswers.filter(ans => normalizeProblemNumber(ans.problemNumber) === normalizedAiProblem)
-            if (matchingAnswers.length === 1) matchedAnswer = matchingAnswers[0]
-          }
-
-          // AI vs DB Logic
-          let isCorrect = problem.isCorrect || false
-          let correctAnswer = problem.correctAnswer || ''
-          let feedback = problem.feedback || ''
-          let explanation = problem.explanation || ''
-
-          if (!isCorrect && matchedAnswer) {
-            const normalizedStudent = normalizeAnswer(problem.studentAnswer)
-            const normalizedDbCorrect = normalizeAnswer(matchedAnswer.correctAnswer)
-            if (normalizedStudent === normalizedDbCorrect) {
-              isCorrect = true
-              correctAnswer = matchedAnswer.correctAnswer
-              feedback = '正解です！よくできました！'
-              explanation = `正解は ${correctAnswer} です。`
-            }
-          }
-
-          const historyRecord = {
-            id: generateGradingHistoryId(),
-            pdfId,
-            pdfFileName: pdfRecord.fileName,
-            pageNumber: pageA,
-            problemNumber: problem.problemNumber,
-            studentAnswer: problem.studentAnswer,
-            isCorrect,
-            correctAnswer,
-            feedback,
-            explanation,
-            timestamp: Date.now(),
-            imageData: croppedImageData,
-            matchingMetadata: problem.matchingMetadata
-          }
-          await saveGradingHistory(historyRecord)
-
-          // Update display
-          problem.isCorrect = isCorrect
-          problem.correctAnswer = correctAnswer
-          problem.feedback = feedback
-          problem.explanation = explanation
+      for (const problem of response.result.problems) {
+        // Helper functions
+        const normalizeAnswer = (answer: string): string => {
+          return answer.toLowerCase().replace(/\s+/g, '').replace(/°|度/g, '').replace(/[Xx×]/g, '*').replace(/[（(]/g, '(').replace(/[）)]/g, ')').replace(/,/g, '.').trim()
+        }
+        const normalizeProblemNumber = (pn: string): string => {
+          if (!pn) return ''
+          return pn.replace(/\s+/g, '').replace(/（/g, '(').replace(/）/g, ')').toLowerCase().trim()
         }
 
-        setGradingResult(prev => prev ? ({ ...prev, problems: response.result.problems }) : null)
-      }
-      // --- END MATCHING ---
+        const normalizedAiProblem = normalizeProblemNumber(problem.problemNumber)
+        const printedPage = problem.printedPageNumber || response.result.printedPageNumber
+        let matchedAnswer: typeof registeredAnswers[0] | undefined = undefined
 
-      setSelectionPreview(null)
-      setSelectionRect(null)
+        if (printedPage) {
+          const allPageNumbers = registeredAnswers.map(a => a.problemPageNumber).filter((p): p is number => p !== undefined && p <= printedPage)
+          if (allPageNumbers.length > 0) {
+            const targetSectionPage = Math.max(...allPageNumbers)
+            const sectionAnswers = registeredAnswers.filter(ans => ans.problemPageNumber === targetSectionPage)
+            const matchingInSection = sectionAnswers.filter(ans => normalizeProblemNumber(ans.problemNumber) === normalizedAiProblem)
+            if (matchingInSection.length === 1) matchedAnswer = matchingInSection[0]
+            else if (matchingInSection.length === 0) {
+              // Global search fallback
+              const matchingAnswers = registeredAnswers.filter(ans => normalizeProblemNumber(ans.problemNumber) === normalizedAiProblem)
+              if (matchingAnswers.length === 1) matchedAnswer = matchingAnswers[0]
+              else if (matchingAnswers.length > 1) {
+                matchedAnswer = matchingAnswers.reduce((prev, curr) => Math.abs((prev.problemPageNumber ?? 9999) - printedPage) < Math.abs((curr.problemPageNumber ?? 9999) - printedPage) ? curr : prev)
+              }
+            }
+          }
+        } else {
+          // Fallback using PDF page
+          const matchingAnswers = registeredAnswers.filter(ans => normalizeProblemNumber(ans.problemNumber) === normalizedAiProblem)
+          if (matchingAnswers.length === 1) matchedAnswer = matchingAnswers[0]
+        }
+
+        // AI vs DB Logic
+        let isCorrect = problem.isCorrect || false
+        let correctAnswer = problem.correctAnswer || ''
+        let feedback = problem.feedback || ''
+        let explanation = problem.explanation || ''
+
+        if (!isCorrect && matchedAnswer) {
+          const normalizedStudent = normalizeAnswer(problem.studentAnswer)
+          const normalizedDbCorrect = normalizeAnswer(matchedAnswer.correctAnswer)
+          if (normalizedStudent === normalizedDbCorrect) {
+            isCorrect = true
+            correctAnswer = matchedAnswer.correctAnswer
+            feedback = '正解です！よくできました！'
+            explanation = `正解は ${correctAnswer} です。`
+          }
+        }
+
+        const historyRecord = {
+          id: generateGradingHistoryId(),
+          pdfId,
+          pdfFileName: pdfRecord.fileName,
+          pageNumber: pageA,
+          problemNumber: problem.problemNumber,
+          studentAnswer: problem.studentAnswer,
+          isCorrect,
+          correctAnswer,
+          feedback,
+          explanation,
+          timestamp: Date.now(),
+          imageData: croppedImageData,
+          matchingMetadata: problem.matchingMetadata
+        }
+        await saveGradingHistory(historyRecord)
+
+        // Update display
+        problem.isCorrect = isCorrect
+        problem.correctAnswer = correctAnswer
+        problem.feedback = feedback
+        problem.explanation = explanation
+      }
+
+      setGradingResult(prev => prev ? ({ ...prev, problems: response.result.problems }) : null)
+      // --- END MATCHING ---
 
     } catch (e) {
       console.error(e)
       setGradingError(e instanceof Error ? e.message : String(e))
     } finally {
       setIsGrading(false)
+      setSelectionPreview(null)
+      setSelectionRect(null)
     }
   }
 
