@@ -28,6 +28,23 @@ console.log(`Using Gemini Model: ${MODEL_NAME}`)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
 const model = genAI.getGenerativeModel({ model: MODEL_NAME })
 
+// デフォルトモデルID
+const DEFAULT_MODEL_ID = 'gemini-2.0-flash-exp'
+
+// 利用可能なモデル一覧
+const AVAILABLE_MODELS = [
+  { id: DEFAULT_MODEL_ID, name: 'Gemini 2.0 Flash Exp', description: '高速でバランスの良いモデル（推奨）' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: '高速で軽量なモデル' },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: '高精度で複雑な推論が可能' },
+]
+
+app.get('/api/models', (req, res) => {
+  res.json({
+    models: AVAILABLE_MODELS,
+    default: DEFAULT_MODEL_ID
+  })
+})
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', model: MODEL_NAME })
 })

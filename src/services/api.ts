@@ -127,18 +127,11 @@ export interface GradeResponse {
 }
 
 export const getAvailableModels = async (): Promise<AvailableModelsResponse> => {
-  // TODO: Fetch from server if endpoint exists
-  // For now return hardcoded list matching server capabilities
-  return {
-    models: [
-      { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (latest)' },
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-      { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash Exp' },
-      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
-      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
-    ],
-    default: 'gemini-2.0-flash-exp'
+  const response = await fetch(`${API_BASE_URL}/api/models`)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch models: ${response.status}`)
   }
+  return response.json()
 }
 
 export const analyzePage = async (
