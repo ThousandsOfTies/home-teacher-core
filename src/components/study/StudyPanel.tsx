@@ -9,6 +9,18 @@ import { PDFPane, PDFPaneHandle } from './PDFPane'
 import { usePDFRenderer } from '../../hooks/pdf/usePDFRenderer'
 import './StudyPanel.css'
 
+// テキストアノテーションの型定義
+export type TextDirection = 'horizontal' | 'vertical-rl' | 'vertical-lr'
+export interface TextAnnotation {
+  id: string
+  x: number // 正規化座標 (0-1)
+  y: number // 正規化座標 (0-1)
+  text: string
+  fontSize: number // ピクセル
+  color: string
+  direction: TextDirection
+}
+
 const compressImage = (canvas: HTMLCanvasElement, maxSize: number = 1024): string => {
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
   if (canvas.width <= maxSize && canvas.height <= maxSize) {
@@ -233,11 +245,27 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
   // Tool State
   const [isDrawingMode, setIsDrawingMode] = useState(true)
   const [isEraserMode, setIsEraserMode] = useState(false)
+  const [isTextMode, setIsTextMode] = useState(false)
   const [penColor, setPenColor] = useState('#FF0000')
   const [penSize, setPenSize] = useState(3)
   const [showPenPopup, setShowPenPopup] = useState(false)
   const [eraserSize, setEraserSize] = useState(50)
   const [showEraserPopup, setShowEraserPopup] = useState(false)
+
+  // テキスト入力の状態
+  const [textFontSize, setTextFontSize] = useState(16)
+  const [textDirection, setTextDirection] = useState<TextDirection>('horizontal')
+  const [showTextPopup, setShowTextPopup] = useState(false)
+  const [editingText, setEditingText] = useState<{
+    pageNum: number
+    x: number // 正規化座標
+    y: number // 正規化座標
+    screenX: number // スクリーン座標（入力ボックス位置用）
+    screenY: number
+    existingId?: string // 既存テキストの編集時のID
+    initialText?: string // 既存テキストの初期値
+  } | null>(null)
+  const [textAnnotations, setTextAnnotations] = useState<Map<number, TextAnnotation[]>>(new Map())
 
   // SNS State
   const [snsLinks, setSnsLinks] = useState<SNSLinkRecord[]>([])
@@ -320,155 +348,6 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
       return newMap
     })
     saveDrawing(pdfId, page, JSON.stringify(newPaths))
-  }
-
-  // 選択完了ハンドラ
-  const handleSelectionComplete = async (rect: { x: number, y: number, width: number, height: number, zoom: number, pan: { x: number, y: number } }) => {
-    const pdfCanvas = paneARef.current?.getCanvas()
-    if (!pdfCanvas) return
-
-    // Create temp canvas for cropped image
-    const tempCanvas = document.createElement('canvas')
-    // rect is in CSS pixels relative to the UNTRANSFORMED content (because we normalized in PDFPane?)
-    // In PDFPane, we did:
-    // const zoom = zoomRef.current
-    // const rect = { x: startX, y: startY, width, height, zoom, pan: panOffsetRef.current }
-    // These x/y/width/height are CSS pixels in the *SelectionCanvas* coordinate space.
-    // SelectionCanvas is overlaid on the viewport.
-    // PDF content is transformed: translate(pan.x, pan.y) scale(zoom).
-    // So the point (x,y) on SelectionCanvas corresponds to PDF content point:
-    // pdfX = (x - pan.x) / zoom
-    // But PDFCanvas has internal resolution RENDER_SCALE (typically 5.0).
-
-    // We need to define RENDER_SCALE here or get it from somewhere.
-    // Assuming 5.0 as per PDFPane.
-    const RENDER_SCALE = 5.0
-
-    try {
-      const { x, y, width, height, zoom, pan } = rect
-
-      // Calculate coordinates in the PDF Canvas space (High Res)
-      const cssX = (x - pan.x) / zoom
-      const cssY = (y - pan.y) / zoom
-      const cssW = width / zoom
-      const cssH = height / zoom
-
-      const canvasX = cssX * RENDER_SCALE
-      const canvasY = cssY * RENDER_SCALE
-      const canvasW = cssW * RENDER_SCALE
-      const canvasH = cssH * RENDER_SCALE
-
-      if (canvasW <= 0 || canvasH <= 0) return
-
-      // --- COMPOSITE DRAWINGS ---
-      // We need to draw the PDF content AND the strokes onto the temp canvas.
-      // Since we want high-res output, we start with the high-res PDF canvas.
-
-      // 1. Create a high-res composition canvas (full page size)
-      // This might be expensive, so maybe just draw the crop?
-      // Drawing paths to the crop is complex because paths are in normalized coordinates (0-1).
-      // Normalized -> Canvas coordinates: x * pdfCanvas.width
-
-      const paths = drawingPaths.get(pageA) || []
-
-      // Setup result canvas
-      tempCanvas.width = canvasW
-      tempCanvas.height = canvasH
-      const ctx = tempCanvas.getContext('2d')
-      if (!ctx) return
-
-      // 2. Draw PDF portion
-      ctx.drawImage(pdfCanvas, canvasX, canvasY, canvasW, canvasH, 0, 0, canvasW, canvasH)
-
-      // 3. Draw Drawings portion
-      // We iterate paths and draw those that intersect the crop?
-      // Easier to just draw ALL paths with a clip/transform?
-      // Transform: We want to draw the WHOLE page of paths, but shifted so that (canvasX, canvasY) is at (0,0).
-      // ctx.translate(-canvasX, -canvasY)
-      // And we need to scale paths from Normalized to Canvas pixels.
-      // pdfCanvas.width is the full width.
-
-      ctx.save()
-      ctx.translate(-canvasX, -canvasY)
-
-      // Path definition from drawing-common usually: properties like color, width, points [{x,y}, ...]
-      // x,y are normalized 0-1.
-
-      paths.forEach(path => {
-        if (path.points.length < 2) return
-
-        ctx.beginPath()
-        ctx.strokeStyle = path.color
-        ctx.lineWidth = path.width * RENDER_SCALE // Scale width too? Maybe separate scale? 
-        // path.width is usually relative to... screen pixels? 
-        // If penSize=3, it looks like 3px on screen.
-        // On Retine/HighRes canvas, it should be scaled. 
-        // If RENDER_SCALE=5, line width around 15?
-        // Let's try RENDER_SCALE.
-
-        ctx.lineCap = 'round'
-        ctx.lineJoin = 'round'
-
-        // Draw points
-        const startP = path.points[0]
-        ctx.moveTo(startP.x * pdfCanvas.width, startP.y * pdfCanvas.height)
-
-        for (let i = 1; i < path.points.length; i++) {
-          const p = path.points[i]
-          ctx.lineTo(p.x * pdfCanvas.width, p.y * pdfCanvas.height)
-        }
-        ctx.stroke()
-      })
-
-      ctx.restore()
-
-      // --- END COMPOSITE ---
-
-      // Compress and Grade
-      const croppedImageData = compressImage(tempCanvas, 1024)
-
-      // Full Page (for context)
-      const fullPageCanvas = document.createElement('canvas')
-      const fullPageScale = 0.5
-      fullPageCanvas.width = Math.round(pdfCanvas.width * fullPageScale)
-      fullPageCanvas.height = Math.round(pdfCanvas.height * fullPageScale)
-      const fullPageCtx = fullPageCanvas.getContext('2d')!
-      fullPageCtx.imageSmoothingEnabled = true
-      fullPageCtx.imageSmoothingQuality = 'medium'
-      fullPageCtx.drawImage(pdfCanvas, 0, 0, fullPageCanvas.width, fullPageCanvas.height)
-      const fullPageImageData = compressImage(fullPageCanvas, 800)
-
-      // Set Preview and prompt user or submit immediately?
-      // Legacy code submitted immediately inside the logic I saw.
-      // But the USER (you) mentioned "Preview dialog".
-      // If I want to match legacy *behavior*, I should probably just submit or show preview.
-      // The code I read in 1400+ had `if (selectionPreview) ...`.
-      // So I will set `selectionPreview` and Return, letting the UI show the confirmation dialog.
-      // And the confirmation dialog calls `confirmAndGrade`.
-
-      // Wait, if I return here, `confirmAndGrade` needs access to these images.
-      // I can't reconstruct them easily in `confirmAndGrade` without the rect.
-      // So I should save the `rect` (which I already do: `selectionRect`).
-      // AND save the preview image url to `selectionPreview`.
-
-      // BUT `handleSelectionComplete` already received the rect.
-      // So I should:
-      // 1. Set `selectionRect` state.
-      // 2. Set `selectionPreview` state (dataURL).
-      // 3. The UI (already present in return JSX) will show the Popup.
-      // 4. The Popup 'Confirm' button calls `confirmAndGrade`.
-      // 5. `confirmAndGrade` should call `submitForGrading` (refactored).
-
-      setSelectionRect(rect)
-      setSelectionPreview(croppedImageData) // Show the cropped image as preview
-      addStatusMessage('範囲を選択しました。採点しますか？')
-
-      // Prepare for submission (stored in state implicitly via selectionRect/Preview)
-
-    } catch (e) {
-      console.error("Error processing selection:", e)
-      addStatusMessage("エラーが発生しました")
-    }
   }
 
   // 採点確定ハンドラ
@@ -632,10 +511,12 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
     } else {
       setIsDrawingMode(true)
       setIsEraserMode(false)
+      setIsTextMode(false)
       setIsSelectionMode(false)
       setSelectionRect(null)
       setShowPenPopup(false)
       setShowEraserPopup(false)
+      setShowTextPopup(false)
       addStatusMessage('✏️ ペンモード')
     }
   }
@@ -647,10 +528,12 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
     } else {
       setIsEraserMode(true)
       setIsDrawingMode(false)
+      setIsTextMode(false)
       setIsSelectionMode(false)
       setSelectionRect(null)
       setShowEraserPopup(false)
       setShowPenPopup(false)
+      setShowTextPopup(false)
       addStatusMessage('🧹 消しゴムモード')
     }
   }
@@ -693,10 +576,112 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
     setIsSelectionMode(true)
     setIsDrawingMode(false)
     setIsEraserMode(false)
+    setIsTextMode(false)
     setShowPenPopup(false)
     setShowEraserPopup(false)
+    setShowTextPopup(false)
     setSelectionRect(null)
     addStatusMessage('📐 採点範囲を選択してください')
+  }
+
+  // テキストモードのトグル
+  const toggleTextMode = () => {
+    const newState = !isTextMode
+    setIsTextMode(newState)
+    if (newState) {
+      setIsDrawingMode(false)
+      setIsEraserMode(false)
+      setIsSelectionMode(false)
+      setShowPenPopup(false)
+      setShowEraserPopup(false)
+    }
+    setShowTextPopup(newState)
+  }
+
+  // テキスト追加のハンドラ（PDFPaneからのクリックイベント用）
+  const handleTextClick = (pageNum: number, normalizedX: number, normalizedY: number, screenX: number, screenY: number) => {
+    if (!isTextMode) return
+    setEditingText({
+      pageNum,
+      x: normalizedX,
+      y: normalizedY,
+      screenX,
+      screenY
+    })
+  }
+
+  // テキスト確定（編集・新規追加・削除を統合）
+  const confirmText = (text: string) => {
+    if (!editingText) {
+      return
+    }
+
+    const trimmedText = text.trim()
+
+    // 既存テキストの編集の場合
+    if (editingText.existingId) {
+      if (trimmedText === '') {
+        // テキストが空なら削除
+        deleteTextAnnotation(editingText.pageNum, editingText.existingId)
+      } else {
+        // テキストを更新
+        setTextAnnotations(prev => {
+          const newMap = new Map(prev)
+          const current = newMap.get(editingText.pageNum) || []
+          const updated = current.map(a =>
+            a.id === editingText.existingId
+              ? { ...a, text: trimmedText }
+              : a
+          )
+          newMap.set(editingText.pageNum, updated)
+          return newMap
+        })
+        addStatusMessage('📝 テキストを更新しました')
+      }
+    } else {
+      // 新規テキストの場合
+      if (trimmedText === '') {
+        // 空なら何もしない
+        setEditingText(null)
+        return
+      }
+
+      const newAnnotation: TextAnnotation = {
+        id: `text-${Date.now()}`,
+        x: editingText.x,
+        y: editingText.y,
+        text: trimmedText,
+        fontSize: textFontSize,
+        color: penColor,
+        direction: textDirection
+      }
+
+      setTextAnnotations(prev => {
+        const newMap = new Map(prev)
+        const current = newMap.get(editingText.pageNum) || []
+        newMap.set(editingText.pageNum, [...current, newAnnotation])
+        return newMap
+      })
+      addStatusMessage('📝 テキストを追加しました')
+    }
+
+    setEditingText(null)
+  }
+
+  // テキスト削除
+  const deleteTextAnnotation = (pageNum: number, annotationId: string) => {
+    setTextAnnotations(prev => {
+      const newMap = new Map(prev)
+      const current = newMap.get(pageNum) || []
+      const filtered = current.filter(a => a.id !== annotationId)
+      if (filtered.length === 0) {
+        newMap.delete(pageNum)
+      } else {
+        newMap.set(pageNum, filtered)
+      }
+      return newMap
+    })
+    addStatusMessage('🗑️ テキストを削除しました')
   }
 
   // ステータスメッセージ
@@ -1026,6 +1011,57 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
                   {isGrading ? '⏳' : '✅'}
                 </button>
 
+                {/* テキスト入力ツール */}
+                <div style={{ position: 'relative' }}>
+                  <button
+                    onClick={toggleTextMode}
+                    className={isTextMode ? 'active' : ''}
+                    title={isTextMode ? 'テキストモード ON' : 'テキストモード OFF'}
+                    style={{ fontFamily: 'Times New Roman, serif', fontSize: '1.4rem' }}
+                  >
+                    T
+                  </button>
+
+                  {/* テキスト設定ポップアップ */}
+                  {showTextPopup && (
+                    <div className="tool-popup" style={{ minWidth: '180px' }}>
+                      <div className="popup-row">
+                        <label>サイズ:</label>
+                        <input
+                          type="range"
+                          min="10"
+                          max="32"
+                          value={textFontSize}
+                          onChange={(e) => setTextFontSize(Number(e.target.value))}
+                          style={{ width: '80px' }}
+                        />
+                        <span>{textFontSize}px</span>
+                      </div>
+                      <div className="popup-row">
+                        <label>方向:</label>
+                        <select
+                          value={textDirection}
+                          onChange={(e) => setTextDirection(e.target.value as TextDirection)}
+                          style={{ padding: '4px', borderRadius: '4px' }}
+                        >
+                          <option value="horizontal">横書き (Z型)</option>
+                          <option value="vertical-rl">縦書き右始 (N型)</option>
+                          <option value="vertical-lr">縦書き左始</option>
+                        </select>
+                      </div>
+                      <div className="popup-row">
+                        <label>色:</label>
+                        <input
+                          type="color"
+                          value={penColor}
+                          onChange={(e) => setPenColor(e.target.value)}
+                          style={{ width: '40px', height: '30px', border: '1px solid #ccc', cursor: 'pointer' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* 描画ツール */}
                 <div style={{ position: 'relative' }}>
                   <button
@@ -1111,8 +1147,6 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
                   </svg>
                 </button>
 
-                <div className="divider"></div>
-
               </>
             )}
           </div>
@@ -1145,8 +1179,10 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
                   width: '100%',
                   height: '100%',
                   zIndex: 9999,
-                  cursor: 'crosshair',
-                  touchAction: 'none'
+                  cursor: isCtrlPressed ? 'grab' : 'crosshair',
+                  touchAction: 'none',
+                  // Ctrl押下中はPDFPaneにイベントを通過させてパン可能に
+                  pointerEvents: isCtrlPressed ? 'none' : 'auto'
                 }}
                 onMouseDown={handleSelectionStart}
                 onMouseMove={handleSelectionMove}
@@ -1189,8 +1225,6 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
                 onPageChange={handlePageAChange}
                 onPathAdd={(path) => handlePathAdd(pageA, path)}
                 onPathsChange={(paths) => handlePathsChange(pageA, paths)}
-                isSelectionMode={false}
-                onSelectionComplete={() => { }}
               />
             )}
 
@@ -1215,11 +1249,139 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
                 onPageChange={handlePageBChange}
                 onPathAdd={(path) => handlePathAdd(pageB, path)}
                 onPathsChange={(paths) => handlePathsChange(pageB, paths)}
-                isSelectionMode={false}
               />
             )}
+
+            {/* テキストモード用オーバーレイ */}
+            {isTextMode && !editingText && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  zIndex: 100,
+                  cursor: 'text',
+                  pointerEvents: isCtrlPressed ? 'none' : 'auto'
+                }}
+                onClick={(e) => {
+                  const rect = containerRef.current?.getBoundingClientRect()
+                  if (!rect) return
+
+                  // 現在アクティブなペインを特定
+                  const currentPage = activeTab === 'A' ? pageA : pageB
+
+                  // クリック位置を正規化座標に変換（簡易版：コンテナ基準）
+                  const screenX = e.clientX - rect.left
+                  const screenY = e.clientY - rect.top
+                  const normalizedX = screenX / rect.width
+                  const normalizedY = screenY / rect.height
+
+                  handleTextClick(currentPage, normalizedX, normalizedY, e.clientX, e.clientY)
+                }}
+              />
+            )}
+
+            {/* テキストアノテーション表示 */}
+            {(textAnnotations.get(activeTab === 'A' ? pageA : pageB) || []).map((annotation) => {
+              const currentPage = activeTab === 'A' ? pageA : pageB
+              const isClickable = isEraserMode || isTextMode
+              const isBeingEdited = editingText?.existingId === annotation.id
+
+              // 編集中のテキストは非表示（入力ボックスで表示）
+              if (isBeingEdited) return null
+
+              return (
+                <div
+                  key={annotation.id}
+                  style={{
+                    position: 'absolute',
+                    left: `${annotation.x * 100}%`,
+                    top: `${annotation.y * 100}%`,
+                    fontSize: `${annotation.fontSize}px`,
+                    color: annotation.color,
+                    writingMode: annotation.direction === 'horizontal' ? 'horizontal-tb' :
+                      annotation.direction === 'vertical-rl' ? 'vertical-rl' : 'vertical-lr',
+                    whiteSpace: 'pre-wrap',
+                    pointerEvents: isClickable ? 'auto' : 'none',
+                    zIndex: isClickable ? 200 : 50,
+                    cursor: isClickable ? 'pointer' : 'default',
+                    textShadow: '1px 1px 2px rgba(255,255,255,0.8), -1px -1px 2px rgba(255,255,255,0.8)',
+                    padding: isClickable ? '2px 4px' : '0',
+                    borderRadius: '4px',
+                    backgroundColor: isClickable ? 'rgba(200, 220, 255, 0.3)' : 'transparent',
+                    border: isClickable ? '1px dashed #3498db' : 'none'
+                  }}
+                  onClick={(e) => {
+                    if (!isClickable) return
+                    e.stopPropagation()
+                    // 編集モードに入る
+                    const rect = containerRef.current?.getBoundingClientRect()
+                    if (!rect) return
+                    setEditingText({
+                      pageNum: currentPage,
+                      x: annotation.x,
+                      y: annotation.y,
+                      screenX: rect.left + annotation.x * rect.width,
+                      screenY: rect.top + annotation.y * rect.height,
+                      existingId: annotation.id,
+                      initialText: annotation.text
+                    })
+                  }}
+                  title={isClickable ? 'クリックで編集（テキストを消して確定で削除）' : ''}
+                >
+                  {annotation.text}
+                </div>
+              )
+            })}
           </div>
         </div>
+
+        {/* テキスト入力ボックス */}
+        {editingText && (
+          <div
+            style={{
+              position: 'fixed',
+              left: editingText.screenX,
+              top: editingText.screenY,
+              zIndex: 10000,
+              background: 'white',
+              border: '2px solid #3498db',
+              borderRadius: '4px',
+              padding: '4px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+            }}
+          >
+            <textarea
+              autoFocus
+              defaultValue={editingText.initialText || ''}
+              placeholder="テキストを入力..."
+              style={{
+                fontSize: `${textFontSize}px`,
+                color: penColor,
+                writingMode: textDirection === 'horizontal' ? 'horizontal-tb' :
+                  textDirection === 'vertical-rl' ? 'vertical-rl' : 'vertical-lr',
+                border: 'none',
+                outline: 'none',
+                resize: 'both',
+                minWidth: textDirection === 'horizontal' ? '150px' : '50px',
+                minHeight: textDirection === 'horizontal' ? '50px' : '100px',
+                maxWidth: '300px',
+                maxHeight: '200px'
+              }}
+              onBlur={(e) => confirmText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setEditingText(null)
+                } else if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  confirmText((e.target as HTMLTextAreaElement).value)
+                }
+              }}
+            />
+          </div>
+        )}
 
         {gradingResult && (
           <GradingResult

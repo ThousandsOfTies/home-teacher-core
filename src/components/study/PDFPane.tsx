@@ -21,10 +21,6 @@ interface PDFPaneProps {
     eraserSize: number
     isCtrlPressed: boolean
 
-    // 選択
-    isSelectionMode: boolean
-    onSelectionComplete?: (rect: { x: number, y: number, width: number, height: number, zoom: number, pan: { x: number, y: number } }) => void
-
     // レイアウト
     className?: string
     style?: React.CSSProperties
@@ -53,8 +49,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         size,
         eraserSize,
         isCtrlPressed,
-        isSelectionMode,
-        onSelectionComplete,
         className,
         style
     } = props
@@ -63,7 +57,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     const wrapperRef = useRef<HTMLDivElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const drawingCanvasRef = useRef<HTMLCanvasElement>(null)
-    const selectionCanvasRef = useRef<HTMLCanvasElement>(null)
 
     // ズーム/パン
     const {
@@ -395,80 +388,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     // Eraser cursor state
     const [eraserCursorPos, setEraserCursorPos] = React.useState<{ x: number, y: number } | null>(null)
 
-    // Selection state (implied simple version for now)
-    const [isSelecting, setIsSelecting] = React.useState(false)
-    const selectionStartRef = useRef<{ x: number, y: number } | null>(null)
-
-    const startSelection = (e: React.MouseEvent | React.TouchEvent) => {
-        if (!isSelectionMode || !selectionCanvasRef.current) return
-        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX
-        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
-
-        const rect = selectionCanvasRef.current.getBoundingClientRect()
-        const x = clientX - rect.left
-        const y = clientY - rect.top
-
-        selectionStartRef.current = { x, y }
-        setIsSelecting(true)
-    }
-
-    const updateSelection = (e: React.MouseEvent | React.TouchEvent) => {
-        if (!isSelecting || !selectionCanvasRef.current || !selectionStartRef.current) return
-        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX
-        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
-
-        const rect = selectionCanvasRef.current.getBoundingClientRect()
-        const x = clientX - rect.left
-        const y = clientY - rect.top
-
-        const ctx = selectionCanvasRef.current.getContext('2d')
-        if (!ctx) return
-
-        ctx.clearRect(0, 0, selectionCanvasRef.current.width, selectionCanvasRef.current.height)
-        ctx.fillStyle = 'rgba(52, 152, 219, 0.2)'
-        ctx.strokeStyle = '#3498db'
-        ctx.lineWidth = 2
-
-        const startX = selectionStartRef.current.x
-        const startY = selectionStartRef.current.y
-        const width = x - startX
-        const height = y - startY
-
-        ctx.fillRect(startX, startY, width, height)
-        ctx.strokeRect(startX, startY, width, height)
-    }
-
-    const finishSelection = (e: React.MouseEvent | React.TouchEvent) => {
-        if (!isSelecting || !selectionCanvasRef.current || !selectionStartRef.current) return
-
-        const clientX = 'changedTouches' in e ? e.changedTouches[0].clientX : (e as React.MouseEvent).clientX
-        const clientY = 'changedTouches' in e ? e.changedTouches[0].clientY : (e as React.MouseEvent).clientY
-        const rect = selectionCanvasRef.current.getBoundingClientRect()
-        const x = clientX - rect.left
-        const y = clientY - rect.top
-
-        const startX = selectionStartRef.current.x
-        const startY = selectionStartRef.current.y
-        const width = x - startX
-        const height = y - startY
-
-        setIsSelecting(false)
-        const ctx = selectionCanvasRef.current.getContext('2d')
-        if (ctx) ctx.clearRect(0, 0, selectionCanvasRef.current.width, selectionCanvasRef.current.height)
-
-        if (onSelectionComplete && Math.abs(width) > 5 && Math.abs(height) > 5) {
-            // Normalize rect
-            onSelectionComplete({
-                x: Math.min(startX, x),
-                y: Math.min(startY, y),
-                width: Math.abs(width),
-                height: Math.abs(height),
-                zoom: zoom, // Pass current zoom
-                pan: panOffset // Pass current pan offset
-            })
-        }
-    }
-
     // Debug Rendering
     useEffect(() => {
         console.log('🖼️ PDFPane Render Status:', {
@@ -491,15 +410,22 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 overflow: 'hidden',
                 position: 'relative',
                 touchAction: 'none',
-                maxHeight: '100vh', // SAFETY CAP: Prevent flex expansion beyond viewport
-                cursor: isPanning ? 'grabbing' : (isCtrlPressed && tool !== 'pen' ? 'grab' : 'default')
+                maxHeight: '100vh',
+                // パン中はgrabbing、Ctrl押下中はgrab（全モード共通）
+                cursor: isPanning ? 'grabbing' : (isCtrlPressed ? 'grab' : 'default')
             }}
             onMouseDown={(e) => {
                 // Ignore events on pager bar
                 if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
 
+                // Ctrl+ドラッグでパン（どのモードでも有効）
+                if (isCtrlPressed) {
+                    startPanning(e)
+                    return
+                }
+
                 const rect = containerRef.current?.getBoundingClientRect()
-                if (rect && !isCtrlPressed) {
+                if (rect) {
                     const x = (e.clientX - rect.left - panOffset.x) / zoom
                     const y = (e.clientY - rect.top - panOffset.y) / zoom
 
@@ -508,34 +434,35 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     } else if (tool === 'eraser') {
                         console.log('🧹 Eraser MouseDown:', { x, y, pathsCount: drawingPathsRef.current.length })
                         handleErase(x, y)
+                    } else if (tool === 'none') {
+                        // 選択/採点モード時もパン可能
+                        startPanning(e)
                     }
-                } else if (!isDrawingInternal && tool !== 'eraser') {
-                    startPanning(e)
                 }
             }}
             onMouseMove={(e) => {
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
-                if (!isCtrlPressed) {
-                    const x = (e.clientX - rect.left - panOffset.x) / zoom
-                    const y = (e.clientY - rect.top - panOffset.y) / zoom
-
-                    if (tool === 'pen' && isDrawingInternal) {
-                        draw(x, y)
-                    } else if (tool === 'eraser') {
-                        if (e.buttons === 1) {
-                            handleErase(x, y)
-                        }
-                    }
-                }
-
-                if (tool === 'none' || isCtrlPressed) {
+                // パン中またはCtrl押下中はパン処理
+                if (isPanning || isCtrlPressed) {
                     doPanning(e)
+                    return
                 }
 
-                if (tool === 'eraser') {
+                const x = (e.clientX - rect.left - panOffset.x) / zoom
+                const y = (e.clientY - rect.top - panOffset.y) / zoom
+
+                if (tool === 'pen' && isDrawingInternal) {
+                    draw(x, y)
+                } else if (tool === 'eraser') {
+                    if (e.buttons === 1) {
+                        handleErase(x, y)
+                    }
                     setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+                } else if (tool === 'none' && e.buttons === 1) {
+                    // 採点モードでドラッグ時もパン
+                    doPanning(e)
                 }
             }}
             onMouseUp={(e) => {
@@ -629,23 +556,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         onPathAdd={() => { }} // Interaction handled by useDrawing hook in PDFPane
                     />
                 </div>
-
-                {/* Selection Canvas if needed */}
-                <canvas
-                    ref={selectionCanvasRef}
-                    className="selection-canvas"
-                    style={{
-                        position: 'absolute',
-                        top: 0, left: 0,
-                        pointerEvents: isSelectionMode ? 'auto' : 'none',
-                        width: '100%', height: '100%' // Verify this
-                    }}
-                    width={containerRef.current?.clientWidth}
-                    height={containerRef.current?.clientHeight}
-                    onMouseDown={startSelection}
-                    onMouseMove={updateSelection}
-                    onMouseUp={finishSelection}
-                />
             </div>
 
             {/* Eraser Cursor */}
