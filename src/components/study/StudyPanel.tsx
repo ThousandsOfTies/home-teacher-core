@@ -181,6 +181,14 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   const [isSplitView, setIsSplitView] = useState(false)
   const [activeTab, setActiveTab] = useState<'A' | 'B'>('A')
 
+  // スプリット比率（0.2 ~ 0.8、デフォルト0.5）
+  const [splitRatio, setSplitRatio] = useState(() => {
+    const saved = localStorage.getItem('splitRatio')
+    return saved ? parseFloat(saved) : 0.5
+  })
+  const [isResizing, setIsResizing] = useState(false)
+  const splitContainerRef = useRef<HTMLDivElement>(null)
+
   // ページ状態
   // 保存されたレコードから初期化
   const [pageA, setPageA] = useState(pdfRecord.lastPageNumberA || 1)
@@ -650,6 +658,41 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     addStatusMessage('選択をクリアしました。再度範囲を選択してください')
   }
 
+  // リサイズハンドラ
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }
+
+  useEffect(() => {
+    if (!isResizing) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!splitContainerRef.current) return
+      const rect = splitContainerRef.current.getBoundingClientRect()
+      const newRatio = (e.clientX - rect.left) / rect.width
+      const clampedRatio = Math.max(0.2, Math.min(0.8, newRatio))
+      setSplitRatio(clampedRatio)
+    }
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (!splitContainerRef.current) return
+      const rect = splitContainerRef.current.getBoundingClientRect()
+      const finalRatio = (e.clientX - rect.left) / rect.width
+      const clampedRatio = Math.max(0.2, Math.min(0.8, finalRatio))
+      localStorage.setItem('splitRatio', clampedRatio.toString())
+      setIsResizing(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isResizing])
+
   // Ctrl+Z Undo - アクティブなページの最後の描画を削除
   const handleUndo = () => {
     const activePage = activeTab === 'A' ? pageA : pageB
@@ -902,15 +945,18 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
           style={{ position: 'relative' }} // Ensure container is relative for overlay
         >
           {/* Main Content Area: PDF Panes */}
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'row',
-            overflow: 'hidden',
-            position: 'relative',
-            backgroundColor: '#f0f0f0',
-            height: '100%' // Ensure full height
-          }}>
+          <div
+            ref={splitContainerRef}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'row',
+              overflow: 'hidden',
+              position: 'relative',
+              backgroundColor: '#f0f0f0',
+              height: '100%' // Ensure full height
+            }}
+          >
             {/* Global Selection Overlay */}
             {isSelectionMode && (
               <div
@@ -952,9 +998,9 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                 className="pane-a"
                 ref={paneARef}
                 style={{
-                  flex: 1,
-                  borderRight: isSplitView ? '1px solid #ccc' : 'none',
-                  height: '100%'
+                  flex: isSplitView ? `0 0 ${Math.round(splitRatio * 100)}%` : '1 1 auto',
+                  height: '100%',
+                  overflow: 'hidden'
                 }}
                 pdfRecord={pdfRecord}
                 pdfDoc={pdfDoc}
@@ -973,14 +1019,30 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
               />
             )}
 
+            {/* リサイズハンドル */}
+            {isSplitView && (
+              <div
+                onMouseDown={handleResizeStart}
+                style={{
+                  width: '6px',
+                  height: '100%',
+                  backgroundColor: isResizing ? '#3498db' : '#ccc',
+                  cursor: 'col-resize',
+                  flexShrink: 0,
+                  transition: 'background-color 0.2s'
+                }}
+              />
+            )}
+
             {/* ペインB (解答/解説) */}
             {(isSplitView || activeTab === 'B') && (
               <PDFPane
                 className="pane-b"
                 ref={paneBRef}
                 style={{
-                  flex: 1,
-                  height: '100%'
+                  flex: isSplitView ? `0 0 ${Math.round((1 - splitRatio) * 100)}%` : '1 1 auto',
+                  height: '100%',
+                  overflow: 'hidden'
                 }}
                 pdfRecord={pdfRecord}
                 pdfDoc={pdfDoc}
