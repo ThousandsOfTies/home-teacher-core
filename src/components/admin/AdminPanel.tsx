@@ -10,7 +10,7 @@ import './AdminPanel.css';
 import { PREDEFINED_SNS, getSNSIcon } from '../../constants/sns';
 
 interface AdminPanelProps {
-  onSelectPDF: (record: PDFFileRecord, answerMode?: boolean) => void;
+  onSelectPDF: (record: PDFFileRecord) => void;
   hasUpdate?: boolean;
   onUpdate?: () => void;
 }
@@ -50,7 +50,6 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
   const [showSNSSettings, setShowSNSSettings] = useState(false);
 
   const [showGradingHistory, setShowGradingHistory] = useState(false);
-  const [pdfAnswerStatus, setPdfAnswerStatus] = useState<Record<string, boolean>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [showStorageInfo, setShowStorageInfo] = useState(false);
@@ -172,25 +171,6 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
     }
   };
 
-  // 解答登録状況を確認
-  const checkAnswerStatus = async () => {
-    const { getAnswersByPdfId } = await import('../../utils/indexedDB');
-    const statusMap: Record<string, boolean> = {};
-
-    for (const record of pdfRecords) {
-      const answers = await getAnswersByPdfId(record.id);
-      statusMap[record.id] = answers.length > 0;
-    }
-
-    setPdfAnswerStatus(statusMap);
-  };
-
-  // PDFレコードが変更されたら解答状況を確認
-  useEffect(() => {
-    if (pdfRecords.length > 0) {
-      checkAnswerStatus();
-    }
-  }, [pdfRecords]);
 
   // 通知設定をキャンセル
   const cancelNotificationSettings = () => {
@@ -1081,69 +1061,6 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                       )}
                     </div>
                     <div className="file-name">{record.fileName}</div>
-
-                    {/* 解答登録ボタン（梟アイコン） */}
-                    <button
-                      className="answer-register-button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectPDF(record, true); // answerMode = true
-                      }}
-                      title={pdfAnswerStatus[record.id] ? "解答登録済み" : "解答を登録"}
-                      style={{
-                        background: pdfAnswerStatus[record.id] ? '#d5f4e6' : '#f0f0f0',
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: '8px 12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderRadius: '20px',
-                        transition: 'all 0.2s',
-                        color: pdfAnswerStatus[record.id] ? '#27ae60' : '#7f8c8d',
-                        fontSize: '20px',
-                        marginLeft: 'auto',
-                        marginRight: '8px',
-                        position: 'relative',
-                        flexShrink: 0, // 縮小されないようにする
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = pdfAnswerStatus[record.id] ? '#a3e4d7' : '#e0e0e0';
-                        e.currentTarget.style.transform = 'scale(1.05)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = pdfAnswerStatus[record.id] ? '#d5f4e6' : '#f0f0f0';
-                        e.currentTarget.style.transform = 'scale(1)';
-                      }}
-                    >
-                      <span style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '14px',
-                        fontWeight: '600'
-                      }}>
-                        {pdfAnswerStatus[record.id] ? (
-                          <div style={{ position: 'relative', height: '24px', width: '28px', marginRight: '4px' }}>
-                            <span style={{ fontSize: '20px', position: 'absolute', bottom: '-2px', left: '50%', transform: 'translateX(-50%)' }}>🦉</span>
-                            <span style={{
-                              fontSize: '14px',
-                              position: 'absolute',
-                              top: '-10px',
-                              left: '50%',
-                              transform: 'translateX(-50%)',
-                              zIndex: 1
-                            }}>🎓</span>
-                          </div>
-                        ) : (
-                          <>
-                            <span style={{ fontSize: '20px' }}>🦉</span>
-                            <span>登録</span>
-                          </>
-                        )}
-                      </span>
-                    </button>
 
                     {/* 削除ボタン */}
                     <button

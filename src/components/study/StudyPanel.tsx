@@ -44,10 +44,9 @@ interface StudyPanelProps {
   pdfRecord: PDFFileRecord
   pdfId: string
   onBack?: () => void
-  answerRegistrationMode?: boolean
 }
 
-const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }: StudyPanelProps) => {
+const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   // Refs
   const paneARef = useRef<PDFPaneHandle>(null)
   const paneBRef = useRef<PDFPaneHandle>(null)
@@ -389,91 +388,27 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
       setGradingResult({ ...response.result })
       addStatusMessage(`✅ 採点完了 (${response.result.problems.length}問)`)
 
-      // --- DETAILED MATCHING LOGIC ---
-      if (!response.result.problems?.length) return
-
-      const { getAnswersByPdfId } = await import('../../utils/indexedDB')
-      const registeredAnswers = await getAnswersByPdfId(pdfId)
-
-      for (const problem of response.result.problems) {
-        // Helper functions
-        const normalizeAnswer = (answer: string): string => {
-          return answer.toLowerCase().replace(/\s+/g, '').replace(/°|度/g, '').replace(/[Xx×]/g, '*').replace(/[（(]/g, '(').replace(/[）)]/g, ')').replace(/,/g, '.').trim()
-        }
-        const normalizeProblemNumber = (pn: string): string => {
-          if (!pn) return ''
-          return pn.replace(/\s+/g, '').replace(/（/g, '(').replace(/）/g, ')').toLowerCase().trim()
-        }
-
-        const normalizedAiProblem = normalizeProblemNumber(problem.problemNumber)
-        const printedPage = problem.printedPageNumber || response.result.printedPageNumber
-        let matchedAnswer: typeof registeredAnswers[0] | undefined = undefined
-
-        if (printedPage) {
-          const allPageNumbers = registeredAnswers.map(a => a.problemPageNumber).filter((p): p is number => p !== undefined && p <= printedPage)
-          if (allPageNumbers.length > 0) {
-            const targetSectionPage = Math.max(...allPageNumbers)
-            const sectionAnswers = registeredAnswers.filter(ans => ans.problemPageNumber === targetSectionPage)
-            const matchingInSection = sectionAnswers.filter(ans => normalizeProblemNumber(ans.problemNumber) === normalizedAiProblem)
-            if (matchingInSection.length === 1) matchedAnswer = matchingInSection[0]
-            else if (matchingInSection.length === 0) {
-              // Global search fallback
-              const matchingAnswers = registeredAnswers.filter(ans => normalizeProblemNumber(ans.problemNumber) === normalizedAiProblem)
-              if (matchingAnswers.length === 1) matchedAnswer = matchingAnswers[0]
-              else if (matchingAnswers.length > 1) {
-                matchedAnswer = matchingAnswers.reduce((prev, curr) => Math.abs((prev.problemPageNumber ?? 9999) - printedPage) < Math.abs((curr.problemPageNumber ?? 9999) - printedPage) ? curr : prev)
-              }
-            }
+      // 採点履歴を保存
+      if (response.result.problems?.length) {
+        for (const problem of response.result.problems) {
+          const historyRecord = {
+            id: generateGradingHistoryId(),
+            pdfId,
+            pdfFileName: pdfRecord.fileName,
+            pageNumber: pageA,
+            problemNumber: problem.problemNumber,
+            studentAnswer: problem.studentAnswer,
+            isCorrect: problem.isCorrect || false,
+            correctAnswer: problem.correctAnswer || '',
+            feedback: problem.feedback || '',
+            explanation: problem.explanation || '',
+            timestamp: Date.now(),
+            imageData: croppedImageData,
+            matchingMetadata: problem.matchingMetadata
           }
-        } else {
-          // Fallback using PDF page
-          const matchingAnswers = registeredAnswers.filter(ans => normalizeProblemNumber(ans.problemNumber) === normalizedAiProblem)
-          if (matchingAnswers.length === 1) matchedAnswer = matchingAnswers[0]
+          await saveGradingHistory(historyRecord)
         }
-
-        // AI vs DB Logic
-        let isCorrect = problem.isCorrect || false
-        let correctAnswer = problem.correctAnswer || ''
-        let feedback = problem.feedback || ''
-        let explanation = problem.explanation || ''
-
-        if (!isCorrect && matchedAnswer) {
-          const normalizedStudent = normalizeAnswer(problem.studentAnswer)
-          const normalizedDbCorrect = normalizeAnswer(matchedAnswer.correctAnswer)
-          if (normalizedStudent === normalizedDbCorrect) {
-            isCorrect = true
-            correctAnswer = matchedAnswer.correctAnswer
-            feedback = '正解です！よくできました！'
-            explanation = `正解は ${correctAnswer} です。`
-          }
-        }
-
-        const historyRecord = {
-          id: generateGradingHistoryId(),
-          pdfId,
-          pdfFileName: pdfRecord.fileName,
-          pageNumber: pageA,
-          problemNumber: problem.problemNumber,
-          studentAnswer: problem.studentAnswer,
-          isCorrect,
-          correctAnswer,
-          feedback,
-          explanation,
-          timestamp: Date.now(),
-          imageData: croppedImageData,
-          matchingMetadata: problem.matchingMetadata
-        }
-        await saveGradingHistory(historyRecord)
-
-        // Update display
-        problem.isCorrect = isCorrect
-        problem.correctAnswer = correctAnswer
-        problem.feedback = feedback
-        problem.explanation = explanation
       }
-
-      setGradingResult(prev => prev ? ({ ...prev, problems: response.result.problems }) : null)
-      // --- END MATCHING ---
 
     } catch (e) {
       console.error(e)
@@ -949,205 +884,156 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack, answerRegistrationMode = false }
 
           {/* 右寄せコンテナ */}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px', alignItems: 'center' }}>
-            {answerRegistrationMode ? (
-              /* 解答登録モード: シンプルなツールバー */
-              <>
-                <button
-                  onClick={() => setShowAnswerStartDialog(true)}
-                  style={{
-                    padding: '12px 24px',
-                    backgroundColor: '#3498db',
-                    color: 'white',
-                    borderRadius: '12px',
-                    fontSize: '28px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    boxShadow: '0 4px 8px rgba(52, 152, 219, 0.3)',
-                    transition: 'all 0.3s ease'
-                  }}
-                  title="このページ以降を解答として登録"
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.05)';
-                    e.currentTarget.style.boxShadow = '0 6px 12px rgba(52, 152, 219, 0.4)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'scale(1)';
-                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(52, 152, 219, 0.3)';
-                  }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    🦉
-                    <span style={{ fontSize: '20px', color: 'white', opacity: 0.8 }}>→</span>
-                    <span style={{ position: 'relative', display: 'inline-block' }}>
-                      🦉
-                      <span style={{
-                        position: 'absolute',
-                        top: '-8px',
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        fontSize: '18px'
-                      }}>🎓</span>
-                    </span>
-                  </span>
-                </button>
-              </>
-            ) : (
-              /* 通常モード: 全ツール表示 */
-              <>
-                <div className="divider"></div>
+            <>
+              <div className="divider"></div>
 
-                {/* 採点ボタン */}
+              {/* 採点ボタン */}
+              <button
+                onClick={isSelectionMode ? handleCancelSelection : startGrading}
+                className={isSelectionMode ? 'active' : ''}
+                disabled={isGrading}
+                title={isSelectionMode ? 'キャンセル' : '範囲を選択して採点'}
+              >
+                {isGrading ? '⏳' : '✅'}
+              </button>
+
+              {/* テキスト入力ツール */}
+              <div style={{ position: 'relative' }}>
                 <button
-                  onClick={isSelectionMode ? handleCancelSelection : startGrading}
-                  className={isSelectionMode ? 'active' : ''}
-                  disabled={isGrading}
-                  title={isSelectionMode ? 'キャンセル' : '範囲を選択して採点'}
+                  onClick={toggleTextMode}
+                  className={isTextMode ? 'active' : ''}
+                  title={isTextMode ? 'テキストモード ON' : 'テキストモード OFF'}
+                  style={{ fontFamily: 'Times New Roman, serif', fontSize: '1.4rem' }}
                 >
-                  {isGrading ? '⏳' : '✅'}
+                  T
                 </button>
 
-                {/* テキスト入力ツール */}
-                <div style={{ position: 'relative' }}>
-                  <button
-                    onClick={toggleTextMode}
-                    className={isTextMode ? 'active' : ''}
-                    title={isTextMode ? 'テキストモード ON' : 'テキストモード OFF'}
-                    style={{ fontFamily: 'Times New Roman, serif', fontSize: '1.4rem' }}
-                  >
-                    T
-                  </button>
-
-                  {/* テキスト設定ポップアップ */}
-                  {showTextPopup && (
-                    <div className="tool-popup" style={{ minWidth: '180px' }}>
-                      <div className="popup-row">
-                        <label>サイズ:</label>
-                        <input
-                          type="range"
-                          min="10"
-                          max="32"
-                          value={textFontSize}
-                          onChange={(e) => setTextFontSize(Number(e.target.value))}
-                          style={{ width: '80px' }}
-                        />
-                        <span>{textFontSize}px</span>
-                      </div>
-                      <div className="popup-row">
-                        <label>方向:</label>
-                        <select
-                          value={textDirection}
-                          onChange={(e) => setTextDirection(e.target.value as TextDirection)}
-                          style={{ padding: '4px', borderRadius: '4px' }}
-                        >
-                          <option value="horizontal">横書き (Z型)</option>
-                          <option value="vertical-rl">縦書き右始 (N型)</option>
-                          <option value="vertical-lr">縦書き左始</option>
-                        </select>
-                      </div>
-                      <div className="popup-row">
-                        <label>色:</label>
-                        <input
-                          type="color"
-                          value={penColor}
-                          onChange={(e) => setPenColor(e.target.value)}
-                          style={{ width: '40px', height: '30px', border: '1px solid #ccc', cursor: 'pointer' }}
-                        />
-                      </div>
+                {/* テキスト設定ポップアップ */}
+                {showTextPopup && (
+                  <div className="tool-popup" style={{ minWidth: '180px' }}>
+                    <div className="popup-row">
+                      <label>サイズ:</label>
+                      <input
+                        type="range"
+                        min="10"
+                        max="32"
+                        value={textFontSize}
+                        onChange={(e) => setTextFontSize(Number(e.target.value))}
+                        style={{ width: '80px' }}
+                      />
+                      <span>{textFontSize}px</span>
                     </div>
-                  )}
-                </div>
-
-                {/* 描画ツール */}
-                <div style={{ position: 'relative' }}>
-                  <button
-                    onClick={toggleDrawingMode}
-                    className={isDrawingMode ? 'active' : ''}
-                    title={isDrawingMode ? 'ペンモード ON' : 'ペンモード OFF'}
-                  >
-                    {ICON_SVG.pen(isDrawingMode, penColor)}
-                  </button>
-
-                  {/* ペン設定ポップアップ */}
-                  {showPenPopup && (
-                    <div className="tool-popup">
-                      <div className="popup-row">
-                        <label>色:</label>
-                        <input
-                          type="color"
-                          value={penColor}
-                          onChange={(e) => setPenColor(e.target.value)}
-                          style={{ width: '40px', height: '30px', border: '1px solid #ccc', cursor: 'pointer' }}
-                        />
-                      </div>
-                      <div className="popup-row">
-                        <label>太さ:</label>
-                        <input
-                          type="range"
-                          min="1"
-                          max="10"
-                          value={penSize}
-                          onChange={(e) => setPenSize(Number(e.target.value))}
-                          style={{ width: '100px' }}
-                        />
-                        <span>{penSize}px</span>
-                      </div>
+                    <div className="popup-row">
+                      <label>方向:</label>
+                      <select
+                        value={textDirection}
+                        onChange={(e) => setTextDirection(e.target.value as TextDirection)}
+                        style={{ padding: '4px', borderRadius: '4px' }}
+                      >
+                        <option value="horizontal">横書き (Z型)</option>
+                        <option value="vertical-rl">縦書き右始 (N型)</option>
+                        <option value="vertical-lr">縦書き左始</option>
+                      </select>
                     </div>
-                  )}
-                </div>
-
-                <div style={{ position: 'relative' }}>
-                  <button
-                    onClick={toggleEraserMode}
-                    className={isEraserMode ? 'active' : ''}
-                    title={isEraserMode ? '消しゴムモード ON' : '消しゴムモード OFF'}
-                  >
-                    {ICON_SVG.eraser(isEraserMode)}
-                  </button>
-
-                  {/* 消しゴム設定ポップアップ */}
-                  {showEraserPopup && (
-                    <div className="tool-popup">
-                      <div className="popup-row">
-                        <label>サイズ:</label>
-                        <input
-                          type="range"
-                          min="10"
-                          max="100"
-                          value={eraserSize}
-                          onChange={(e) => setEraserSize(Number(e.target.value))}
-                          style={{ width: '100px' }}
-                        />
-                        <span>{eraserSize}px</span>
-                      </div>
+                    <div className="popup-row">
+                      <label>色:</label>
+                      <input
+                        type="color"
+                        value={penColor}
+                        onChange={(e) => setPenColor(e.target.value)}
+                        style={{ width: '40px', height: '30px', border: '1px solid #ccc', cursor: 'pointer' }}
+                      />
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
+              </div>
 
-                <div className="divider"></div>
-
+              {/* 描画ツール */}
+              <div style={{ position: 'relative' }}>
                 <button
-                  onClick={handleUndo}
-                  title="元に戻す (Ctrl+Z)"
+                  onClick={toggleDrawingMode}
+                  className={isDrawingMode ? 'active' : ''}
+                  title={isDrawingMode ? 'ペンモード ON' : 'ペンモード OFF'}
                 >
-                  ↩️
-                </button>
-                <button
-                  onClick={clearDrawing}
-                  onDoubleClick={clearAllDrawings}
-                  title="クリア（ダブルクリックで全ページクリア）"
-                >
-                  <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="1" y="1" width="18" height="22" rx="2" fill="white" stroke="#999" strokeWidth="0.8" />
-                    <path d="M16 3 L12 7 L16 11 L20 7 Z" fill="yellow" stroke="orange" strokeWidth="0.8" transform="translate(-2, -1)" />
-                  </svg>
+                  {ICON_SVG.pen(isDrawingMode, penColor)}
                 </button>
 
-              </>
-            )}
+                {/* ペン設定ポップアップ */}
+                {showPenPopup && (
+                  <div className="tool-popup">
+                    <div className="popup-row">
+                      <label>色:</label>
+                      <input
+                        type="color"
+                        value={penColor}
+                        onChange={(e) => setPenColor(e.target.value)}
+                        style={{ width: '40px', height: '30px', border: '1px solid #ccc', cursor: 'pointer' }}
+                      />
+                    </div>
+                    <div className="popup-row">
+                      <label>太さ:</label>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        value={penSize}
+                        onChange={(e) => setPenSize(Number(e.target.value))}
+                        style={{ width: '100px' }}
+                      />
+                      <span>{penSize}px</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={toggleEraserMode}
+                  className={isEraserMode ? 'active' : ''}
+                  title={isEraserMode ? '消しゴムモード ON' : '消しゴムモード OFF'}
+                >
+                  {ICON_SVG.eraser(isEraserMode)}
+                </button>
+
+                {/* 消しゴム設定ポップアップ */}
+                {showEraserPopup && (
+                  <div className="tool-popup">
+                    <div className="popup-row">
+                      <label>サイズ:</label>
+                      <input
+                        type="range"
+                        min="10"
+                        max="100"
+                        value={eraserSize}
+                        onChange={(e) => setEraserSize(Number(e.target.value))}
+                        style={{ width: '100px' }}
+                      />
+                      <span>{eraserSize}px</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="divider"></div>
+
+              <button
+                onClick={handleUndo}
+                title="元に戻す (Ctrl+Z)"
+              >
+                ↩️
+              </button>
+              <button
+                onClick={clearDrawing}
+                onDoubleClick={clearAllDrawings}
+                title="クリア（ダブルクリックで全ページクリア）"
+              >
+                <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="1" y="1" width="18" height="22" rx="2" fill="white" stroke="#999" strokeWidth="0.8" />
+                  <path d="M16 3 L12 7 L16 11 L20 7 Z" fill="yellow" stroke="orange" strokeWidth="0.8" transform="translate(-2, -1)" />
+                </svg>
+              </button>
+
+            </>
           </div>
 
         </div>
