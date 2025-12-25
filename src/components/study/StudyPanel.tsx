@@ -131,47 +131,39 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     // ペインからキャプチャするヘルパー
     const captureFromPane = (paneRef: React.RefObject<PDFPaneHandle>, paneClassName: string) => {
       const paneEl = containerRef.current?.querySelector(`.${paneClassName}`)
-      // 合成キャンバス（PDF + 描画）を取得
       const compositeCanvas = paneRef.current?.getCanvas()
-      // 表示位置取得用に DOM 内の実際のキャンバス要素を検索
       const visibleCanvas = paneEl?.querySelector('.pdf-canvas') as HTMLCanvasElement | null
 
-      if (paneEl && compositeCanvas && visibleCanvas) {
-        const paneRect = paneEl.getBoundingClientRect()
-        const containerRect = containerRef.current!.getBoundingClientRect()
-        // 表示されているキャンバスの位置を使用
-        const canvasRect = visibleCanvas.getBoundingClientRect()
+      if (!paneEl || !compositeCanvas || !visibleCanvas) return
 
-        // 選択矩形のスクリーン座標
-        const selectionScreenX = containerRect.left + rect.x
-        const selectionScreenY = containerRect.top + rect.y
-        const selectionScreenW = rect.width
-        const selectionScreenH = rect.height
+      const paneRect = paneEl.getBoundingClientRect()
+      const containerRect = containerRef.current!.getBoundingClientRect()
+      const canvasRect = visibleCanvas.getBoundingClientRect()
 
-        // 選択矩形とキャンバス表示領域の交差部分
-        const intersectX = Math.max(selectionScreenX, canvasRect.left)
-        const intersectY = Math.max(selectionScreenY, canvasRect.top)
-        const intersectW = Math.min(selectionScreenX + selectionScreenW, canvasRect.right) - intersectX
-        const intersectH = Math.min(selectionScreenY + selectionScreenH, canvasRect.bottom) - intersectY
+      const selectionScreenX = containerRect.left + rect.x
+      const selectionScreenY = containerRect.top + rect.y
+      const selectionScreenW = rect.width
+      const selectionScreenH = rect.height
 
-        if (intersectW > 0 && intersectH > 0) {
-          // 表示サイズと実際のキャンバスサイズの比率
-          const scaleX = compositeCanvas.width / canvasRect.width
-          const scaleY = compositeCanvas.height / canvasRect.height
+      const intersectX = Math.max(selectionScreenX, canvasRect.left)
+      const intersectY = Math.max(selectionScreenY, canvasRect.top)
+      const intersectW = Math.min(selectionScreenX + selectionScreenW, canvasRect.right) - intersectX
+      const intersectH = Math.min(selectionScreenY + selectionScreenH, canvasRect.bottom) - intersectY
 
-          // ソース座標（合成キャンバス上）
-          const sx = (intersectX - canvasRect.left) * scaleX
-          const sy = (intersectY - canvasRect.top) * scaleY
-          const sw = intersectW * scaleX
-          const sh = intersectH * scaleY
+      if (intersectW <= 0 || intersectH <= 0) return
 
-          // 出力座標（一時キャンバス上）
-          const dx = intersectX - selectionScreenX
-          const dy = intersectY - selectionScreenY
+      const scaleX = compositeCanvas.width / canvasRect.width
+      const scaleY = compositeCanvas.height / canvasRect.height
 
-          ctx.drawImage(compositeCanvas, sx, sy, sw, sh, dx, dy, intersectW, intersectH)
-        }
-      }
+      const sx = (intersectX - canvasRect.left) * scaleX
+      const sy = (intersectY - canvasRect.top) * scaleY
+      const sw = intersectW * scaleX
+      const sh = intersectH * scaleY
+
+      const dx = intersectX - selectionScreenX
+      const dy = intersectY - selectionScreenY
+
+      ctx.drawImage(compositeCanvas, sx, sy, sw, sh, dx, dy, intersectW, intersectH)
     }
 
     if (activeTab === 'A' || isSplitView) {
@@ -216,20 +208,18 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
   // AI Model State
   const [selectedModel, setSelectedModel] = useState<string>('default')
-  // Use constant or call helper
-  const defaultModel = 'Gemini 2.0 Flash'
+  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
 
-  // Model Selection Helper
-  const getAvailableModels = () => {
-    return [
-      { id: 'default', name: '標準 (Gemini 2.0 Flash)', description: '高速でバランスの良いモデル' },
-      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: '高精度で複雑な推論が可能' },
-      { id: 'gpt-4o', name: 'GPT-4o', description: '最高精度のモデル' }
-    ]
-  }
-
-  // Define availableModels for render
-  const availableModels = getAvailableModels().filter(m => m.id !== 'default')
+  // Load available models from server
+  useEffect(() => {
+    getAvailableModels()
+      .then(response => {
+        if (response.models) {
+          setAvailableModels(response.models.filter(m => m.id !== 'default'))
+        }
+      })
+      .catch(err => console.error('Failed to load models:', err))
+  }, [])
 
   // Selection State
   const [isSelectionMode, setIsSelectionMode] = useState(false)
@@ -530,60 +520,61 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
   // テキスト確定（編集・新規追加・削除を統合）
   const confirmText = (text: string) => {
-    if (!editingText) {
+    if (!editingText) return
+
+    const trimmedText = text.trim()
+    const finish = () => setEditingText(null)
+
+    // 1. 既存テキストの削除（空文字になった場合）
+    if (editingText.existingId && trimmedText === '') {
+      deleteTextAnnotation(editingText.pageNum, editingText.existingId)
+      finish()
       return
     }
 
-    const trimmedText = text.trim()
-
-    // 既存テキストの編集の場合
+    // 2. 既存テキストの更新
     if (editingText.existingId) {
-      if (trimmedText === '') {
-        // テキストが空なら削除
-        deleteTextAnnotation(editingText.pageNum, editingText.existingId)
-      } else {
-        // テキストを更新
-        setTextAnnotations(prev => {
-          const newMap = new Map(prev)
-          const current = newMap.get(editingText.pageNum) || []
-          const updated = current.map(a =>
-            a.id === editingText.existingId
-              ? { ...a, text: trimmedText }
-              : a
-          )
-          newMap.set(editingText.pageNum, updated)
-          return newMap
-        })
-        addStatusMessage('📝 テキストを更新しました')
-      }
-    } else {
-      // 新規テキストの場合
-      if (trimmedText === '') {
-        // 空なら何もしない
-        setEditingText(null)
-        return
-      }
-
-      const newAnnotation: TextAnnotation = {
-        id: `text-${Date.now()}`,
-        x: editingText.x,
-        y: editingText.y,
-        text: trimmedText,
-        fontSize: textFontSize,
-        color: penColor,
-        direction: textDirection
-      }
-
       setTextAnnotations(prev => {
         const newMap = new Map(prev)
         const current = newMap.get(editingText.pageNum) || []
-        newMap.set(editingText.pageNum, [...current, newAnnotation])
+        const updated = current.map(a =>
+          a.id === editingText.existingId
+            ? { ...a, text: trimmedText }
+            : a
+        )
+        newMap.set(editingText.pageNum, updated)
         return newMap
       })
-      addStatusMessage('📝 テキストを追加しました')
+      addStatusMessage('📝 テキストを更新しました')
+      finish()
+      return
     }
 
-    setEditingText(null)
+    // 3. 新規テキストが空の場合（キャンセル扱い）
+    if (trimmedText === '') {
+      finish()
+      return
+    }
+
+    // 4. 新規テキストの追加
+    const newAnnotation: TextAnnotation = {
+      id: `text-${Date.now()}`,
+      x: editingText.x,
+      y: editingText.y,
+      text: trimmedText,
+      fontSize: textFontSize,
+      color: penColor,
+      direction: textDirection
+    }
+
+    setTextAnnotations(prev => {
+      const newMap = new Map(prev)
+      const current = newMap.get(editingText.pageNum) || []
+      newMap.set(editingText.pageNum, [...current, newAnnotation])
+      return newMap
+    })
+    addStatusMessage('📝 テキストを追加しました')
+    finish()
   }
 
   // テキスト削除
@@ -1168,7 +1159,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                     cursor: 'pointer'
                   }}
                 >
-                  <option value="default">デフォルト ({defaultModel})</option>
+                  <option value="default">デフォルト (Gemini 2.0 Flash)</option>
                   {availableModels.map(model => (
                     <option key={model.id} value={model.id}>
                       {model.name}
@@ -1176,7 +1167,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                   ))}
                 </select>
                 <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                  {selectedModel === 'default' && `✨ ${defaultModel} を使用`}
+                  {selectedModel === 'default' && '✨ Gemini 2.0 Flash を使用'}
                   {availableModels.find(m => m.id === selectedModel)?.description}
                 </div>
               </div>

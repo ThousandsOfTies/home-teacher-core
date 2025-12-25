@@ -150,21 +150,21 @@ function openDB(): Promise<IDBDatabase> {
           console.log(`📦 Base64→Blob移行開始: ${records.length}件のPDF`);
 
           records.forEach(record => {
-            // fileDataが文字列（Base64）の場合のみ変換
-            if (record.fileData && typeof record.fileData === 'string') {
-              try {
-                // Base64をBlobに変換
-                const binaryString = atob(record.fileData);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                  bytes[i] = binaryString.charCodeAt(i);
-                }
-                record.fileData = new Blob([bytes], { type: 'application/pdf' });
-                objectStore.put(record);
-                console.log(`✅ ${record.fileName} をBlobに変換`);
-              } catch (error) {
-                console.error(`❌ ${record.fileName} の変換失敗:`, error);
+            // fileDataが文字列（Base64）でなければスキップ
+            if (!record.fileData || typeof record.fileData !== 'string') return
+
+            try {
+              // Base64をBlobに変換
+              const binaryString = atob(record.fileData);
+              const bytes = new Uint8Array(binaryString.length);
+              for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
               }
+              record.fileData = new Blob([bytes], { type: 'application/pdf' });
+              objectStore.put(record);
+              console.log(`✅ ${record.fileName} をBlobに変換`);
+            } catch (error) {
+              console.error(`❌ ${record.fileName} の変換失敗:`, error);
             }
           });
 
@@ -189,21 +189,22 @@ export async function getAllPDFRecords(): Promise<PDFFileRecord[]> {
 
     request.onsuccess = (event) => {
       const cursor = (event.target as IDBRequest).result;
-      if (cursor) {
-        const record = cursor.value;
-        console.log('📄 PDFレコード取得:', {
-          id: record.id,
-          fileName: record.fileName,
-          hasFileData: !!record.fileData,
-          fileDataType: record.fileData ? (record.fileData instanceof Blob ? 'Blob' : typeof record.fileData) : 'null',
-          fileDataSize: record.fileData instanceof Blob ? record.fileData.size : 'N/A'
-        });
-        records.push(record);
-        cursor.continue();
-      } else {
+      if (!cursor) {
         console.log(`✅ 全PDFレコード取得完了: ${records.length}件`);
         resolve(records);
+        return;
       }
+
+      const record = cursor.value;
+      console.log('📄 PDFレコード取得:', {
+        id: record.id,
+        fileName: record.fileName,
+        hasFileData: !!record.fileData,
+        fileDataType: record.fileData ? (record.fileData instanceof Blob ? 'Blob' : typeof record.fileData) : 'null',
+        fileDataSize: record.fileData instanceof Blob ? record.fileData.size : 'N/A'
+      });
+      records.push(record);
+      cursor.continue();
     };
 
     request.onerror = () => {

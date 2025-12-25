@@ -107,51 +107,53 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
     const handlePageRendered = () => {
         console.log('🏁 PDFPane: handlePageRendered triggered')
-        if (canvasRef.current && containerRef.current) {
-            setCanvasSize({
-                width: canvasRef.current.width,
-                height: canvasRef.current.height
-            })
+        if (!canvasRef.current || !containerRef.current) return
 
-            // Log canvas size
-            console.log('📏 PDFPane: Canvas size captured', {
-                width: canvasRef.current.width,
-                height: canvasRef.current.height
-            })
+        setCanvasSize({
+            width: canvasRef.current.width,
+            height: canvasRef.current.height
+        })
 
-            // Cancel any pending RAF
-            if (rafIdRef.current) {
-                cancelAnimationFrame(rafIdRef.current)
-            }
+        // Log canvas size
+        console.log('📏 PDFPane: Canvas size captured', {
+            width: canvasRef.current.width,
+            height: canvasRef.current.height
+        })
 
-            // Run fit logic in next frame to ensure layout is settled
-            // Double RAF to wait for paint
-            rafIdRef.current = requestAnimationFrame(() => {
-                console.log('⏳ PDFPane: RAF 1 executing')
-                rafIdRef.current = requestAnimationFrame(() => {
-                    rafIdRef.current = null
-                    console.log('⏳ PDFPane: RAF 2 executing')
-                    if (canvasRef.current && containerRef.current) {
-                        try {
-                            const containerH = containerRef.current.clientHeight
-                            const maxH = window.innerHeight - 120
-                            const effectiveH = (containerH > window.innerHeight) ? maxH : containerH
-
-                            console.log('📏 PDFPane: Clamping height', { containerH, windowH: window.innerHeight, effectiveH })
-
-                            fitToScreen(canvasRef.current.width, canvasRef.current.height, effectiveH)
-                        } catch (e) {
-                            console.error('❌ PDFPane: Error in fitToScreen', e)
-                        }
-
-                        // Show content after fitting
-                        setIsLayoutReady(true)
-                    } else {
-                        console.error('❌ PDFPane: canvasRef is null in RAF')
-                    }
-                })
-            })
+        // Cancel any pending RAF
+        if (rafIdRef.current) {
+            cancelAnimationFrame(rafIdRef.current)
         }
+
+        // Run fit logic in next frame to ensure layout is settled
+        // Double RAF to wait for paint
+        rafIdRef.current = requestAnimationFrame(() => {
+            console.log('⏳ PDFPane: RAF 1 executing')
+            rafIdRef.current = requestAnimationFrame(() => {
+                rafIdRef.current = null
+                console.log('⏳ PDFPane: RAF 2 executing')
+
+                if (!canvasRef.current || !containerRef.current) {
+                    console.error('❌ PDFPane: canvasRef is null in RAF')
+                    return
+                }
+
+                try {
+                    const containerH = containerRef.current.clientHeight
+                    const maxH = window.innerHeight - 120
+                    const effectiveH = (containerH > window.innerHeight) ? maxH : containerH
+
+                    console.log('📏 PDFPane: Clamping height', { containerH, windowH: window.innerHeight, effectiveH })
+
+                    fitToScreen(canvasRef.current.width, canvasRef.current.height, effectiveH)
+                } catch (e) {
+                    console.error('❌ PDFPane: Error in fitToScreen', e)
+                }
+
+                // Show content after fitting
+                setIsLayoutReady(true)
+            })
+        })
     }
 
     // Cleanup RAF on unmount
@@ -181,19 +183,17 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
         const ro = new ResizeObserver(() => {
             if (isPanningRef.current) return // Skip auto-fit during panning
+            if (!canvasRef.current || !containerRef.current) return
 
-            if (canvasRef.current && containerRef.current) {
-                requestAnimationFrame(() => {
-                    if (isPanningRef.current) return // Double check in RAF
+            requestAnimationFrame(() => {
+                if (isPanningRef.current) return // Double check in RAF
+                if (!canvasRef.current || !containerRef.current) return
 
-                    if (canvasRef.current && containerRef.current) {
-                        const containerH = containerRef.current.clientHeight
-                        const maxH = window.innerHeight - 80
-                        const effectiveH = (containerH > window.innerHeight) ? maxH : containerH
-                        fitToScreenRef.current(canvasRef.current.width, canvasRef.current.height, effectiveH)
-                    }
-                })
-            }
+                const containerH = containerRef.current.clientHeight
+                const maxH = window.innerHeight - 80
+                const effectiveH = (containerH > window.innerHeight) ? maxH : containerH
+                fitToScreenRef.current(canvasRef.current.width, canvasRef.current.height, effectiveH)
+            })
         })
 
         ro.observe(containerRef.current)

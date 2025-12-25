@@ -53,39 +53,37 @@ export const usePDFRenderer = (
           await new Promise(resolve => setTimeout(resolve, 200))
         }
 
-        let pdfData: ArrayBuffer | Uint8Array
-
-        if (record.fileData) {
-          optionsRef.current?.onLoadStart?.()
-
-          // BlobをArrayBufferに変換（v6から）
-          if (record.fileData instanceof Blob) {
-            console.log('📄 Blob → ArrayBuffer変換開始', {
-              size: record.fileData.size,
-              type: record.fileData.type
-            })
-            pdfData = await record.fileData.arrayBuffer()
-            console.log('✅ ArrayBuffer変換完了:', pdfData.byteLength, 'bytes')
-          } else {
-            // 後方互換性: 文字列（Base64）の場合
-            // ... existing logic but using record ...
-            console.log('📄 Base64 → ArrayBuffer変換開始')
-            const binaryString = atob(record.fileData as string)
-            const bytes = new Uint8Array(binaryString.length)
-            for (let i = 0; i < binaryString.length; i++) {
-              bytes[i] = binaryString.charCodeAt(i)
-            }
-            pdfData = bytes
-            console.log('✅ ArrayBuffer変換完了:', pdfData.byteLength, 'bytes')
-          }
-        } else {
-          // Error handling...
+        // Early return: PDFデータがない場合
+        if (!record.fileData) {
           const errorMsg = 'PDFデータが見つかりません。'
-          // ... truncated for brevity ...
           setError(errorMsg)
           optionsRef.current?.onLoadError?.(errorMsg)
           setIsLoading(false)
           return
+        }
+
+        optionsRef.current?.onLoadStart?.()
+
+        let pdfData: ArrayBuffer | Uint8Array
+
+        // BlobをArrayBufferに変換（v6から）
+        if (record.fileData instanceof Blob) {
+          console.log('📄 Blob → ArrayBuffer変換開始', {
+            size: record.fileData.size,
+            type: record.fileData.type
+          })
+          pdfData = await record.fileData.arrayBuffer()
+          console.log('✅ ArrayBuffer変換完了:', pdfData.byteLength, 'bytes')
+        } else {
+          // 後方互換性: 文字列（Base64）の場合
+          console.log('📄 Base64 → ArrayBuffer変換開始')
+          const binaryString = atob(record.fileData as string)
+          const bytes = new Uint8Array(binaryString.length)
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i)
+          }
+          pdfData = bytes
+          console.log('✅ ArrayBuffer変換完了:', pdfData.byteLength, 'bytes')
         }
 
         console.log('PDFを読み込み中...', {

@@ -71,17 +71,17 @@ export const useSNSLinks = () => {
       // 選択されたSNSを保存
       for (const snsId of selectedSNS) {
         const sns = PREDEFINED_SNS.find(s => s.id === snsId)
-        if (sns) {
-          const url = customUrls[snsId] || sns.defaultUrl
-          const newLink: SNSLinkRecord = {
-            id: snsId,
-            name: sns.name,
-            url: url,
-            icon: sns.icon,
-            createdAt: Date.now()
-          }
-          await saveSNSLink(newLink)
+        if (!sns) continue
+
+        const url = customUrls[snsId] || sns.defaultUrl
+        const newLink: SNSLinkRecord = {
+          id: snsId,
+          name: sns.name,
+          url: url,
+          icon: sns.icon,
+          createdAt: Date.now()
         }
+        await saveSNSLink(newLink)
       }
 
       await loadSNSLinks()
