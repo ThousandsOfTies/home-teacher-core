@@ -7,7 +7,7 @@ const SNS_STORE_NAME = 'snsLinks';
 const GRADING_HISTORY_STORE_NAME = 'gradingHistory';
 const SETTINGS_STORE_NAME = 'settings';
 const SNS_USAGE_HISTORY_STORE_NAME = 'snsUsageHistory';
-const ANSWER_STORE_NAME = 'answers'; // 解答データ用ストア
+
 
 export interface PDFFileRecord {
   id: string; // ユニークID (ファイル名 + タイムスタンプ)
@@ -129,14 +129,6 @@ function openDB(): Promise<IDBDatabase> {
         const snsUsageStore = db.createObjectStore(SNS_USAGE_HISTORY_STORE_NAME, { keyPath: 'id' });
         snsUsageStore.createIndex('timestamp', 'timestamp', { unique: false });
         snsUsageStore.createIndex('snsId', 'snsId', { unique: false });
-      }
-
-      // 解答データ用オブジェクトストアが存在しない場合は作成
-      if (!db.objectStoreNames.contains(ANSWER_STORE_NAME)) {
-        const answerStore = db.createObjectStore(ANSWER_STORE_NAME, { keyPath: 'id' });
-        answerStore.createIndex('pdfId', 'pdfId', { unique: false });
-        answerStore.createIndex('pageNumber', 'pageNumber', { unique: false });
-        // 複合インデックス用のキーを別途作成（pdfId_pageNumber_problemNumber）
       }
 
       // v6へのアップグレード: Base64からBlobへ移行
