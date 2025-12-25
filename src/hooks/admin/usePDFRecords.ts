@@ -169,11 +169,6 @@ export const usePDFRecords = () => {
 
   const handleDeleteRecord = async (id: string) => {
     try {
-      // PDFに関連する解答データも削除
-      const { deleteAnswersByPdfId } = await import('../../utils/indexedDB')
-      await deleteAnswersByPdfId(id)
-      console.log(`🗑️ PDF ${id} の解答データを削除しました`)
-
       await deletePDFRecord(id)
       await loadPDFRecords()
     } catch (error) {

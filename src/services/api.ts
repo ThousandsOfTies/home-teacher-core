@@ -75,24 +75,6 @@ export interface AvailableModelsResponse {
   default: string
 }
 
-export interface Answer {
-  problemNumber: string
-  correctAnswer: string
-  problemPage: number | null
-  sectionName?: string
-}
-
-export interface AnalyzePageResponse {
-  success: boolean
-  data: {
-    pageType: string
-    answers: Answer[]
-  }
-  pageType: string
-  result: any
-  error?: string
-}
-
 export interface GradingResult {
   problemNumber: string
   studentAnswer: string
@@ -132,38 +114,6 @@ export const getAvailableModels = async (): Promise<AvailableModelsResponse> => 
     throw new Error(`Failed to fetch models: ${response.status}`)
   }
   return response.json()
-}
-
-export const analyzePage = async (
-  imageData: string,
-  pageNumber: number,
-  language: string = 'ja'
-): Promise<AnalyzePageResponse> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/analyze-page`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        imageData,
-        pageNumber,
-        language,
-      }),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTP Error: ${response.status}`)
-    }
-
-    const result = await response.json()
-    console.log(`✅ Page Analysis Result (${result.pageType}):`, result)
-    return result
-  } catch (error) {
-    console.error('❌ Page Analysis Error:', error)
-    throw error
-  }
 }
 
 export const gradeWorkWithContext = async (
