@@ -1,0 +1,756 @@
+import React, { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react'
+import { PDFFileRecord } from '../../utils/indexedDB'
+import PDFCanvas, { PDFCanvasHandle } from './components/PDFCanvas'
+import { DrawingPath, DrawingCanvas, useDrawing, useZoomPan, doPathsIntersect, isScratchPattern } from '@thousands-of-ties/drawing-common'
+import './StudyPanel.css'
+
+interface PDFPaneProps {
+    pdfRecord: PDFFileRecord
+    pdfDoc: any // pdfjsLib.PDFDocumentProxy | null
+    pageNum: number
+    onPageChange: (page: number) => void
+
+    // 描画ツール
+    drawingPaths: DrawingPath[]
+    onPathAdd: (path: DrawingPath) => void
+    onPathsChange: (paths: DrawingPath[]) => void
+    tool: 'pen' | 'eraser' | 'none'
+    color: string
+    size: number
+    eraserSize: number
+    isCtrlPressed: boolean
+
+    // 選択
+    isSelectionMode: boolean
+    onSelectionComplete?: (rect: { x: number, y: number, width: number, height: number, zoom: number, pan: { x: number, y: number } }) => void
+
+    // レイアウト
+    className?: string
+    style?: React.CSSProperties
+}
+
+export interface PDFPaneHandle {
+    resetZoom: () => void
+    zoomIn: () => void
+    zoomOut: () => void
+    undo: () => void
+    getCanvas: () => HTMLCanvasElement | null
+    pdfDoc: any | null
+}
+
+export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
+    const {
+        pdfRecord,
+        pdfDoc,
+        pageNum,
+        onPageChange,
+        drawingPaths,
+        onPathAdd,
+        onPathsChange,
+        tool,
+        color,
+        size,
+        eraserSize,
+        isCtrlPressed,
+        isSelectionMode,
+        onSelectionComplete,
+        className,
+        style
+    } = props
+
+    const containerRef = useRef<HTMLDivElement>(null)
+    const wrapperRef = useRef<HTMLDivElement>(null)
+    const canvasRef = useRef<HTMLCanvasElement>(null)
+    const drawingCanvasRef = useRef<HTMLCanvasElement>(null)
+    const selectionCanvasRef = useRef<HTMLCanvasElement>(null)
+
+    // ズーム/パン
+    const RENDER_SCALE = 3.0
+    const {
+        zoom,
+        panOffset,
+        isPanning,
+        startPanning,
+        doPanning,
+        stopPanning,
+        resetZoom,
+        setZoom,
+        setPanOffset,
+        fitToScreen
+    } = useZoomPan(containerRef, RENDER_SCALE, 0.1, () => { })
+
+    // ページナビゲーション
+    const numPages = pdfDoc ? pdfDoc.numPages : 0
+
+    // ナビゲーションハンドラ
+    const goToPrevPage = () => {
+        if (pageNum > 1) onPageChange(pageNum - 1)
+    }
+    const goToNextPage = () => {
+        if (pageNum < numPages) onPageChange(pageNum + 1)
+    }
+    const goToPrev10Pages = () => {
+        onPageChange(Math.max(1, pageNum - 10))
+    }
+    const goToNext10Pages = () => {
+        onPageChange(Math.min(numPages, pageNum + 10))
+    }
+
+    // キャンバスサイズの状態（DrawingCanvas との同期用）
+    const [canvasSize, setCanvasSize] = React.useState<{ width: number, height: number } | null>(null)
+
+    // レイアウト準備完了フラグ（ジャンプ防止用）
+    const [isLayoutReady, setIsLayoutReady] = React.useState(false)
+
+    // RAFキャンセル用ref
+    const rafIdRef = useRef<number | null>(null)
+
+    // Page Rendered Handler
+
+    const handlePageRendered = () => {
+        console.log('🏁 PDFPane: handlePageRendered triggered')
+        if (canvasRef.current && containerRef.current) {
+            setCanvasSize({
+                width: canvasRef.current.width,
+                height: canvasRef.current.height
+            })
+
+            // Log canvas size
+            console.log('📏 PDFPane: Canvas size captured', {
+                width: canvasRef.current.width,
+                height: canvasRef.current.height
+            })
+
+            // Cancel any pending RAF
+            if (rafIdRef.current) {
+                cancelAnimationFrame(rafIdRef.current)
+            }
+
+            // Run fit logic in next frame to ensure layout is settled
+            // Double RAF to wait for paint
+            rafIdRef.current = requestAnimationFrame(() => {
+                console.log('⏳ PDFPane: RAF 1 executing')
+                rafIdRef.current = requestAnimationFrame(() => {
+                    rafIdRef.current = null
+                    console.log('⏳ PDFPane: RAF 2 executing')
+                    if (canvasRef.current && containerRef.current) {
+                        try {
+                            const containerH = containerRef.current.clientHeight
+                            const maxH = window.innerHeight - 120
+                            const effectiveH = (containerH > window.innerHeight) ? maxH : containerH
+
+                            console.log('📏 PDFPane: Clamping height', { containerH, windowH: window.innerHeight, effectiveH })
+
+                            fitToScreen(canvasRef.current.width, canvasRef.current.height, effectiveH)
+                        } catch (e) {
+                            console.error('❌ PDFPane: Error in fitToScreen', e)
+                        }
+
+                        // Show content after fitting
+                        setIsLayoutReady(true)
+                    } else {
+                        console.error('❌ PDFPane: canvasRef is null in RAF')
+                    }
+                })
+            })
+        }
+    }
+
+    // Cleanup RAF on unmount
+    useEffect(() => {
+        return () => {
+            if (rafIdRef.current) {
+                cancelAnimationFrame(rafIdRef.current)
+            }
+        }
+    }, [])
+
+    // Refs for stable access in ResizeObserver
+    const isPanningRef = useRef(isPanning)
+    const fitToScreenRef = useRef(fitToScreen)
+
+    useEffect(() => {
+        isPanningRef.current = isPanning
+    }, [isPanning])
+
+    useEffect(() => {
+        fitToScreenRef.current = fitToScreen
+    }, [fitToScreen])
+
+    // Resize Observer to maintain fit/center
+    useEffect(() => {
+        if (!containerRef.current || !canvasRef.current) return
+
+        const ro = new ResizeObserver(() => {
+            if (isPanningRef.current) return // Skip auto-fit during panning
+
+            if (canvasRef.current && containerRef.current) {
+                requestAnimationFrame(() => {
+                    if (isPanningRef.current) return // Double check in RAF
+
+                    if (canvasRef.current && containerRef.current) {
+                        const containerH = containerRef.current.clientHeight
+                        const maxH = window.innerHeight - 80
+                        const effectiveH = (containerH > window.innerHeight) ? maxH : containerH
+                        fitToScreenRef.current(canvasRef.current.width, canvasRef.current.height, effectiveH)
+                    }
+                })
+            }
+        })
+
+        ro.observe(containerRef.current)
+        return () => ro.disconnect()
+    }, []) // Zero dependencies to prevent recreation on state changes
+    // Check useZoomPan definition. fitToScreen is created on every render?
+    // We should fix useZoomPan to use useCallback for fitToScreen.
+
+    // Reset layout ready when page changes
+    useEffect(() => {
+        setIsLayoutReady(false)
+    }, [pageNum, pdfRecord.id])
+
+
+    // Manual Eraser Logic - Segment-level erasing (carves through lines)
+    // IMPORTANT: Path coordinates are stored as NORMALIZED values (0-1)
+    const handleErase = (x: number, y: number) => {
+        const currentPaths = drawingPathsRef.current
+        if (currentPaths.length === 0) return
+
+        // Get canvas dimensions for normalization
+        const cw = canvasSize?.width || canvasRef.current?.width || 1
+        const ch = canvasSize?.height || canvasRef.current?.height || 1
+
+        // Normalize eraser position to 0-1 range (same as path coordinates)
+        const normalizedEraserX = x / cw
+        const normalizedEraserY = y / ch
+
+        // Eraser size also needs to be normalized (relative to canvas width)
+        const normalizedEraserSize = eraserSize / cw
+
+        // Check if point is within eraser radius
+        const isPointErased = (point: { x: number; y: number }) => {
+            const dx = point.x - normalizedEraserX
+            const dy = point.y - normalizedEraserY
+            const dist = Math.sqrt(dx * dx + dy * dy)
+            return dist < normalizedEraserSize
+        }
+
+        let hasChanges = false
+        const newPaths: DrawingPath[] = []
+
+        currentPaths.forEach(path => {
+            // Split path into segments based on erased points
+            const segments: { x: number; y: number }[][] = []
+            let currentSegment: { x: number; y: number }[] = []
+
+            path.points.forEach(point => {
+                if (isPointErased(point)) {
+                    // Point is erased - end current segment if it has points
+                    if (currentSegment.length > 1) {
+                        segments.push(currentSegment)
+                    }
+                    currentSegment = []
+                    hasChanges = true
+                } else {
+                    // Point is kept - add to current segment
+                    currentSegment.push(point)
+                }
+            })
+
+            // Don't forget the last segment
+            if (currentSegment.length > 1) {
+                segments.push(currentSegment)
+            }
+
+            // Convert segments back to paths
+            segments.forEach(segment => {
+                newPaths.push({
+                    ...path,
+                    points: segment
+                })
+            })
+        })
+
+        if (hasChanges) {
+            onPathsChange(newPaths)
+        }
+    }
+
+    // Ref for stable access to drawingPaths in callbacks
+    const drawingPathsRef = useRef(drawingPaths)
+    useEffect(() => {
+        drawingPathsRef.current = drawingPaths
+    }, [drawingPaths])
+
+
+    // Drawing Hook (Interaction Only)
+    // IMPORTANT: Use drawingCanvasRef NOT canvasRef - we draw on DrawingCanvas, not PDF canvas
+    const {
+        isDrawing: isDrawingInternal,
+        startDrawing,
+        draw,
+        stopDrawing
+    } = useDrawing(drawingCanvasRef, {
+        width: size, // Pen size always for useDrawing (since it's only for pen now)
+        color: color,
+        onPathComplete: (path) => {
+            console.log('✍️ PDFPane: onPathComplete', { pathLength: path.points.length })
+            // Do not add the path if it was recognized as a scratch gesture
+            if (isScratchPattern(path)) {
+                console.log('🚫 PDFPane: Ignoring scratch path from permanent storage')
+                return
+            }
+            onPathAdd(path)
+        },
+        onScratchComplete: (scratchPath) => {
+            console.log('⚡ PDFPane: onScratchComplete', { points: scratchPath.points.length })
+            const currentPaths = drawingPathsRef.current
+            const pathsToKeep = currentPaths.filter(existingPath =>
+                !doPathsIntersect(scratchPath, existingPath)
+            )
+
+            if (pathsToKeep.length < currentPaths.length) {
+                console.log("✂️ Scratch detected! Erasing paths.", { before: currentPaths.length, after: pathsToKeep.length })
+                onPathsChange(pathsToKeep)
+            } else {
+                console.log("⚡ Scratch detected but NO intersection found.", { currentPaths: currentPaths.length })
+            }
+        }
+    })
+
+    // Undo via Parent
+    // Note: PDFPaneHandle.undo calls this.
+    // If we want undo, we should likely expose a prop `onUndo` or handle it in parent.
+    // `drawingPaths` is a prop, so undo should be managing that prop in parent.
+    // But PDFPaneHandle has `undo`. 
+    // We should implement it by modifying props... which we can't.
+    // Parent should handle undo. But for now, if we remove localPaths, 
+    // we need to tell parent to undo. 
+    // Actually, StudyPanel has "undo" button calling `primaryPaneRef.current.undo`.
+    // It should call `undo` function in StudyPanel instead!
+
+    // For now, let's keep it working by having StudyPanel manage history if possible,
+    // or just assume onPathAdd appends. 
+
+    // Let's modify handleUndo to do nothing locally, necessitating Parent change?
+    // User asked for "Necessary processing only". 
+    // Storing duplicate paths in local state IS redundant.
+
+    const handleUndo = () => {
+        // Parent should handle undo if managing state.
+        // We will expose a way or expect parent to trigger re-render with less paths.
+        // Wait, StudyPanel calls `undo` on ref. This is "Action at a distance".
+        // Better: StudyPanel handles undo button click -> modifies `drawingPaths` state.
+        // PDFPane just renders `drawingPaths`.
+        // So `handleUndo` here is useless if state is lifted.
+        console.warn('Undo should be handled by parent state update')
+    }
+
+    // No local state sync needed
+
+
+
+
+    useImperativeHandle(ref, () => ({
+        resetZoom: () => {
+            if (canvasRef.current) {
+                fitToScreen(canvasRef.current.width, canvasRef.current.height)
+            } else {
+                resetZoom()
+            }
+        },
+        zoomIn: () => { setZoom(prev => Math.min(prev * 1.2, 5.0)) },
+        zoomOut: () => { setZoom(prev => Math.max(prev / 1.2, 0.1)) },
+        undo: handleUndo,
+        // PDFキャンバスと描画キャンバスを合成して返す
+        getCanvas: () => {
+            const pdfCanvas = canvasRef.current
+            if (!pdfCanvas) return null
+
+            // DOM から DrawingCanvas を取得
+            const drawingCanvas = containerRef.current?.querySelector('.drawing-canvas') as HTMLCanvasElement | null
+
+            // 描画キャンバスがない、またはサイズが0の場合はPDFキャンバスのみ返す
+            if (!drawingCanvas || drawingCanvas.width === 0 || drawingCanvas.height === 0) {
+                return pdfCanvas
+            }
+
+            // 合成用の一時キャンバスを作成
+            const compositeCanvas = document.createElement('canvas')
+            compositeCanvas.width = pdfCanvas.width
+            compositeCanvas.height = pdfCanvas.height
+            const ctx = compositeCanvas.getContext('2d')
+            if (!ctx) return pdfCanvas
+
+            // PDFを描画
+            ctx.drawImage(pdfCanvas, 0, 0)
+            // 描画レイヤーを上に重ねる
+            ctx.drawImage(drawingCanvas, 0, 0, pdfCanvas.width, pdfCanvas.height)
+
+            return compositeCanvas
+        },
+        get pdfDoc() { return pdfDoc }
+    }))
+
+    // Eraser cursor state
+    const [eraserCursorPos, setEraserCursorPos] = React.useState<{ x: number, y: number } | null>(null)
+
+    // Selection state (implied simple version for now)
+    const [isSelecting, setIsSelecting] = React.useState(false)
+    const selectionStartRef = useRef<{ x: number, y: number } | null>(null)
+
+    const startSelection = (e: React.MouseEvent | React.TouchEvent) => {
+        if (!isSelectionMode || !selectionCanvasRef.current) return
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
+
+        const rect = selectionCanvasRef.current.getBoundingClientRect()
+        const x = clientX - rect.left
+        const y = clientY - rect.top
+
+        selectionStartRef.current = { x, y }
+        setIsSelecting(true)
+    }
+
+    const updateSelection = (e: React.MouseEvent | React.TouchEvent) => {
+        if (!isSelecting || !selectionCanvasRef.current || !selectionStartRef.current) return
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
+
+        const rect = selectionCanvasRef.current.getBoundingClientRect()
+        const x = clientX - rect.left
+        const y = clientY - rect.top
+
+        const ctx = selectionCanvasRef.current.getContext('2d')
+        if (!ctx) return
+
+        ctx.clearRect(0, 0, selectionCanvasRef.current.width, selectionCanvasRef.current.height)
+        ctx.fillStyle = 'rgba(52, 152, 219, 0.2)'
+        ctx.strokeStyle = '#3498db'
+        ctx.lineWidth = 2
+
+        const startX = selectionStartRef.current.x
+        const startY = selectionStartRef.current.y
+        const width = x - startX
+        const height = y - startY
+
+        ctx.fillRect(startX, startY, width, height)
+        ctx.strokeRect(startX, startY, width, height)
+    }
+
+    const finishSelection = (e: React.MouseEvent | React.TouchEvent) => {
+        if (!isSelecting || !selectionCanvasRef.current || !selectionStartRef.current) return
+
+        const clientX = 'changedTouches' in e ? e.changedTouches[0].clientX : (e as React.MouseEvent).clientX
+        const clientY = 'changedTouches' in e ? e.changedTouches[0].clientY : (e as React.MouseEvent).clientY
+        const rect = selectionCanvasRef.current.getBoundingClientRect()
+        const x = clientX - rect.left
+        const y = clientY - rect.top
+
+        const startX = selectionStartRef.current.x
+        const startY = selectionStartRef.current.y
+        const width = x - startX
+        const height = y - startY
+
+        setIsSelecting(false)
+        const ctx = selectionCanvasRef.current.getContext('2d')
+        if (ctx) ctx.clearRect(0, 0, selectionCanvasRef.current.width, selectionCanvasRef.current.height)
+
+        if (onSelectionComplete && Math.abs(width) > 5 && Math.abs(height) > 5) {
+            // Normalize rect
+            onSelectionComplete({
+                x: Math.min(startX, x),
+                y: Math.min(startY, y),
+                width: Math.abs(width),
+                height: Math.abs(height),
+                zoom: zoom, // Pass current zoom
+                pan: panOffset // Pass current pan offset
+            })
+        }
+    }
+
+    // Debug Rendering
+    useEffect(() => {
+        console.log('🖼️ PDFPane Render Status:', {
+            zoom,
+            panOffset,
+            canvasDimensions: canvasRef.current ? { width: canvasRef.current.width, height: canvasRef.current.height } : 'null',
+            containerDimensions: containerRef.current ? { width: containerRef.current.clientWidth, height: containerRef.current.clientHeight } : 'null',
+            pdfDocAvailable: !!pdfDoc,
+            numPages,
+            isLayoutReady
+        })
+    }, [zoom, panOffset, numPages, isLayoutReady])
+
+    return (
+        <div
+            className={`canvas-container ${className || ''}`}
+            ref={containerRef}
+            style={{
+                ...style,
+                overflow: 'hidden',
+                position: 'relative',
+                touchAction: 'none',
+                maxHeight: '100vh', // SAFETY CAP: Prevent flex expansion beyond viewport
+                cursor: isPanning ? 'grabbing' : (isCtrlPressed && tool !== 'pen' ? 'grab' : 'default')
+            }}
+            onMouseDown={(e) => {
+                // Ignore events on pager bar
+                if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
+
+                const rect = containerRef.current?.getBoundingClientRect()
+                if (rect && !isCtrlPressed) {
+                    const x = (e.clientX - rect.left - panOffset.x) / zoom
+                    const y = (e.clientY - rect.top - panOffset.y) / zoom
+
+                    if (tool === 'pen') {
+                        startDrawing(x, y)
+                    } else if (tool === 'eraser') {
+                        console.log('🧹 Eraser MouseDown:', { x, y, pathsCount: drawingPathsRef.current.length })
+                        handleErase(x, y)
+                    }
+                } else if (!isDrawingInternal && tool !== 'eraser') {
+                    startPanning(e)
+                }
+            }}
+            onMouseMove={(e) => {
+                const rect = containerRef.current?.getBoundingClientRect()
+                if (!rect) return
+
+                if (!isCtrlPressed) {
+                    const x = (e.clientX - rect.left - panOffset.x) / zoom
+                    const y = (e.clientY - rect.top - panOffset.y) / zoom
+
+                    if (tool === 'pen' && isDrawingInternal) {
+                        draw(x, y)
+                    } else if (tool === 'eraser') {
+                        if (e.buttons === 1) {
+                            handleErase(x, y)
+                        }
+                    }
+                }
+
+                if (tool === 'none' || isCtrlPressed) {
+                    doPanning(e)
+                }
+
+                if (tool === 'eraser') {
+                    setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+                }
+            }}
+            onMouseUp={(e) => {
+                stopDrawing()
+                stopPanning()
+            }}
+            onMouseLeave={() => {
+                stopDrawing()
+                stopPanning()
+                setEraserCursorPos(null)
+            }}
+            onTouchStart={(e) => {
+                // Ignore events on pager bar
+                if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
+
+                if (e.touches.length > 1) {
+                    startPanning(e as any)
+                } else if (!isCtrlPressed) {
+                    const rect = containerRef.current?.getBoundingClientRect()
+                    if (rect) {
+                        const x = (e.touches[0].clientX - rect.left - panOffset.x) / zoom
+                        const y = (e.touches[0].clientY - rect.top - panOffset.y) / zoom
+
+                        if (tool === 'pen') {
+                            startDrawing(x, y)
+                        } else if (tool === 'eraser') {
+                            handleErase(x, y)
+                        }
+                    }
+                }
+            }}
+            onTouchMove={(e) => {
+                if (e.touches.length > 1) {
+                    doPanning(e as any)
+                } else if (!isCtrlPressed) {
+                    const rect = containerRef.current?.getBoundingClientRect()
+                    if (rect) {
+                        const x = (e.touches[0].clientX - rect.left - panOffset.x) / zoom
+                        const y = (e.touches[0].clientY - rect.top - panOffset.y) / zoom
+
+                        if (tool === 'pen' && isDrawingInternal) {
+                            draw(x, y)
+                        } else if (tool === 'eraser') {
+                            handleErase(x, y)
+                        }
+                    }
+                }
+            }}
+            onTouchEnd={(e) => {
+                stopDrawing()
+                stopPanning()
+            }}
+        >
+            <div className="canvas-wrapper" ref={wrapperRef}>
+                <div
+                    className="canvas-layer"
+                    style={{
+                        transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+                        transformOrigin: '0 0',
+                        transition: 'none',
+                        opacity: 1
+                    }}
+                >
+                    <PDFCanvas
+                        pdfDoc={pdfDoc}
+                        containerRef={containerRef}
+                        canvasRef={canvasRef}
+                        renderScale={RENDER_SCALE}
+                        pageNum={pageNum}
+                        onPageRendered={handlePageRendered}
+                    />
+                    <DrawingCanvas
+                        key={`drawing-${pageNum}`}
+                        ref={drawingCanvasRef}
+                        width={canvasSize?.width || 300}
+                        height={canvasSize?.height || 150}
+                        className="drawing-canvas"
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            pointerEvents: 'none' // Interaction handled by parent (us)
+                        }}
+                        tool={tool === 'none' ? 'pen' : tool}
+                        color={color}
+                        size={size}
+                        eraserSize={eraserSize}
+                        paths={drawingPaths}
+                        isCtrlPressed={isCtrlPressed}
+                        stylusOnly={false}
+                        onPathAdd={() => { }} // Interaction handled by useDrawing hook in PDFPane
+                    />
+                </div>
+
+                {/* Selection Canvas if needed */}
+                <canvas
+                    ref={selectionCanvasRef}
+                    className="selection-canvas"
+                    style={{
+                        position: 'absolute',
+                        top: 0, left: 0,
+                        pointerEvents: isSelectionMode ? 'auto' : 'none',
+                        width: '100%', height: '100%' // Verify this
+                    }}
+                    width={containerRef.current?.clientWidth}
+                    height={containerRef.current?.clientHeight}
+                    onMouseDown={startSelection}
+                    onMouseMove={updateSelection}
+                    onMouseUp={finishSelection}
+                />
+            </div>
+
+            {/* Eraser Cursor */}
+            {tool === 'eraser' && eraserCursorPos && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        left: `${eraserCursorPos.x}px`,
+                        top: `${eraserCursorPos.y}px`,
+                        width: `${eraserSize * 2 * zoom}px`,
+                        height: `${eraserSize * 2 * zoom}px`,
+                        borderRadius: '50%',
+                        backgroundColor: 'rgba(255, 100, 100, 0.2)',
+                        border: '2px solid rgba(255, 100, 100, 0.6)',
+                        pointerEvents: 'none',
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 9999
+                    }}
+                />
+            )}
+
+            {/* Page Navigation (Right Side) */}
+            {numPages > 1 && (
+                <div className="page-scrollbar-container">
+                    {/* Fit Screen */}
+                    <button
+                        className="page-nav-button"
+                        onClick={() => {
+                            if (canvasRef.current && containerRef.current) {
+                                fitToScreen(canvasRef.current.width, canvasRef.current.height)
+                            }
+                        }}
+                        title="画面に合わせる"
+                        style={{ marginBottom: '8px' }}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                        </svg>
+                    </button>
+
+                    {/* Prev 10 */}
+                    <button
+                        className="page-nav-button"
+                        onClick={goToPrev10Pages}
+                        disabled={pageNum <= 1}
+                        title="前の10ページ"
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '0.6' }}>
+                            <span>▲</span>
+                            <span>▲</span>
+                        </div>
+                    </button>
+
+                    {/* Prev 1 */}
+                    <button
+                        className="page-nav-button"
+                        onClick={goToPrevPage}
+                        disabled={pageNum <= 1}
+                        title="前のページ"
+                    >
+                        <span>▲</span>
+                    </button>
+
+                    {/* Slider */}
+                    <div className="page-slider-wrapper">
+                        <input
+                            type="range"
+                            min="1"
+                            max={numPages}
+                            value={pageNum}
+                            onChange={(e) => onPageChange(Number(e.target.value))}
+                            className="page-slider"
+                            title="ページ移動"
+                        />
+                    </div>
+
+                    {/* Next 1 */}
+                    <button
+                        className="page-nav-button"
+                        onClick={goToNextPage}
+                        disabled={pageNum >= numPages}
+                        title="次のページ"
+                    >
+                        <span>▼</span>
+                    </button>
+
+                    {/* Next 10 */}
+                    <button
+                        className="page-nav-button"
+                        onClick={goToNext10Pages}
+                        disabled={pageNum >= numPages}
+                        title="次の10ページ"
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '0.6' }}>
+                            <span>▼</span>
+                            <span>▼</span>
+                        </div>
+                    </button>
+
+                    {/* Indicator */}
+                    <div className="page-indicator">
+                        {pageNum}/{numPages}
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+})

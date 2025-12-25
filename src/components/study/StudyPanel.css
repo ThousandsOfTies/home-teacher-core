@@ -89,11 +89,35 @@
 }
 
 .toolbar button.active {
-  background-color: #4CAF50;
-  color: white;
+  background-color: #E8F5E9;
+  /* Light Green 50 */
+  color: #2E7D32;
+  /* Dark Green 800 for text, keeping icons natural if they are svg */
   border-color: #4CAF50;
   transform: scale(1.05);
-  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
+}
+
+/* Ensure icons that shouldn't change color (like pen with specific color) override this or inherit? 
+   Actually, if I set color to #2E7D32, it might tint SVGs that use currentColor. 
+   The user said "don't invert color". 
+   If I just remove 'color: white', it falls back to button default (usually black/gray).
+   Let's set color to inherit or a neutral dark so it doesn't force white.
+   But for "active" state, usually some feedback is good. 
+   User said: "選択時のボタンアイコンや文字の色反転しなくてもいい程度にお願いします"
+   "反転しない" = Don't invert (don't turn white).
+   So let's use a dark color or keep it natural. 
+   Let's try color: inherit or standard text color suitable for light background. 
+*/
+.toolbar button.active {
+  background-color: #F1F8E9;
+  /* Light Green 100-ish */
+  color: inherit;
+  /* Keep original color (e.g. for pen) */
+  border-color: #81C784;
+  /* Lighter green border */
+  transform: scale(1.05);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
 
@@ -160,29 +184,40 @@
 
 .canvas-container {
   flex: 1;
-  overflow: auto;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 2rem 2rem 3rem 2rem;
-  /* 下側に余裕を持たせる */
+  overflow: hidden;
+  /* Use custom pan, disable native scrollbars */
+  position: relative;
+  /* Remove flex centering to rely on JS panOffset */
+  /* display: flex; */
+  /* align-items: center; */
+  padding: 0;
+  /* Remove padding to simplify coord calc */
   min-height: 0;
-  /* flexアイテムがコンテナをはみ出さないようにする */
+  min-width: 0;
+  /* Force flex container to ignore content size and respect parent */
+  height: 0;
+  width: 100%;
 }
 
 .canvas-wrapper {
   position: relative;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  height: 100%;
 }
 
 .canvas-layer {
   position: relative;
   transform-origin: 0 0;
+  will-change: transform;
 }
 
 .pdf-canvas {
   display: block;
   background-color: white;
+  max-width: none;
+  /* Prevent global resets from shrinking the canvas */
+  max-height: none;
 }
 
 .drawing-canvas {
@@ -355,7 +390,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1001;
+  z-index: 10010;
+  /* Above pager bar (10005) */
   animation: fadeIn 0.2s ease-out;
 }
 
@@ -493,7 +529,8 @@
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  z-index: 100;
+  z-index: 10005;
+  /* Above selection overlay (9999) */
   background: rgba(255, 255, 255, 0.9);
   border-radius: 16px;
   padding: 12px 4px;

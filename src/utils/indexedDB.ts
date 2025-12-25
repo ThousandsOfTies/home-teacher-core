@@ -250,6 +250,16 @@ export async function savePDFRecord(record: PDFFileRecord): Promise<void> {
   });
 }
 
+// PDFファイルレコードの一部を更新
+export async function updatePDFRecord(id: string, updates: Partial<PDFFileRecord>): Promise<void> {
+  const record = await getPDFRecord(id);
+  if (!record) {
+    throw new Error(`PDF record not found: ${id}`);
+  }
+  const updatedRecord = { ...record, ...updates };
+  await savePDFRecord(updatedRecord);
+}
+
 // 特定のPDFファイルレコードを取得
 export async function getPDFRecord(id: string): Promise<PDFFileRecord | null> {
   const db = await openDB();

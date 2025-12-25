@@ -19,9 +19,9 @@ if (!process.env.GEMINI_API_KEY) {
   console.warn('⚠️ GEMINI_API_KEY is not set in environment variables.')
 }
 
-// Initialize Google GenAI Client
-// Use gemini-3-flash for both (fast and cost-effective)
-const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3-flash'
+// Google GenAI クライアント初期化
+// gemini-2.0-flash-exp を使用（高速でコスト効率が良い）
+const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp'
 console.log(`Using Gemini Model: ${MODEL_NAME}`)
 
 // Initialize the Google Generative AI client

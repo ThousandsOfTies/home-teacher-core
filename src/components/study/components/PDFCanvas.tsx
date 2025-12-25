@@ -6,125 +6,105 @@ import { usePDFRenderer } from '../../../hooks/pdf/usePDFRenderer'
 import * as pdfjsLib from 'pdfjs-dist'
 
 interface PDFCanvasProps {
-    pdfRecord: PDFFileRecord
+    pdfDoc: any // pdfjsLib.PDFDocumentProxy | null
     containerRef: React.RefObject<HTMLDivElement>
-    canvasRef: React.RefObject<HTMLCanvasElement> // 親から受け取る
-    renderScale: number
-    onLoadStart?: () => void
-    onLoadSuccess?: (numPages: number) => void
-    onLoadError?: (error: string) => void
+    canvasRef: React.RefObject<HTMLCanvasElement>
+    renderScale?: number
     onPageRendered?: () => void
-    onPageChange?: (pageNum: number) => void
+    pageNum: number // Strictly required now
 }
 
 export interface PDFCanvasHandle {
-    goToPrevPage: () => void
-    goToNextPage: () => void
-    goToPage: (page: number) => void
-    pageNum: number
-    numPages: number
-    isLoading: boolean
-    pdfDoc: pdfjsLib.PDFDocumentProxy | null
+    // Only exposure needed? maybe not even needed as parent controls specific page
+    // converting to pure means less logic exposed
 }
 
 const PDFCanvas = forwardRef<PDFCanvasHandle, PDFCanvasProps>(({
-    pdfRecord,
+    pdfDoc,
     containerRef,
-    canvasRef, // ここで使用
-    renderScale,
-    onLoadStart,
-    onLoadSuccess,
-    onLoadError,
+    canvasRef,
+    renderScale = 1.0,
     onPageRendered,
-    onPageChange
+    pageNum
 }, ref) => {
-    // 内部refは削除 (canvasRefを使用)
+    // No internal hook usage! Pure render only.
 
-    // usePDFRenderer hook を使用
-    const {
-        pdfDoc,
-        pageNum,
-        setPageNum,
-        numPages,
-        isLoading,
-        error,
-        goToPrevPage,
-        goToNextPage
-    } = usePDFRenderer(pdfRecord, containerRef, canvasRef, {
-        onLoadStart,
-        onLoadSuccess,
-        onLoadError
-    })
-
-    // 親コンポーネントにメソッドを公開
+    // We can expose empty handle or whatever is needed by parent
     useImperativeHandle(ref, () => ({
-        goToPrevPage,
-        goToNextPage,
-        goToPage: (page: number) => {
-            if (page >= 1 && page <= numPages) {
-                setPageNum(page)
-            }
-        },
-        pageNum,
-        numPages,
-        isLoading,
-        pdfDoc
+        // Legacy support if needed, but logic is moved up
     }))
-
-    // ページ変更通知
-    useEffect(() => {
-        onPageChange?.(pageNum)
-    }, [pageNum, onPageChange])
 
     // レンダリングタスク管理
     const renderTaskRef = useRef<any>(null)
+    const lastRenderPromise = useRef<Promise<void>>(Promise.resolve())
 
     // ページレンダリング
     useEffect(() => {
         if (!pdfDoc || !canvasRef.current) return
 
         const renderPage = async () => {
+            console.log('🎨 PDFCanvas: renderPage queued', { pageNum, renderScale })
+
             // キャンセル
             if (renderTaskRef.current) {
                 renderTaskRef.current.cancel()
                 renderTaskRef.current = null
             }
 
-            const page = await pdfDoc.getPage(pageNum)
+            // Queue the render to ensure sequential execution
+            lastRenderPromise.current = lastRenderPromise.current.then(async () => {
+                // Double check cancellation/staleness inside the queue
+                if (!canvasRef.current || !pdfDoc) return
 
-            let pageRotation = 0
-            try {
-                const rotate = page.rotate
-                if (typeof rotate === 'number' && [0, 90, 180, 270].includes(rotate)) {
-                    pageRotation = rotate
+                console.log('🎨 PDFCanvas: renderPage start', { pageNum, renderScale })
+                const page = await pdfDoc.getPage(pageNum)
+
+                let pageRotation = 0
+                try {
+                    const rotate = page.rotate
+                    if (typeof rotate === 'number' && [0, 90, 180, 270].includes(rotate)) {
+                        pageRotation = rotate
+                    }
+                } catch (error) {
+                    console.warn('⚠️ rotation属性取得エラー:', error)
                 }
-            } catch (error) {
-                console.warn('⚠️ rotation属性取得エラー:', error)
-            }
 
-            const viewport = page.getViewport({ scale: renderScale, rotation: pageRotation })
-            const canvas = canvasRef.current!
-            const context = canvas.getContext('2d')!
+                const viewport = page.getViewport({ scale: renderScale, rotation: pageRotation })
+                if (!canvasRef.current) return
+                const canvas = canvasRef.current
+                const context = canvas.getContext('2d')
+                if (!context) return
 
-            canvas.height = viewport.height
-            canvas.width = viewport.width
+                canvas.height = viewport.height
+                canvas.width = viewport.width
+                // Ensure CSS dimensions match attribute dimensions (override max-width: 100% etc)
+                canvas.style.width = `${viewport.width}px`
+                canvas.style.height = `${viewport.height}px`
 
-            const renderContext = {
-                canvasContext: context,
-                viewport: viewport,
-            }
-
-            try {
-                renderTaskRef.current = page.render(renderContext)
-                await renderTaskRef.current.promise
-                renderTaskRef.current = null
-                onPageRendered?.()
-            } catch (error: any) {
-                if (error?.name === 'RenderingCancelledException') {
-                    return
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport,
                 }
-                console.error('Render error:', error)
-            }
+
+                try {
+                    console.log('📏 PDFCanvas: Viewport calculated', { width: viewport.width, height: viewport.height })
+
+                    renderTaskRef.current = page.render(renderContext)
+                    await renderTaskRef.current.promise
+                    renderTaskRef.current = null
+                    console.log('✅ PDFCanvas: Render complete')
+                    onPageRendered?.()
+                } catch (error: any) {
+                    if (error?.name === 'RenderingCancelledException') {
+                        console.log('🛑 Rendering Cancelled')
+                        return
+                    }
+                    console.error('Render error:', error)
+                }
+            }).catch((err) => {
+                // Catch errors from previous promise causing chain failure
+                console.error('Render queue error:', err)
+            })
         }
 
         renderPage()
