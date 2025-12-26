@@ -603,9 +603,17 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     setStatusMessage(message)
   }
 
-  // 分割表示の切り替え
+  // 分割表示の切り替え / A面B面の入れ替え
   const toggleSplitView = () => {
-    setIsSplitView(prev => !prev)
+    if (isSplitView) {
+      // 既にスプリット表示中ならA面とB面を入れ替え
+      const tempA = pageA
+      setPageA(pageB)
+      setPageB(tempA)
+    } else {
+      // スプリット表示をオンにする
+      setIsSplitView(true)
+    }
   }
 
   // ページ変更ハンドラ
