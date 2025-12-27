@@ -709,276 +709,601 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     }
   }, [isResizing])
 
-  // ...
-
-  {/* リサイズハンドル */ }
-  {
-    isSplitView && (
-      <div
-        onMouseDown={handleResizeStart}
-        onTouchStart={handleResizeStart}
-        style={{
-          width: '6px',
-          height: '100%',
-          backgroundColor: isResizing ? '#3498db' : '#ccc',
-          cursor: 'col-resize',
-          flexShrink: 0,
-          transition: 'background-color 0.2s',
-          zIndex: 10000,  // 選択オーバーレイ(9999)より上
-          position: 'relative'
-        }}
-      />
-    )
-  }
-
-  {/* ペインB (解答/解説) */ }
-  {
-    (isSplitView || activeTab === 'B') && (
-      <PDFPane
-        className="pane-b"
-        ref={paneBRef}
-        style={{
-          flex: isSplitView ? `0 0 ${Math.round((1 - splitRatio) * 100)}%` : '1 1 auto',
-          height: '100%',
-          overflow: 'hidden'
-        }}
-        pdfRecord={pdfRecord}
-        pdfDoc={pdfDoc}
-        pageNum={pageB}
-        tool={isEraserMode ? 'eraser' : (isDrawingMode ? 'pen' : 'none')}
-        color={penColor}
-        size={penSize}
-        eraserSize={eraserSize}
-        drawingPaths={drawingPaths.get(pageB) || []}
-        isCtrlPressed={isCtrlPressed}
-        splitMode={isSplitView}
-        onPageChange={handlePageBChange}
-        onPathAdd={(path) => handlePathAdd(pageB, path)}
-        onPathsChange={(paths) => handlePathsChange(pageB, paths)}
-        onUndo={handleUndo}
-      />
-    )
-  }
-
-  {/* テキストモード用オーバーレイ */ }
-  {
-    isTextMode && !editingText && (
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          zIndex: 100,
-          cursor: 'text',
-          pointerEvents: isCtrlPressed ? 'none' : 'auto'
-        }}
-        onClick={(e) => {
-          const rect = containerRef.current?.getBoundingClientRect()
-          if (!rect) return
-
-          // 現在アクティブなペインを特定
-          const currentPage = activeTab === 'A' ? pageA : pageB
-
-          // クリック位置を正規化座標に変換（簡易版：コンテナ基準）
-          const screenX = e.clientX - rect.left
-          const screenY = e.clientY - rect.top
-          const normalizedX = screenX / rect.width
-          const normalizedY = screenY / rect.height
-
-          handleTextClick(currentPage, normalizedX, normalizedY, e.clientX, e.clientY)
-        }}
-      />
-    )
-  }
-
-  {/* テキストアノテーション表示 */ }
-  {
-    (textAnnotations.get(activeTab === 'A' ? pageA : pageB) || []).map((annotation) => {
-      const currentPage = activeTab === 'A' ? pageA : pageB
-      const isClickable = isEraserMode || isTextMode
-      const isBeingEdited = editingText?.existingId === annotation.id
-
-      // 編集中のテキストは非表示（入力ボックスで表示）
-      if (isBeingEdited) return null
-
-      return (
-        <div
-          key={annotation.id}
-          style={{
-            position: 'absolute',
-            left: `${annotation.x * 100}%`,
-            top: `${annotation.y * 100}%`,
-            fontSize: `${annotation.fontSize}px`,
-            color: annotation.color,
-            writingMode: annotation.direction === 'horizontal' ? 'horizontal-tb' :
-              annotation.direction === 'vertical-rl' ? 'vertical-rl' : 'vertical-lr',
-            whiteSpace: 'pre-wrap',
-            pointerEvents: isClickable ? 'auto' : 'none',
-            zIndex: isClickable ? 200 : 50,
-            cursor: isClickable ? 'pointer' : 'default',
-            textShadow: '1px 1px 2px rgba(255,255,255,0.8), -1px -1px 2px rgba(255,255,255,0.8)',
-            padding: isClickable ? '2px 4px' : '0',
-            borderRadius: '4px',
-            backgroundColor: isClickable ? 'rgba(200, 220, 255, 0.3)' : 'transparent',
-            border: isClickable ? '1px dashed #3498db' : 'none'
-          }}
-          onClick={(e) => {
-            if (!isClickable) return
-            e.stopPropagation()
-            // 編集モードに入る
-            const rect = containerRef.current?.getBoundingClientRect()
-            if (!rect) return
-            setEditingText({
-              pageNum: currentPage,
-              x: annotation.x,
-              y: annotation.y,
-              screenX: rect.left + annotation.x * rect.width,
-              screenY: rect.top + annotation.y * rect.height,
-              existingId: annotation.id,
-              initialText: annotation.text
-            })
-          }}
-          title={isClickable ? 'クリックで編集（テキストを消して確定で削除）' : ''}
-        >
-          {annotation.text}
-        </div>
-      )
+  // Ctrl+Z Undo - アクティブなページの最後の描画を削除
+  const handleUndo = () => {
+    const activePage = activeTab === 'A' ? pageA : pageB
+    setDrawingPaths(prev => {
+      const newMap = new Map(prev)
+      const currentPaths = newMap.get(activePage) || []
+      if (currentPaths.length > 0) {
+        const newPaths = currentPaths.slice(0, -1)
+        newMap.set(activePage, newPaths)
+        // Save to DB
+        saveDrawing(pdfId, activePage, JSON.stringify(newPaths))
+      }
+      return newMap
     })
   }
+
+  return (
+    <div className="pdf-viewer-container">
+      <div className="pdf-viewer">
+        <div className="toolbar">
+          {/* 戻るボタン */}
+          {onBack && (
+            <>
+              <button onClick={onBack} title="ホームに戻る">
+                🏠
+              </button>
+
+              <div className="divider"></div>
+
+              {/* Split View Toggle */}
+              <button
+                onClick={toggleSplitView}
+                title={isSplitView ? 'シングルビューに戻す' : '2画面表示 (Split View)'}
+                className={isSplitView ? 'active' : ''}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="2" y="4" width="9" height="16" rx="1" stroke="currentColor" strokeWidth="1" fill={isSplitView ? "white" : "none"} />
+                  <rect x="13" y="4" width="9" height="16" rx="1" stroke="currentColor" strokeWidth="1" fill={isSplitView ? "white" : "none"} />
+                </svg>
+              </button>
+
+              {/* Tab Switcher Button */}
+              <button
+                className={`tab-switcher-btn ${!isSplitView ? 'active' : ''}`}
+                onClick={() => {
+                  if (isSplitView) {
+                    setIsSplitView(false)
+                  } else {
+                    setActiveTab(prev => prev === 'A' ? 'B' : 'A')
+                  }
+                }}
+                title={isSplitView ? "シングルビューへ切替" : "A/B 切替"}
+                style={{
+                  padding: '12px 8px', // Increased vertical padding to match height of buttons with larger text
+                  minWidth: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                {/* A Indicator */}
+                <span
+                  style={{
+                    fontWeight: activeTab === 'A' ? 'bold' : 'normal',
+                    textDecoration: activeTab === 'A' ? 'underline' : 'none',
+                    color: activeTab === 'A' ? '#4CAF50' : 'inherit',
+                    fontSize: '0.85rem' // Reduced from 1rem
+                  }}
+                >
+                  A
+                </span>
+
+                <span style={{ margin: '0 2px', color: '#ccc', fontSize: '0.85rem' }}>/</span>
+
+                {/* B Indicator */}
+                <span
+                  style={{
+                    fontWeight: activeTab === 'B' ? 'bold' : 'normal',
+                    textDecoration: activeTab === 'B' ? 'underline' : 'none',
+                    color: activeTab === 'B' ? '#4CAF50' : 'inherit',
+                    fontSize: '0.85rem' // Reduced from 1rem
+                  }}
+                >
+                  B
+                </span>
+              </button>
+
+              <div className="divider"></div>
+            </>
+          )}
+
+          {/* 右寄せコンテナ */}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <>
+              <div className="divider"></div>
+
+              {/* 採点ボタン */}
+              <button
+                onClick={isSelectionMode ? handleCancelSelection : startGrading}
+                className={isSelectionMode ? 'active' : ''}
+                disabled={isGrading}
+                title={isSelectionMode ? 'キャンセル' : '範囲を選択して採点'}
+              >
+                {isGrading ? '⏳' : '✅'}
+              </button>
+
+              {/* テキスト入力ツール */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={toggleTextMode}
+                  className={isTextMode ? 'active' : ''}
+                  title={isTextMode ? 'テキストモード ON' : 'テキストモード OFF'}
+                  style={{ fontFamily: 'Times New Roman, serif', fontSize: '1.4rem' }}
+                >
+                  T
+                </button>
+
+                {/* テキスト設定ポップアップ */}
+                {showTextPopup && (
+                  <div className="tool-popup" style={{ minWidth: '180px' }}>
+                    <div className="popup-row">
+                      <label>サイズ:</label>
+                      <input
+                        type="range"
+                        min="10"
+                        max="32"
+                        value={textFontSize}
+                        onChange={(e) => setTextFontSize(Number(e.target.value))}
+                        style={{ width: '80px' }}
+                      />
+                      <span>{textFontSize}px</span>
+                    </div>
+                    <div className="popup-row">
+                      <label>方向:</label>
+                      <select
+                        value={textDirection}
+                        onChange={(e) => setTextDirection(e.target.value as TextDirection)}
+                        style={{ padding: '4px', borderRadius: '4px' }}
+                      >
+                        <option value="horizontal">横書き (Z型)</option>
+                        <option value="vertical-rl">縦書き右始 (N型)</option>
+                        <option value="vertical-lr">縦書き左始</option>
+                      </select>
+                    </div>
+                    <div className="popup-row">
+                      <label>色:</label>
+                      <input
+                        type="color"
+                        value={penColor}
+                        onChange={(e) => setPenColor(e.target.value)}
+                        style={{ width: '40px', height: '30px', border: '1px solid #ccc', cursor: 'pointer' }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 描画ツール */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={toggleDrawingMode}
+                  className={isDrawingMode ? 'active' : ''}
+                  title={isDrawingMode ? 'ペンモード ON' : 'ペンモード OFF'}
+                >
+                  {ICON_SVG.pen(isDrawingMode, penColor)}
+                </button>
+
+                {/* ペン設定ポップアップ */}
+                {showPenPopup && (
+                  <div className="tool-popup">
+                    <div className="popup-row">
+                      <label>色:</label>
+                      <input
+                        type="color"
+                        value={penColor}
+                        onChange={(e) => setPenColor(e.target.value)}
+                        style={{ width: '40px', height: '30px', border: '1px solid #ccc', cursor: 'pointer' }}
+                      />
+                    </div>
+                    <div className="popup-row">
+                      <label>太さ:</label>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        value={penSize}
+                        onChange={(e) => setPenSize(Number(e.target.value))}
+                        style={{ width: '100px' }}
+                      />
+                      <span>{penSize}px</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ... (rest of the tools) */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={toggleEraserMode}
+                  className={isEraserMode ? 'active' : ''}
+                  title={isEraserMode ? '消しゴムモード ON' : '消しゴムモード OFF'}
+                >
+                  {ICON_SVG.eraser(isEraserMode)}
+                </button>
+
+                {/* 消しゴム設定ポップアップ */}
+                {showEraserPopup && (
+                  <div className="tool-popup">
+                    <div className="popup-row">
+                      <label>サイズ:</label>
+                      <input
+                        type="range"
+                        min="10"
+                        max="100"
+                        value={eraserSize}
+                        onChange={(e) => setEraserSize(Number(e.target.value))}
+                        style={{ width: '100px' }}
+                      />
+                      <span>{eraserSize}px</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="divider"></div>
+
+              <button
+                onClick={handleUndo}
+                title="元に戻す (Ctrl+Z)"
+              >
+                ↩️
+              </button>
+              <button
+                onClick={clearDrawing}
+                onDoubleClick={clearAllDrawings}
+                title="クリア（ダブルクリックで全ページクリア）"
+              >
+                <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="1" y="1" width="18" height="22" rx="2" fill="white" stroke="#999" strokeWidth="0.8" />
+                  <path d="M16 3 L12 7 L16 11 L20 7 Z" fill="yellow" stroke="orange" strokeWidth="0.8" transform="translate(-2, -1)" />
+                </svg>
+              </button>
+
+            </>
+          </div>
+
+        </div>
+
+        <div
+          className="canvas-container"
+          ref={containerRef}
+          style={{ position: 'relative' }} // Ensure container is relative for overlay
+        >
+          {/* Main Content Area: PDF Panes */}
+          <div
+            ref={splitContainerRef}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'row',
+              overflow: 'hidden',
+              position: 'relative',
+              backgroundColor: '#f0f0f0',
+              height: '100%' // Ensure full height
+            }}
+          >
+            {/* Global Selection Overlay */}
+            {isSelectionMode && (
+              <div
+                className="selection-overlay"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  zIndex: 9999,
+                  cursor: isCtrlPressed ? 'grab' : 'crosshair',
+                  touchAction: 'none',
+                  // Ctrl押下中はPDFPaneにイベントを通過させてパン可能に
+                  pointerEvents: isCtrlPressed ? 'none' : 'auto'
+                }}
+                onMouseDown={handleSelectionStart}
+                onMouseMove={handleSelectionMove}
+                onMouseUp={handleSelectionEnd}
+              >
+                {selectionRect && (
+                  <div style={{
+                    position: 'absolute',
+                    left: selectionRect.x,
+                    top: selectionRect.y,
+                    width: selectionRect.width,
+                    height: selectionRect.height,
+                    backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                    border: '2px solid #3498db',
+                    pointerEvents: 'none'
+                  }} />
+                )}
+              </div>
+            )}
+
+            {/* ペインA (問題) */}
+            {(isSplitView || activeTab === 'A') && (
+              <PDFPane
+                className="pane-a"
+                ref={paneARef}
+                style={{
+                  flex: isSplitView ? `0 0 ${Math.round(splitRatio * 100)}%` : '1 1 auto',
+                  height: '100%',
+                  overflow: 'hidden'
+                }}
+                pdfRecord={pdfRecord}
+                pdfDoc={pdfDoc}
+                pageNum={pageA}
+                tool={isEraserMode ? 'eraser' : (isDrawingMode ? 'pen' : 'none')}
+                color={penColor}
+                size={penSize}
+                eraserSize={eraserSize}
+                drawingPaths={drawingPaths.get(pageA) || []}
+                isCtrlPressed={isCtrlPressed}
+                splitMode={isSplitView}
+                onPageChange={handlePageAChange}
+                onPathAdd={(path) => handlePathAdd(pageA, path)}
+                onPathsChange={(paths) => handlePathsChange(pageA, paths)}
+                onUndo={handleUndo}
+              />
+            )}
+
+            {/* リサイズハンドル */}
+            {
+              isSplitView && (
+                <div
+                  onMouseDown={handleResizeStart}
+                  onTouchStart={handleResizeStart}
+                  style={{
+                    width: '6px',
+                    height: '100%',
+                    backgroundColor: isResizing ? '#3498db' : '#ccc',
+                    cursor: 'col-resize',
+                    flexShrink: 0,
+                    transition: 'background-color 0.2s',
+                    zIndex: 10000,  // 選択オーバーレイ(9999)より上
+                    position: 'relative'
+                  }}
+                />
+              )
+            }
+
+            {/* ペインB (解答/解説) */}
+            {
+              (isSplitView || activeTab === 'B') && (
+                <PDFPane
+                  className="pane-b"
+                  ref={paneBRef}
+                  style={{
+                    flex: isSplitView ? `0 0 ${Math.round((1 - splitRatio) * 100)}%` : '1 1 auto',
+                    height: '100%',
+                    overflow: 'hidden'
+                  }}
+                  pdfRecord={pdfRecord}
+                  pdfDoc={pdfDoc}
+                  pageNum={pageB}
+                  tool={isEraserMode ? 'eraser' : (isDrawingMode ? 'pen' : 'none')}
+                  color={penColor}
+                  size={penSize}
+                  eraserSize={eraserSize}
+                  drawingPaths={drawingPaths.get(pageB) || []}
+                  isCtrlPressed={isCtrlPressed}
+                  splitMode={isSplitView}
+                  onPageChange={handlePageBChange}
+                  onPathAdd={(path) => handlePathAdd(pageB, path)}
+                  onPathsChange={(paths) => handlePathsChange(pageB, paths)}
+                  onUndo={handleUndo}
+                />
+              )
+            }
+
+            {/* テキストモード用オーバーレイ */}
+            {
+              isTextMode && !editingText && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    zIndex: 100,
+                    cursor: 'text',
+                    pointerEvents: isCtrlPressed ? 'none' : 'auto'
+                  }}
+                  onClick={(e) => {
+                    const rect = containerRef.current?.getBoundingClientRect()
+                    if (!rect) return
+
+                    // 現在アクティブなペインを特定
+                    const currentPage = activeTab === 'A' ? pageA : pageB
+
+                    // クリック位置を正規化座標に変換（簡易版：コンテナ基準）
+                    const screenX = e.clientX - rect.left
+                    const screenY = e.clientY - rect.top
+                    const normalizedX = screenX / rect.width
+                    const normalizedY = screenY / rect.height
+
+                    handleTextClick(currentPage, normalizedX, normalizedY, e.clientX, e.clientY)
+                  }}
+                />
+              )
+            }
+
+            {/* テキストアノテーション表示 */}
+            {
+              (textAnnotations.get(activeTab === 'A' ? pageA : pageB) || []).map((annotation) => {
+                const currentPage = activeTab === 'A' ? pageA : pageB
+                const isClickable = isEraserMode || isTextMode
+                const isBeingEdited = editingText?.existingId === annotation.id
+
+                // 編集中のテキストは非表示（入力ボックスで表示）
+                if (isBeingEdited) return null
+
+                return (
+                  <div
+                    key={annotation.id}
+                    style={{
+                      position: 'absolute',
+                      left: `${annotation.x * 100}%`,
+                      top: `${annotation.y * 100}%`,
+                      fontSize: `${annotation.fontSize}px`,
+                      color: annotation.color,
+                      writingMode: annotation.direction === 'horizontal' ? 'horizontal-tb' :
+                        annotation.direction === 'vertical-rl' ? 'vertical-rl' : 'vertical-lr',
+                      whiteSpace: 'pre-wrap',
+                      pointerEvents: isClickable ? 'auto' : 'none',
+                      zIndex: isClickable ? 200 : 50,
+                      cursor: isClickable ? 'pointer' : 'default',
+                      textShadow: '1px 1px 2px rgba(255,255,255,0.8), -1px -1px 2px rgba(255,255,255,0.8)',
+                      padding: isClickable ? '2px 4px' : '0',
+                      borderRadius: '4px',
+                      backgroundColor: isClickable ? 'rgba(200, 220, 255, 0.3)' : 'transparent',
+                      border: isClickable ? '1px dashed #3498db' : 'none'
+                    }}
+                    onClick={(e) => {
+                      if (!isClickable) return
+                      e.stopPropagation()
+                      // 編集モードに入る
+                      const rect = containerRef.current?.getBoundingClientRect()
+                      if (!rect) return
+                      setEditingText({
+                        pageNum: currentPage,
+                        x: annotation.x,
+                        y: annotation.y,
+                        screenX: rect.left + annotation.x * rect.width,
+                        screenY: rect.top + annotation.y * rect.height,
+                        existingId: annotation.id,
+                        initialText: annotation.text
+                      })
+                    }}
+                    title={isClickable ? 'クリックで編集（テキストを消して確定で削除）' : ''}
+                  >
+                    {annotation.text}
+                  </div>
+                )
+              })
+            }
           </div >
         </div >
 
-  {/* テキスト入力ボックス */ }
-{
-  editingText && (
-    <div
-      style={{
-        position: 'fixed',
-        left: editingText.screenX,
-        top: editingText.screenY,
-        zIndex: 10000,
-        background: 'white',
-        border: '2px solid #3498db',
-        borderRadius: '4px',
-        padding: '4px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-      }}
-    >
-      <textarea
-        autoFocus
-        defaultValue={editingText.initialText || ''}
-        placeholder="テキストを入力..."
-        style={{
-          fontSize: `${textFontSize}px`,
-          color: penColor,
-          writingMode: textDirection === 'horizontal' ? 'horizontal-tb' :
-            textDirection === 'vertical-rl' ? 'vertical-rl' : 'vertical-lr',
-          border: 'none',
-          outline: 'none',
-          resize: 'both',
-          minWidth: textDirection === 'horizontal' ? '150px' : '50px',
-          minHeight: textDirection === 'horizontal' ? '50px' : '100px',
-          maxWidth: '300px',
-          maxHeight: '200px'
-        }}
-        onBlur={(e) => confirmText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            setEditingText(null)
-          } else if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault()
-            confirmText((e.target as HTMLTextAreaElement).value)
-          }
-        }}
-      />
-    </div>
-  )
-}
+        {/* テキスト入力ボックス */}
+        {
+          editingText && (
+            <div
+              style={{
+                position: 'fixed',
+                left: editingText.screenX,
+                top: editingText.screenY,
+                zIndex: 10000,
+                background: 'white',
+                border: '2px solid #3498db',
+                borderRadius: '4px',
+                padding: '4px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+              }}
+            >
+              <textarea
+                autoFocus
+                defaultValue={editingText.initialText || ''}
+                placeholder="テキストを入力..."
+                style={{
+                  fontSize: `${textFontSize}px`,
+                  color: penColor,
+                  writingMode: textDirection === 'horizontal' ? 'horizontal-tb' :
+                    textDirection === 'vertical-rl' ? 'vertical-rl' : 'vertical-lr',
+                  border: 'none',
+                  outline: 'none',
+                  resize: 'both',
+                  minWidth: textDirection === 'horizontal' ? '150px' : '50px',
+                  minHeight: textDirection === 'horizontal' ? '50px' : '100px',
+                  maxWidth: '300px',
+                  maxHeight: '200px'
+                }}
+                onBlur={(e) => confirmText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setEditingText(null)
+                  } else if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    confirmText((e.target as HTMLTextAreaElement).value)
+                  }
+                }}
+              />
+            </div>
+          )
+        }
 
-{
-  gradingResult && (
-    <GradingResult
-      result={gradingResult}
-      onClose={() => setGradingResult(null)}
-      snsLinks={snsLinks}
-      timeLimitMinutes={snsTimeLimit}
-      modelName={gradingModelName}
-      responseTime={gradingResponseTime}
-    />
-  )
-}
+        {
+          gradingResult && (
+            <GradingResult
+              result={gradingResult}
+              onClose={() => setGradingResult(null)}
+              snsLinks={snsLinks}
+              timeLimitMinutes={snsTimeLimit}
+              modelName={gradingModelName}
+              responseTime={gradingResponseTime}
+            />
+          )
+        }
 
-{
-  gradingError && (
-    <div className="error-popup">
-      <div className="error-popup-content">
-        <h3>❌ エラー</h3>
-        <p>{gradingError}</p>
-        <button onClick={() => setGradingError(null)} className="close-btn">
-          閉じる
-        </button>
-      </div>
-    </div>
-  )
-}
+        {
+          gradingError && (
+            <div className="error-popup">
+              <div className="error-popup-content">
+                <h3>❌ エラー</h3>
+                <p>{gradingError}</p>
+                <button onClick={() => setGradingError(null)} className="close-btn">
+                  閉じる
+                </button>
+              </div>
+            </div>
+          )
+        }
 
-{
-  selectionPreview && (
-    <div className="selection-confirm-popup">
-      <div className="selection-confirm-content">
-        <h3>📐 この範囲を採点しますか？</h3>
-        <div className="preview-image-container">
-          <img src={selectionPreview} alt="選択範囲のプレビュー" className="preview-image" />
-        </div>
-        <div style={{ marginTop: '16px', marginBottom: '16px' }}>
-          <label style={{ fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>AIモデル:</label>
-          <select
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #ccc',
-              fontSize: '14px',
-              cursor: 'pointer'
-            }}
-          >
-            <option value="default">デフォルト ({defaultModelName})</option>
-            {availableModels.map(model => (
-              <option key={model.id} value={model.id}>
-                {model.name}
-              </option>
-            ))}
-          </select>
-          <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-            {selectedModel === 'default' && `✨ ${defaultModelName} を使用`}
-            {availableModels.find(m => m.id === selectedModel)?.description}
-          </div>
-        </div>
-        <div className="confirm-buttons">
-          <button
-            onClick={handleCancelSelection}
-            className="cancel-button"
-            disabled={isGrading}
-          >
-            {isGrading ? 'キャンセル' : 'やり直す'}
-          </button>
-          <button
-            onClick={confirmAndGrade}
-            className="confirm-button"
-            disabled={isGrading}
-            style={isGrading ? { opacity: 0.7, cursor: 'wait' } : undefined}
-          >
-            {isGrading ? '⏳ 採点中...' : '採点する'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
+        {
+          selectionPreview && (
+            <div className="selection-confirm-popup">
+              <div className="selection-confirm-content">
+                <h3>📐 この範囲を採点しますか？</h3>
+                <div className="preview-image-container">
+                  <img src={selectionPreview} alt="選択範囲のプレビュー" className="preview-image" />
+                </div>
+                <div style={{ marginTop: '16px', marginBottom: '16px' }}>
+                  <label style={{ fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>AIモデル:</label>
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #ccc',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="default">デフォルト ({defaultModelName})</option>
+                    {availableModels.map(model => (
+                      <option key={model.id} value={model.id}>
+                        {model.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                    {selectedModel === 'default' && `✨ ${defaultModelName} を使用`}
+                    {availableModels.find(m => m.id === selectedModel)?.description}
+                  </div>
+                </div>
+                <div className="confirm-buttons">
+                  <button
+                    onClick={handleCancelSelection}
+                    className="cancel-button"
+                    disabled={isGrading}
+                  >
+                    {isGrading ? 'キャンセル' : 'やり直す'}
+                  </button>
+                  <button
+                    onClick={confirmAndGrade}
+                    className="confirm-button"
+                    disabled={isGrading}
+                    style={isGrading ? { opacity: 0.7, cursor: 'wait' } : undefined}
+                  >
+                    {isGrading ? '⏳ 採点中...' : '採点する'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        }
       </div >
     </div >
   )
