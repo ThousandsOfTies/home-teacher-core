@@ -129,6 +129,16 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     // 2本指タップでUndo用
     const twoFingerTapRef = useRef<{ time: number, startPos: { x: number, y: number }[] } | null>(null)
 
+    // Gesture State for Pinch/Pan
+    const gestureRef = useRef<{
+        type: 'pan' | 'pinch',
+        startZoom: number,
+        startPan: { x: number, y: number },
+        startDist: number,
+        startCenter: { x: number, y: number },
+        rect: DOMRect
+    } | null>(null)
+
     // Page Rendered Handler
 
     const handlePageRendered = () => {
@@ -501,22 +511,58 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // Ignore events on pager bar
                 if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
 
+                const rect = containerRef.current?.getBoundingClientRect()
+                if (!rect) return
+
                 if (e.touches.length === 2) {
-                    // 2本指タップ検出用に開始時刻と位置を記録
+                    // --- 2-Finger Gesture (Pinch/Pan) & Tap Detection ---
+                    const t1 = e.touches[0]
+                    const t2 = e.touches[1]
+
+                    const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY)
+                    const center = {
+                        x: (t1.clientX + t2.clientX) / 2,
+                        y: (t1.clientY + t2.clientY) / 2
+                    }
+
+                    // Store initial gesture state
+                    gestureRef.current = {
+                        type: 'pinch',
+                        startZoom: zoom,
+                        startPan: { ...panOffset },
+                        startDist: dist,
+                        startCenter: center,
+                        rect
+                    }
+
+                    // For Undo Tap Detection
                     twoFingerTapRef.current = {
                         time: Date.now(),
                         startPos: [
-                            { x: e.touches[0].clientX, y: e.touches[0].clientY },
-                            { x: e.touches[1].clientX, y: e.touches[1].clientY }
+                            { x: t1.clientX, y: t1.clientY },
+                            { x: t2.clientX, y: t2.clientY }
                         ]
                     }
-                    startPanning(e as any)
-                } else if (e.touches.length === 1 && !isCtrlPressed) {
-                    twoFingerTapRef.current = null
-                    const rect = containerRef.current?.getBoundingClientRect()
-                    if (rect) {
-                        const x = (e.touches[0].clientX - rect.left - panOffset.x) / zoom
-                        const y = (e.touches[0].clientY - rect.top - panOffset.y) / zoom
+                } else if (e.touches.length === 1) {
+                    // --- Single Touch ---
+                    const t = e.touches[0]
+
+                    if (isCtrlPressed || (tool === 'none' && !isDrawingInternal)) {
+                        // Pan Mode
+                        gestureRef.current = {
+                            type: 'pan',
+                            startZoom: zoom,
+                            startPan: { ...panOffset },
+                            startDist: 0,
+                            startCenter: { x: t.clientX, y: t.clientY },
+                            rect
+                        }
+                    } else {
+                        // Drawing/Erasing Mode
+                        twoFingerTapRef.current = null
+
+                        const x = (t.clientX - rect.left - panOffset.x) / zoom
+                        const y = (t.clientY - rect.top - panOffset.y) / zoom
 
                         if (tool === 'pen') {
                             startDrawing(x, y)
@@ -527,19 +573,72 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
             }}
             onTouchMove={(e) => {
-                if (e.touches.length > 1) {
-                    doPanning(e as any)
-                } else if (!isCtrlPressed) {
-                    const rect = containerRef.current?.getBoundingClientRect()
-                    if (rect) {
-                        const x = (e.touches[0].clientX - rect.left - panOffset.x) / zoom
-                        const y = (e.touches[0].clientY - rect.top - panOffset.y) / zoom
+                const rect = containerRef.current?.getBoundingClientRect()
+                if (!rect) return
 
-                        if (tool === 'pen' && isDrawingInternal) {
+                if (e.touches.length === 2 && gestureRef.current?.type === 'pinch') {
+                    // --- Handle Pinch / 2-Finger Pan ---
+                    const t1 = e.touches[0]
+                    const t2 = e.touches[1]
+
+                    const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY)
+                    const center = {
+                        x: (t1.clientX + t2.clientX) / 2,
+                        y: (t1.clientY + t2.clientY) / 2
+                    }
+
+                    const { startZoom, startPan, startDist, startCenter } = gestureRef.current
+
+                    // 1. Calculate New Zoom
+                    const scale = dist / startDist
+                    const newZoom = Math.min(Math.max(startZoom * scale, 0.1), 5.0)
+
+                    // 2. Calculate New Pan (Keep content under center stationary)
+                    const startCenterRelX = startCenter.x - rect.left
+                    const startCenterRelY = startCenter.y - rect.top
+
+                    const contentX = (startCenterRelX - startPan.x) / startZoom
+                    const contentY = (startCenterRelY - startPan.y) / startZoom
+
+                    const centerRelX = center.x - rect.left
+                    const centerRelY = center.y - rect.top
+
+                    const newPanX = centerRelX - (contentX * newZoom)
+                    const newPanY = centerRelY - (contentY * newZoom)
+
+                    setZoom(newZoom)
+                    setPanOffset({ x: newPanX, y: newPanY })
+
+                } else if (e.touches.length === 1) {
+                    // --- Handle Single Touch ---
+                    const t = e.touches[0]
+
+                    if (gestureRef.current?.type === 'pan') {
+                        // Pan Logic
+                        const { startPan, startCenter } = gestureRef.current
+
+                        const dx = t.clientX - startCenter.x
+                        const dy = t.clientY - startCenter.y
+
+                        setPanOffset({
+                            x: startPan.x + dx,
+                            y: startPan.y + dy
+                        })
+
+                    } else if (isDrawingInternal) { // Only force drawing if already drawing
+                        const x = (t.clientX - rect.left - panOffset.x) / zoom
+                        const y = (t.clientY - rect.top - panOffset.y) / zoom
+
+                        if (tool === 'pen') {
                             draw(x, y)
                         } else if (tool === 'eraser') {
                             handleErase(x, y)
                         }
+                    } else if (tool === 'eraser') {
+                        // Eraser can move without 'isDrawingInternal' (it draws on move)
+                        const x = (t.clientX - rect.left - panOffset.x) / zoom
+                        const y = (t.clientY - rect.top - panOffset.y) / zoom
+                        handleErase(x, y)
                     }
                 }
             }}
@@ -553,6 +652,12 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     }
                     twoFingerTapRef.current = null
                 }
+
+                // Clear gesture state if all touches end or if gesture is broken
+                if (e.touches.length === 0) {
+                    gestureRef.current = null
+                }
+
                 stopDrawing()
                 stopPanning()
             }}
