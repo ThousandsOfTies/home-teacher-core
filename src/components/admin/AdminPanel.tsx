@@ -1112,7 +1112,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
               <button
                 className="add-button"
                 onClick={() => setActiveTab('catalog')}
-                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', height: 'auto', padding: '20px', backgroundColor: '#e67e22', border: 'none' }}
+                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', height: 'auto', padding: '20px' }}
               >
                 <span className="add-button-icon" style={{ fontSize: '32px', margin: 0 }}>🌏</span>
                 <span>Drill Catalog</span>
