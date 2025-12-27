@@ -51,6 +51,38 @@ export const usePDFRecords = () => {
     return canvas.toDataURL('image/jpeg', 0.7)
   }
 
+  // PDFファイルを追加
+  const addPDF = async (file: Blob, fileName: string) => {
+    setUploading(true)
+    try {
+      const id = generatePDFId(fileName)
+
+      // サムネイルを生成（Fileの場合はFileとして、Blobの場合はBlobとして扱う）
+      // generateThumbnail takes File but Blob is compatible for arrayBuffer()
+      const thumbnailModel = new File([file], fileName, { type: 'application/pdf' })
+      const thumbnail = await generateThumbnail(thumbnailModel)
+
+      const newRecord: PDFFileRecord = {
+        id,
+        fileName,
+        fileData: file,
+        thumbnail,
+        lastOpened: Date.now(),
+        drawings: {},
+      }
+
+      await savePDFRecord(newRecord)
+      await loadPDFRecords()
+      return true
+    } catch (error) {
+      console.error('Failed to add PDF:', error)
+      setErrorMessage(`Failed to add PDF: ${error}`)
+      return false
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const handleFileSelect = async () => {
     setUploading(true)
     try {
@@ -136,33 +168,12 @@ export const usePDFRecords = () => {
         return
       }
 
-      const fileName = file.name
-      const id = generatePDFId(fileName)
+      // addPDFを呼び出し
+      await addPDF(file, file.name)
 
-      // サムネイルを生成
-      const thumbnail = await generateThumbnail(file)
-
-      // ファイル全体をBlobとして保存（v6から）
-      const arrayBuffer = await file.arrayBuffer()
-      const blob = new Blob([arrayBuffer], { type: 'application/pdf' })
-
-      const newRecord: PDFFileRecord = {
-        id,
-        fileName,
-        fileData: blob,
-        thumbnail,
-        lastOpened: Date.now(),
-        drawings: {},
-      }
-
-      await savePDFRecord(newRecord)
-      await loadPDFRecords()
-
-      // 自動的に開くのを無効化（ユーザーリクエスト: ファイル一覧のままにする）
     } catch (error) {
-      console.error('Failed to add PDF:', error)
-      setErrorMessage(`Failed to add PDF: ${error}`)
-    } finally {
+      console.error('Failed to select PDF:', error)
+      setErrorMessage(`Failed to select PDF: ${error}`)
       setUploading(false)
     }
   }
@@ -186,6 +197,7 @@ export const usePDFRecords = () => {
     setErrorMessage,
     loadPDFRecords,
     handleFileSelect,
-    handleDeleteRecord
+    handleDeleteRecord,
+    addPDF
   }
 }

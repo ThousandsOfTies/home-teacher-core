@@ -8,6 +8,7 @@ import { useStorage } from '../../hooks/admin/useStorage';
 import AdSlot from '../ads/AdSlot';
 import './AdminPanel.css';
 import { PREDEFINED_SNS, getSNSIcon } from '../../constants/sns';
+import DrillCatalog from '../drill/DrillCatalog';
 
 interface AdminPanelProps {
   onSelectPDF: (record: PDFFileRecord) => void;
@@ -25,7 +26,8 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
     setErrorMessage: setPdfError,
     loadPDFRecords,
     handleFileSelect,
-    handleDeleteRecord
+    handleDeleteRecord,
+    addPDF
   } = usePDFRecords();
 
   const {
@@ -44,7 +46,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
   } = useStorage();
 
   // Local UI state
-  const [activeTab, setActiveTab] = useState<'drill' | 'admin'>('drill');
+  const [activeTab, setActiveTab] = useState<'drill' | 'admin' | 'catalog'>('drill');
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; fileName: string } | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [showSNSSettings, setShowSNSSettings] = useState(false);
@@ -1090,11 +1092,38 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
               </div>
             )}
 
-            <button className="add-button" onClick={() => handleFileSelect()}>
-              <span className="add-button-icon">+</span>
-              <span>PDF</span>
-            </button>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '20px',
+              marginTop: '20px'
+            }}>
+              {/* Local Import Button */}
+              <button
+                className="add-button"
+                onClick={() => handleFileSelect()}
+                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', height: 'auto', padding: '20px' }}
+              >
+                <span className="add-button-icon" style={{ fontSize: '32px', margin: 0 }}>📂</span>
+                <span>Open File</span>
+              </button>
+
+              {/* Catalog Button */}
+              <button
+                className="add-button"
+                onClick={() => setActiveTab('catalog')}
+                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', height: 'auto', padding: '20px', backgroundColor: '#e67e22', border: 'none' }}
+              >
+                <span className="add-button-icon" style={{ fontSize: '32px', margin: 0 }}>🌏</span>
+                <span>Drill Catalog</span>
+              </button>
+            </div>
           </div>
+        )}
+
+        {/* カタログモード */}
+        {activeTab === 'catalog' && (
+          <DrillCatalog addPDF={addPDF} />
         )}
 
         {/* 管理モード: SNS設定、ストレージ情報、採点履歴、広告 */}
