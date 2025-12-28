@@ -111,20 +111,29 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
   }
 
   return (
-    <div className="grading-result-overlay" style={{ pointerEvents: 'none' }}>
+    <div
+      className="grading-result-overlay"
+      style={{ pointerEvents: 'none' }}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+    >
       <div
         ref={panelRef}
         className="grading-result-panel"
         style={{
           transform: `translate(${position.x}px, ${position.y}px)`,
           cursor: isDragging ? 'grabbing' : 'default',
-          pointerEvents: 'auto'
+          pointerEvents: 'auto',
+          touchAction: 'none' // Prevent all touch actions from propagating
         }}
         onWheel={(e) => {
           e.stopPropagation()
-          e.preventDefault()
         }}
         onMouseMove={(e) => {
+          e.stopPropagation()
+        }}
+        onMouseDown={(e) => {
           e.stopPropagation()
         }}
         onTouchStart={(e) => {
@@ -132,7 +141,18 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
         }}
         onTouchMove={(e) => {
           e.stopPropagation()
-          e.preventDefault()
+        }}
+        onTouchEnd={(e) => {
+          e.stopPropagation()
+        }}
+        onPointerDown={(e) => {
+          e.stopPropagation()
+        }}
+        onPointerMove={(e) => {
+          e.stopPropagation()
+        }}
+        onPointerUp={(e) => {
+          e.stopPropagation()
         }}
       >
         <div
@@ -149,7 +169,18 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
 
         <div
           className="result-content"
+          style={{
+            touchAction: 'pan-y', // Allow vertical scroll only
+            overscrollBehavior: 'contain' // Prevent scroll chaining to parent
+          }}
           onTouchStart={(e) => {
+            e.stopPropagation()
+          }}
+          onTouchMove={(e) => {
+            e.stopPropagation()
+            // Allow scroll within this element, but don't propagate
+          }}
+          onTouchEnd={(e) => {
             e.stopPropagation()
           }}
           onWheel={(e) => {

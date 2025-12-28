@@ -519,6 +519,22 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 stopPanning()
                 setEraserCursorPos(null)
             }}
+            onPointerMove={(e) => {
+                // Apple Pencil Pro hover support - update eraser cursor position
+                // This fires even when the stylus is hovering above the screen
+                if (tool === 'eraser' && e.pointerType === 'pen') {
+                    const rect = containerRef.current?.getBoundingClientRect()
+                    if (rect) {
+                        setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+                    }
+                }
+            }}
+            onPointerLeave={(e) => {
+                // Clear eraser cursor when stylus leaves hover range
+                if (tool === 'eraser' && e.pointerType === 'pen') {
+                    setEraserCursorPos(null)
+                }
+            }}
             onTouchStart={(e) => {
                 // Ignore events on pager bar
                 if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
@@ -653,12 +669,16 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                             draw(x, y)
                         } else if (tool === 'eraser') {
                             handleErase(x, y)
+                            // Update eraser cursor position for touch/stylus
+                            setEraserCursorPos({ x: t.clientX - rect.left, y: t.clientY - rect.top })
                         }
                     } else if (tool === 'eraser') {
                         // Eraser can move without 'isDrawingInternal' (it draws on move)
                         const x = (t.clientX - rect.left - panOffset.x) / zoom
                         const y = (t.clientY - rect.top - panOffset.y) / zoom
                         handleErase(x, y)
+                        // Update eraser cursor position for touch/stylus
+                        setEraserCursorPos({ x: t.clientX - rect.left, y: t.clientY - rect.top })
                     }
                 }
             }}
