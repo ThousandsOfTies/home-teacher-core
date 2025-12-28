@@ -12,6 +12,10 @@
   /* 最前面に表示 */
   animation: fadeIn 0.2s ease-in;
   overflow-y: auto;
+  touch-action: none;
+  /* Block all touch actions to prevent PDF interaction */
+  -webkit-touch-callout: none;
+  /* Prevent iOS callout */
 }
 
 @keyframes fadeIn {
@@ -34,6 +38,8 @@
   display: flex;
   flex-direction: column;
   animation: slideUp 0.3s ease-out;
+  touch-action: none;
+  /* Block touch actions on panel, enable on content */
 }
 
 @keyframes slideUp {
@@ -80,9 +86,12 @@
   flex: 1;
   overflow-y: auto;
   padding: 1.5rem;
-  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
-  overscroll-behavior: contain; /* Prevent scroll chaining */
-  touch-action: pan-y; /* Allow vertical scroll only */
+  -webkit-overflow-scrolling: touch;
+  /* Smooth scrolling on iOS */
+  overscroll-behavior: contain;
+  /* Prevent scroll chaining */
+  touch-action: pan-y;
+  /* Allow vertical scroll only */
 }
 
 .problems-list {

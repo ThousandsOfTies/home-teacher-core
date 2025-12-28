@@ -21,11 +21,35 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
   const [isDragging, setIsDragging] = useState(false)
   const dragStartPos = useRef({ x: 0, y: 0 })
   const panelRef = useRef<HTMLDivElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
 
   // Null要素をフィルタリングした有効な問題のみを取得
   const validProblems = result.problems?.filter(problem =>
     problem.problemNumber !== null && problem.isCorrect !== null
   ) || []
+
+  // iOS Safari対応: ネイティブイベントリスナーでタッチをブロック
+  // Reactのontouch*は{passive:true}で登録されるためpreventDefaultが効かない場合がある
+  useEffect(() => {
+    const overlay = overlayRef.current
+    if (!overlay) return
+
+    const blockTouch = (e: TouchEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    // passive: false で登録することでpreventDefaultが確実に動作
+    overlay.addEventListener('touchstart', blockTouch, { passive: false, capture: true })
+    overlay.addEventListener('touchmove', blockTouch, { passive: false, capture: true })
+    overlay.addEventListener('touchend', blockTouch, { passive: false, capture: true })
+
+    return () => {
+      overlay.removeEventListener('touchstart', blockTouch, true)
+      overlay.removeEventListener('touchmove', blockTouch, true)
+      overlay.removeEventListener('touchend', blockTouch, true)
+    }
+  }, [])
 
   // ドラッグ開始
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
@@ -112,6 +136,7 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
 
   return (
     <div
+      ref={overlayRef}
       className="grading-result-overlay"
       style={{ pointerEvents: 'auto' }} // Capture all pointer events on overlay
       onClick={(e) => {
