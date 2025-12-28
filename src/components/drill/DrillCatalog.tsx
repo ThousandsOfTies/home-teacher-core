@@ -18,12 +18,41 @@ export default function DrillCatalog({ addPDF }: DrillCatalogProps) {
     const [importing, setImporting] = useState(false);
     const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
-    const handleImport = async (url: string, fileName: string) => {
+    // Get API base URL for proxy
+    const getApiBaseUrl = (): string => {
+        const envUrl = import.meta.env.VITE_API_URL;
+        if (envUrl) return envUrl;
+
+        if (typeof window !== 'undefined') {
+            const hostname = window.location.hostname;
+            if (hostname.endsWith('.github.io')) {
+                return 'https://hometeacher-api-736494768812.asia-northeast1.run.app';
+            }
+            if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+                return 'https://hometeacher-api-736494768812.asia-northeast1.run.app';
+            }
+        }
+        return 'http://localhost:3003';
+    };
+
+    const handleImport = async (url: string, fileName: string, isLocal: boolean = false) => {
         setImporting(true);
         setMessage(null);
         try {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`Failed to fetch: ${response.statusText}`);
+            let fetchUrl = url;
+
+            // For external URLs, use proxy to bypass CORS
+            if (!isLocal && url.startsWith('http')) {
+                const apiBase = getApiBaseUrl();
+                fetchUrl = `${apiBase}/api/proxy-pdf?url=${encodeURIComponent(url)}`;
+                console.log('📥 Using proxy for external URL:', url);
+            }
+
+            const response = await fetch(fetchUrl);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || `Failed to fetch: ${response.statusText}`);
+            }
             const blob = await response.blob();
 
             const success = await addPDF(blob, fileName);
@@ -34,7 +63,7 @@ export default function DrillCatalog({ addPDF }: DrillCatalogProps) {
             }
         } catch (error) {
             console.error(error);
-            setMessage({ text: 'Failed to download PDF. Check URL or CORS settings.', type: 'error' });
+            setMessage({ text: `Failed to download PDF: ${error instanceof Error ? error.message : 'Unknown error'}`, type: 'error' });
         } finally {
             setImporting(false);
         }
@@ -43,7 +72,7 @@ export default function DrillCatalog({ addPDF }: DrillCatalogProps) {
     const handleCustomImport = () => {
         if (!customUrl) return;
         const fileName = customUrl.split('/').pop() || 'downloaded.pdf';
-        handleImport(customUrl, fileName);
+        handleImport(customUrl, fileName, false);
     };
 
     return (
@@ -70,7 +99,7 @@ export default function DrillCatalog({ addPDF }: DrillCatalogProps) {
                             <h4 style={{ margin: '0 0 10px 0' }}>{drill.title}</h4>
                             <p style={{ fontSize: '14px', color: '#666' }}>{drill.description}</p>
                             <button
-                                onClick={() => handleImport(`./drills/${drill.file}`, drill.file)}
+                                onClick={() => handleImport(`./drills/${drill.file}`, drill.file, true)}
                                 disabled={importing}
                                 style={{
                                     width: '100%',

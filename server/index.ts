@@ -49,6 +49,50 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', model: MODEL_NAME })
 })
 
+// PDF Proxy endpoint to bypass CORS for external URLs
+app.get('/api/proxy-pdf', async (req, res) => {
+  try {
+    const url = req.query.url as string
+
+    if (!url) {
+      return res.status(400).json({ error: 'URL parameter is required' })
+    }
+
+    // Basic URL validation
+    try {
+      new URL(url)
+    } catch {
+      return res.status(400).json({ error: 'Invalid URL format' })
+    }
+
+    // Only allow PDF files
+    if (!url.toLowerCase().endsWith('.pdf')) {
+      return res.status(400).json({ error: 'Only PDF files are allowed' })
+    }
+
+    console.log(`📥 Proxying PDF from: ${url}`)
+
+    const response = await fetch(url)
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: `Failed to fetch: ${response.statusText}`
+      })
+    }
+
+    const buffer = await response.arrayBuffer()
+
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${url.split('/').pop()}"`)
+    res.send(Buffer.from(buffer))
+
+    console.log(`✅ PDF proxied successfully: ${url}`)
+  } catch (error) {
+    console.error('❌ Proxy error:', error)
+    res.status(500).json({ error: 'Failed to proxy PDF' })
+  }
+})
+
 app.post('/api/analyze-page', async (req, res) => {
   try {
     const { imageData, pageNumber, language = 'ja' } = req.body
