@@ -37,6 +37,12 @@ export interface PDFPaneHandle {
     undo: () => void
     getCanvas: () => HTMLCanvasElement | null
     pdfDoc: any | null
+    // Pinch zoom control methods
+    getZoom: () => number
+    setZoomValue: (zoom: number) => void
+    getPanOffset: () => { x: number, y: number }
+    setPanOffsetValue: (offset: { x: number, y: number }) => void
+    getContainerRect: () => DOMRect | null
 }
 
 export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
@@ -415,8 +421,14 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
             return compositeCanvas
         },
-        get pdfDoc() { return pdfDoc }
-    }), [splitMode, fitToScreen, resetZoom, setZoom, handleUndo, pdfDoc])
+        get pdfDoc() { return pdfDoc },
+        // Pinch zoom control methods
+        getZoom: () => zoom,
+        setZoomValue: (newZoom: number) => { setZoom(Math.min(Math.max(newZoom, 0.1), 5.0)) },
+        getPanOffset: () => panOffset,
+        setPanOffsetValue: (offset: { x: number, y: number }) => { setPanOffset(offset) },
+        getContainerRect: () => containerRef.current?.getBoundingClientRect() || null
+    }), [splitMode, fitToScreen, resetZoom, setZoom, setPanOffset, zoom, panOffset, handleUndo, pdfDoc])
 
     // Eraser cursor state
     const [eraserCursorPos, setEraserCursorPos] = React.useState<{ x: number, y: number } | null>(null)

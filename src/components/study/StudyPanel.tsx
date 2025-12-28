@@ -91,37 +91,43 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     })
   }
 
-  /* 共通: オーバーレイの2本指ジェスチャーパススルー用ヘルパー */
-  const handleOverlayTwoFingerStart = (e: React.TouchEvent) => {
-    if (e.touches.length >= 2) {
-      // 即座にpointerEventsをnoneに設定（DOM直接操作で高速化）
-      (e.currentTarget as HTMLElement).style.pointerEvents = 'none'
-      return true
-    }
-    return false
-  }
-
-  const handleOverlayTouchEnd = (e: React.TouchEvent, defaultPointerEvents: string) => {
-    if (e.touches.length === 0) {
-      (e.currentTarget as HTMLElement).style.pointerEvents = defaultPointerEvents
-    }
-  }
-
-  /* Touch Support for Selection with 2-finger gesture support */
+  /* 共通: オーバーレイでピンチズームを直接処理 */
   const overlayGestureRef = useRef<{
     type: 'selection' | 'pinch'
-    startDist?: number
-    startCenter?: { x: number, y: number }
+    startZoom: number
+    startPan: { x: number, y: number }
+    startDist: number
+    startCenter: { x: number, y: number }
   } | null>(null)
 
-  const handleTouchSelectionStart = (e: React.TouchEvent) => {
+  const handleOverlayTouchStart = (e: React.TouchEvent, onSingleTouch?: (x: number, y: number) => void) => {
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
 
-    // 2本指ジェスチャーを検出して即座にパススルー有効化
-    if (handleOverlayTwoFingerStart(e)) {
-      overlayGestureRef.current = { type: 'pinch' }
-      // Cancel any ongoing selection
+    if (e.touches.length >= 2) {
+      // 2本指: ピンチズーム開始
+      e.preventDefault()
+      const t1 = e.touches[0]
+      const t2 = e.touches[1]
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY)
+      const center = {
+        x: (t1.clientX + t2.clientX) / 2,
+        y: (t1.clientY + t2.clientY) / 2
+      }
+
+      // 現在のズーム/パン状態を取得
+      const currentZoom = paneARef.current?.getZoom() ?? 1
+      const currentPan = paneARef.current?.getPanOffset() ?? { x: 0, y: 0 }
+
+      overlayGestureRef.current = {
+        type: 'pinch',
+        startZoom: currentZoom,
+        startPan: { ...currentPan },
+        startDist: dist,
+        startCenter: center
+      }
+
+      // 選択をキャンセル
       isSelectingRef.current = false
       selectionStartRef.current = null
       return
@@ -129,53 +135,95 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
     if (e.touches.length !== 1) return
 
-    // Single touch: start selection
-    overlayGestureRef.current = { type: 'selection' }
-    const x = e.touches[0].clientX - rect.left
-    const y = e.touches[0].clientY - rect.top
-
-    isSelectingRef.current = true
-    selectionStartRef.current = { x, y }
-    setSelectionRect({ x, y, width: 0, height: 0 })
+    // 1本指: 選択開始 or カスタム処理
+    overlayGestureRef.current = null
+    if (onSingleTouch) {
+      const x = e.touches[0].clientX - rect.left
+      const y = e.touches[0].clientY - rect.top
+      onSingleTouch(x, y)
+    }
   }
 
-  const handleTouchSelectionMove = (e: React.TouchEvent) => {
-    if (!containerRef.current) return
-
-    if (e.touches.length === 2 && overlayGestureRef.current?.type === 'pinch') {
-      // Handle pinch zoom - delegate to PDFPane by simulating events
-      // For now, we'll just prevent selection during 2-finger gestures
+  const handleOverlayTouchMove = (e: React.TouchEvent, onSingleTouchMove?: (x: number, y: number) => void) => {
+    if (e.touches.length >= 2 && overlayGestureRef.current?.type === 'pinch') {
+      // ピンチズーム処理
       e.preventDefault()
+      const t1 = e.touches[0]
+      const t2 = e.touches[1]
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY)
+      const center = {
+        x: (t1.clientX + t2.clientX) / 2,
+        y: (t1.clientY + t2.clientY) / 2
+      }
+
+      const { startZoom, startPan, startDist, startCenter } = overlayGestureRef.current
+      const paneRect = paneARef.current?.getContainerRect()
+      if (!paneRect) return
+
+      // 新しいズームレベルを計算
+      const scale = dist / startDist
+      const newZoom = Math.min(Math.max(startZoom * scale, 0.1), 5.0)
+
+      // ピンチ中心を基準にパン調整
+      const startCenterRelX = startCenter.x - paneRect.left
+      const startCenterRelY = startCenter.y - paneRect.top
+      const contentX = (startCenterRelX - startPan.x) / startZoom
+      const contentY = (startCenterRelY - startPan.y) / startZoom
+      const centerRelX = center.x - paneRect.left
+      const centerRelY = center.y - paneRect.top
+      const newPanX = centerRelX - (contentX * newZoom)
+      const newPanY = centerRelY - (contentY * newZoom)
+
+      // PDFPaneに適用
+      paneARef.current?.setZoomValue(newZoom)
+      paneARef.current?.setPanOffsetValue({ x: newPanX, y: newPanY })
       return
     }
 
-    if (!isSelectingRef.current || !selectionStartRef.current) return
-    if (e.touches.length !== 1) return
+    if (e.touches.length === 1 && onSingleTouchMove) {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const x = e.touches[0].clientX - rect.left
+      const y = e.touches[0].clientY - rect.top
+      onSingleTouchMove(x, y)
+    }
+  }
 
-    const rect = containerRef.current.getBoundingClientRect()
-    const x = e.touches[0].clientX - rect.left
-    const y = e.touches[0].clientY - rect.top
+  const handleOverlayTouchEnd = (e: React.TouchEvent, onTouchEnd?: () => void) => {
+    if (e.touches.length === 0) {
+      overlayGestureRef.current = null
+      if (onTouchEnd) onTouchEnd()
+    }
+  }
 
-    const startX = selectionStartRef.current.x
-    const startY = selectionStartRef.current.y
+  /* Selection Mode Touch Handlers */
+  const handleTouchSelectionStart = (e: React.TouchEvent) => {
+    handleOverlayTouchStart(e, (x, y) => {
+      isSelectingRef.current = true
+      selectionStartRef.current = { x, y }
+      setSelectionRect({ x, y, width: 0, height: 0 })
+    })
+  }
 
-    setSelectionRect({
-      x: Math.min(startX, x),
-      y: Math.min(startY, y),
-      width: Math.abs(x - startX),
-      height: Math.abs(y - startY)
+  const handleTouchSelectionMove = (e: React.TouchEvent) => {
+    handleOverlayTouchMove(e, (x, y) => {
+      if (!isSelectingRef.current || !selectionStartRef.current) return
+      const startX = selectionStartRef.current.x
+      const startY = selectionStartRef.current.y
+      setSelectionRect({
+        x: Math.min(startX, x),
+        y: Math.min(startY, y),
+        width: Math.abs(x - startX),
+        height: Math.abs(y - startY)
+      })
     })
   }
 
   const handleTouchSelectionEnd = async (e: React.TouchEvent) => {
-    // Reset pointer events using common helper
-    handleOverlayTouchEnd(e, isCtrlPressed ? 'none' : 'auto')
-
-    overlayGestureRef.current = null
-
-    if (!isSelectingRef.current) return
-    // Logic is same as Mouse, call common handler
-    await handleSelectionEnd()
+    handleOverlayTouchEnd(e, async () => {
+      if (!isSelectingRef.current) return
+      await handleSelectionEnd()
+    })
   }
 
   const handleSelectionEnd = async () => {
@@ -1241,12 +1289,16 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                     handleTextClick(currentPage, normalizedX, normalizedY, e.clientX, e.clientY)
                   }}
                   onTouchStart={(e) => {
-                    // 共通ヘルパーで2本指ジェスチャーを処理
-                    handleOverlayTwoFingerStart(e)
+                    // 共通ヘルパーでピンチズームを処理
+                    handleOverlayTouchStart(e)
+                  }}
+                  onTouchMove={(e) => {
+                    // 共通ヘルパーでピンチズームを処理
+                    handleOverlayTouchMove(e)
                   }}
                   onTouchEnd={(e) => {
-                    // 共通ヘルパーでタッチ終了時にパススルーを解除
-                    handleOverlayTouchEnd(e, isCtrlPressed ? 'none' : 'auto')
+                    // 共通ヘルパーでタッチ終了処理
+                    handleOverlayTouchEnd(e)
                   }}
                 />
               )
