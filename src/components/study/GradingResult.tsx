@@ -29,12 +29,22 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
   ) || []
 
   // iOS Safari対応: ネイティブイベントリスナーでタッチをブロック
-  // Reactのontouch*は{passive:true}で登録されるためpreventDefaultが効かない場合がある
+  // ただしパネル内のタッチは許可（ボタンやドラッグ操作のため）
   useEffect(() => {
     const overlay = overlayRef.current
+    const panel = panelRef.current
     if (!overlay) return
 
     const blockTouch = (e: TouchEvent) => {
+      // パネル内のタッチは許可（ボタンクリック、ドラッグ等）
+      if (panel && panel.contains(e.target as Node)) {
+        // パネル内でも2本指以上のジェスチャーはブロック
+        if (e.touches.length >= 2) {
+          e.preventDefault()
+        }
+        return // 1本指のタッチは許可
+      }
+      // オーバーレイ直接のタッチはPDFへの伝播をブロック
       e.preventDefault()
       e.stopPropagation()
     }
