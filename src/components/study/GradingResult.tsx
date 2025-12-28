@@ -113,10 +113,28 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
   return (
     <div
       className="grading-result-overlay"
-      style={{ pointerEvents: 'none' }}
-      onTouchStart={(e) => e.stopPropagation()}
-      onTouchMove={(e) => e.stopPropagation()}
-      onTouchEnd={(e) => e.stopPropagation()}
+      style={{ pointerEvents: 'auto' }} // Capture all pointer events on overlay
+      onClick={(e) => {
+        // Only close if clicking directly on overlay (not on panel)
+        if (e.target === e.currentTarget) {
+          onClose()
+        }
+      }}
+      onTouchStart={(e) => {
+        e.stopPropagation()
+        e.preventDefault() // Block touch from reaching PDF
+      }}
+      onTouchMove={(e) => {
+        e.stopPropagation()
+        e.preventDefault() // Block touch from reaching PDF
+      }}
+      onTouchEnd={(e) => {
+        e.stopPropagation()
+        e.preventDefault()
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerMove={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
     >
       <div
         ref={panelRef}
@@ -124,8 +142,7 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
         style={{
           transform: `translate(${position.x}px, ${position.y}px)`,
           cursor: isDragging ? 'grabbing' : 'default',
-          pointerEvents: 'auto',
-          touchAction: 'none' // Prevent all touch actions from propagating
+          pointerEvents: 'auto'
         }}
         onWheel={(e) => {
           e.stopPropagation()
@@ -138,9 +155,17 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
         }}
         onTouchStart={(e) => {
           e.stopPropagation()
+          // Block multi-touch gestures (2+ fingers) from propagating
+          if (e.touches.length >= 2) {
+            e.preventDefault()
+          }
         }}
         onTouchMove={(e) => {
           e.stopPropagation()
+          // Block multi-touch gestures (2+ fingers)
+          if (e.touches.length >= 2) {
+            e.preventDefault()
+          }
         }}
         onTouchEnd={(e) => {
           e.stopPropagation()
