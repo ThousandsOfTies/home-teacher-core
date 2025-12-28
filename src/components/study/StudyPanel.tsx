@@ -94,11 +94,32 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   /* 共通: オーバーレイでピンチズームを直接処理 */
   const overlayGestureRef = useRef<{
     type: 'selection' | 'pinch'
+    targetPane: 'A' | 'B'
     startZoom: number
     startPan: { x: number, y: number }
     startDist: number
     startCenter: { x: number, y: number }
   } | null>(null)
+
+  // タッチ位置からターゲットペインを判定
+  const getTargetPane = (touchX: number): 'A' | 'B' => {
+    // 非スプリットビューでは現在表示中のタブが対象
+    if (!isSplitView) return activeTab
+
+    // スプリットコンテナ内でのX位置を確認
+    const splitContainer = splitContainerRef.current
+    if (!splitContainer) return activeTab
+
+    const containerRect = splitContainer.getBoundingClientRect()
+    const relativeX = touchX - containerRect.left
+    const splitPoint = containerRect.width * splitRatio
+
+    return relativeX < splitPoint ? 'A' : 'B'
+  }
+
+  const getTargetPaneRef = (pane: 'A' | 'B') => {
+    return pane === 'A' ? paneARef : paneBRef
+  }
 
   const handleOverlayTouchStart = (e: React.TouchEvent, onSingleTouch?: (x: number, y: number) => void) => {
     const rect = containerRef.current?.getBoundingClientRect()
@@ -115,12 +136,17 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
         y: (t1.clientY + t2.clientY) / 2
       }
 
+      // タッチ中心からターゲットペインを判定
+      const targetPane = getTargetPane(center.x)
+      const paneRef = getTargetPaneRef(targetPane)
+
       // 現在のズーム/パン状態を取得
-      const currentZoom = paneARef.current?.getZoom() ?? 1
-      const currentPan = paneARef.current?.getPanOffset() ?? { x: 0, y: 0 }
+      const currentZoom = paneRef.current?.getZoom() ?? 1
+      const currentPan = paneRef.current?.getPanOffset() ?? { x: 0, y: 0 }
 
       overlayGestureRef.current = {
         type: 'pinch',
+        targetPane,
         startZoom: currentZoom,
         startPan: { ...currentPan },
         startDist: dist,
@@ -156,8 +182,9 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
         y: (t1.clientY + t2.clientY) / 2
       }
 
-      const { startZoom, startPan, startDist, startCenter } = overlayGestureRef.current
-      const paneRect = paneARef.current?.getContainerRect()
+      const { targetPane, startZoom, startPan, startDist, startCenter } = overlayGestureRef.current
+      const paneRef = getTargetPaneRef(targetPane)
+      const paneRect = paneRef.current?.getContainerRect()
       if (!paneRect) return
 
       // 新しいズームレベルを計算
@@ -174,9 +201,9 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
       const newPanX = centerRelX - (contentX * newZoom)
       const newPanY = centerRelY - (contentY * newZoom)
 
-      // PDFPaneに適用
-      paneARef.current?.setZoomValue(newZoom)
-      paneARef.current?.setPanOffsetValue({ x: newPanX, y: newPanY })
+      // 対象のPDFPaneに適用
+      paneRef.current?.setZoomValue(newZoom)
+      paneRef.current?.setPanOffsetValue({ x: newPanX, y: newPanY })
       return
     }
 
