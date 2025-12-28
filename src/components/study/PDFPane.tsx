@@ -542,8 +542,23 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
+                // Palm Rejection: Find stylus touch if any
+                // @ts-ignore - touchType is available on iOS Safari
+                const stylusTouch = Array.from(e.touches).find(t => t.touchType === 'stylus')
+
                 if (e.touches.length === 2) {
-                    // --- 2-Finger Gesture (Pinch/Pan) & Tap Detection ---
+                    // --- 2-Finger Gesture ---
+                    // If one is stylus (Apple Pencil) and one is direct (palm), use stylus for drawing
+                    if (stylusTouch && tool === 'pen') {
+                        const t = stylusTouch as Touch
+                        const x = (t.clientX - rect.left - panOffset.x) / zoom
+                        const y = (t.clientY - rect.top - panOffset.y) / zoom
+                        startDrawing(x, y)
+                        twoFingerTapRef.current = null
+                        return
+                    }
+
+                    // Both are direct touches -> Pinch/Pan gesture
                     const t1 = e.touches[0]
                     const t2 = e.touches[1]
 
@@ -588,7 +603,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     } else {
                         // Drawing/Erasing Mode
 
-                        // Palm Rejection
+                        // Palm Rejection - ignore direct touch when pen tool is active
                         // @ts-ignore
                         if (tool === 'pen' && t.touchType === 'direct') return
                         twoFingerTapRef.current = null
@@ -608,39 +623,53 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
-                if (e.touches.length === 2 && gestureRef.current?.type === 'pinch') {
-                    // --- Handle Pinch / 2-Finger Pan ---
-                    const t1 = e.touches[0]
-                    const t2 = e.touches[1]
+                // Palm Rejection: Find stylus touch if any
+                // @ts-ignore - touchType is available on iOS Safari
+                const stylusTouch = Array.from(e.touches).find(t => t.touchType === 'stylus')
 
-                    const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY)
-                    const center = {
-                        x: (t1.clientX + t2.clientX) / 2,
-                        y: (t1.clientY + t2.clientY) / 2
+                if (e.touches.length === 2) {
+                    // If one is stylus and we're in drawing mode, continue drawing with stylus
+                    if (stylusTouch && isDrawingInternal && tool === 'pen') {
+                        const t = stylusTouch as Touch
+                        const x = (t.clientX - rect.left - panOffset.x) / zoom
+                        const y = (t.clientY - rect.top - panOffset.y) / zoom
+                        draw(x, y)
+                        return
                     }
 
-                    const { startZoom, startPan, startDist, startCenter } = gestureRef.current
+                    // Handle Pinch / 2-Finger Pan (only if in pinch mode)
+                    if (gestureRef.current?.type === 'pinch') {
+                        const t1 = e.touches[0]
+                        const t2 = e.touches[1]
 
-                    // 1. Calculate New Zoom
-                    const scale = dist / startDist
-                    const newZoom = Math.min(Math.max(startZoom * scale, 0.1), 5.0)
+                        const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY)
+                        const center = {
+                            x: (t1.clientX + t2.clientX) / 2,
+                            y: (t1.clientY + t2.clientY) / 2
+                        }
 
-                    // 2. Calculate New Pan (Keep content under center stationary)
-                    const startCenterRelX = startCenter.x - rect.left
-                    const startCenterRelY = startCenter.y - rect.top
+                        const { startZoom, startPan, startDist, startCenter } = gestureRef.current
 
-                    const contentX = (startCenterRelX - startPan.x) / startZoom
-                    const contentY = (startCenterRelY - startPan.y) / startZoom
+                        // 1. Calculate New Zoom
+                        const scale = dist / startDist
+                        const newZoom = Math.min(Math.max(startZoom * scale, 0.1), 5.0)
 
-                    const centerRelX = center.x - rect.left
-                    const centerRelY = center.y - rect.top
+                        // 2. Calculate New Pan (Keep content under center stationary)
+                        const startCenterRelX = startCenter.x - rect.left
+                        const startCenterRelY = startCenter.y - rect.top
 
-                    const newPanX = centerRelX - (contentX * newZoom)
-                    const newPanY = centerRelY - (contentY * newZoom)
+                        const contentX = (startCenterRelX - startPan.x) / startZoom
+                        const contentY = (startCenterRelY - startPan.y) / startZoom
 
-                    setZoom(newZoom)
-                    setPanOffset({ x: newPanX, y: newPanY })
+                        const centerRelX = center.x - rect.left
+                        const centerRelY = center.y - rect.top
 
+                        const newPanX = centerRelX - (contentX * newZoom)
+                        const newPanY = centerRelY - (contentY * newZoom)
+
+                        setZoom(newZoom)
+                        setPanOffset({ x: newPanX, y: newPanY })
+                    }
                 } else if (e.touches.length === 1) {
                     // --- Handle Single Touch ---
                     const t = e.touches[0]
