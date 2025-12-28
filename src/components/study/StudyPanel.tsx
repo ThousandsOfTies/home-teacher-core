@@ -54,6 +54,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
   // Global Selection State
   const [selectionRect, setSelectionRect] = useState<{ x: number, y: number, width: number, height: number } | null>(null)
+  const [isPinchingOverlay, setIsPinchingOverlay] = useState(false) // For 2-finger gesture passthrough
   const isSelectingRef = useRef(false)
   const selectionStartRef = useRef<{ x: number, y: number } | null>(null)
 
@@ -91,14 +92,48 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     })
   }
 
-  /* Touch Support for Selection */
-  const handleTouchSelectionStart = (e: React.TouchEvent) => {
-    if (e.touches.length !== 1) return
+  /* Touch Support for Selection with 2-finger gesture support */
+  const overlayGestureRef = useRef<{
+    type: 'selection' | 'pinch'
+    startZoom?: number
+    startDist?: number
+    startCenter?: { x: number, y: number }
+  } | null>(null)
 
-    // Get relative position within the container
+  const handleTouchSelectionStart = (e: React.TouchEvent) => {
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
 
+    if (e.touches.length === 2) {
+      // 2-finger gesture: pinch/pan
+      const t1 = e.touches[0]
+      const t2 = e.touches[1]
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY)
+      const center = {
+        x: (t1.clientX + t2.clientX) / 2,
+        y: (t1.clientY + t2.clientY) / 2
+      }
+
+      overlayGestureRef.current = {
+        type: 'pinch',
+        startDist: dist,
+        startCenter: center
+      }
+
+      // Enable passthrough so PDFPane receives the gesture
+      setIsPinchingOverlay(true)
+
+      // Cancel any ongoing selection
+      isSelectingRef.current = false
+      selectionStartRef.current = null
+      return
+    }
+
+    if (e.touches.length !== 1) return
+
+    // Single touch: start selection
+    setIsPinchingOverlay(false)
+    overlayGestureRef.current = { type: 'selection' }
     const x = e.touches[0].clientX - rect.left
     const y = e.touches[0].clientY - rect.top
 
@@ -108,8 +143,17 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   }
 
   const handleTouchSelectionMove = (e: React.TouchEvent) => {
-    if (!isSelectingRef.current || !selectionStartRef.current || !containerRef.current) return
-    // e.preventDefault() // Stop scrolling? Overlay has touch-action: none
+    if (!containerRef.current) return
+
+    if (e.touches.length === 2 && overlayGestureRef.current?.type === 'pinch') {
+      // Handle pinch zoom - delegate to PDFPane by simulating events
+      // For now, we'll just prevent selection during 2-finger gestures
+      e.preventDefault()
+      return
+    }
+
+    if (!isSelectingRef.current || !selectionStartRef.current) return
+    if (e.touches.length !== 1) return
 
     const rect = containerRef.current.getBoundingClientRect()
     const x = e.touches[0].clientX - rect.left
@@ -127,8 +171,15 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   }
 
   const handleTouchSelectionEnd = async (e: React.TouchEvent) => {
+    // Reset pinch state if no more touches
+    if (e.touches.length === 0) {
+      setIsPinchingOverlay(false)
+    }
+
+    overlayGestureRef.current = null
+
     if (!isSelectingRef.current) return
-    // Logic is same as Mouse, call common handler or duplicate
+    // Logic is same as Mouse, call common handler
     await handleSelectionEnd()
   }
 
@@ -1058,8 +1109,8 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                   zIndex: 9999,
                   cursor: isCtrlPressed ? 'grab' : 'crosshair',
                   touchAction: 'none',
-                  // Ctrl押下中はPDFPaneにイベントを通過させてパン可能に
-                  pointerEvents: isCtrlPressed ? 'none' : 'auto'
+                  // Ctrl押下中 or 2本指ジェスチャー中はPDFPaneにイベントを通過させる
+                  pointerEvents: (isCtrlPressed || isPinchingOverlay) ? 'none' : 'auto'
                 }}
                 onMouseDown={handleSelectionStart}
                 onMouseMove={handleSelectionMove}
