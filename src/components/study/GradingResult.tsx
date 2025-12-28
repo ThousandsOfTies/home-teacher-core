@@ -104,7 +104,7 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
     const returnUrl = `${window.location.origin}${import.meta.env.BASE_URL || '/'}`
     const manageUrl = `${returnUrl}manage.html?time=${timeLimitMinutes}&snsLinks=${encodeURIComponent(snsLinksJson)}&returnUrl=${encodeURIComponent(returnUrl)}`
 
-    console.log('🔄 SNS管理ページへ遷移:', { manageUrl, returnUrl })
+    // console.log('🔄 SNS管理ページへ遷移:', { manageUrl, returnUrl })
 
     // 現在のタブをSNS管理ページに置き換え
     window.location.replace(manageUrl)

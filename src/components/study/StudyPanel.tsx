@@ -359,7 +359,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   // PDF Document Loading
   const { pdfDoc, numPages, isLoading, error: pdfError } = usePDFRenderer(pdfRecord, {
     onLoadSuccess: (pages) => {
-      console.log(`✅ PDF loaded in StudyPanel: ${pages} pages`)
+      // console.log(`✅ PDF loaded in StudyPanel: ${pages} pages`)
     },
     onLoadError: (err) => {
       // Error handling if needed specifically here, though hook returns error
@@ -450,10 +450,10 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
         if (newMap.size === 0) return
 
-        console.log(`📝 描画を復元: ${newMap.size}ページ`)
+        // console.log(`📝 描画を復元: ${newMap.size}ページ`)
         setDrawingPaths(newMap)
       } catch (e) {
-        console.error('描画の読み込みに失敗:', e)
+        // console.error('描画の読み込みに失敗:', e)
       }
     }
     loadDrawings()
@@ -791,7 +791,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   const addStatusMessage = (message: string) => {
     const timestamp = new Date().toLocaleTimeString('ja-JP')
     const fullMessage = `[${timestamp}] ${message}`
-    console.log(fullMessage)
+    // console.log(fullMessage)
     setStatusMessage(message)
   }
 
@@ -831,9 +831,9 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
       }
 
       if (Object.keys(updates).length > 0) {
-        console.log('💾 ページ番号を保存:', updates)
+        // console.log('💾 ページ番号を保存:', updates)
         updatePDFRecord(pdfRecord.id, updates).catch(err => {
-          console.error('ページ保存に失敗:', err)
+          // console.error('ページ保存に失敗:', err)
         })
       }
     }, 500)

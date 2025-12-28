@@ -43,7 +43,7 @@ const PDFCanvas = forwardRef<PDFCanvasHandle, PDFCanvasProps>(({
         if (!pdfDoc || !canvasRef.current) return
 
         const renderPage = async () => {
-            console.log('🎨 PDFCanvas: renderPage queued', { pageNum, renderScale })
+            // console.log('🎨 PDFCanvas: renderPage queued', { pageNum, renderScale })
 
             // キャンセル
             if (renderTaskRef.current) {
@@ -56,7 +56,7 @@ const PDFCanvas = forwardRef<PDFCanvasHandle, PDFCanvasProps>(({
                 // Double check cancellation/staleness inside the queue
                 if (!canvasRef.current || !pdfDoc) return
 
-                console.log('🎨 PDFCanvas: renderPage start', { pageNum, renderScale })
+                // console.log('🎨 PDFCanvas: renderPage start', { pageNum, renderScale })
                 const page = await pdfDoc.getPage(pageNum)
 
                 let pageRotation = 0
@@ -66,7 +66,7 @@ const PDFCanvas = forwardRef<PDFCanvasHandle, PDFCanvasProps>(({
                         pageRotation = rotate
                     }
                 } catch (error) {
-                    console.warn('⚠️ rotation属性取得エラー:', error)
+                    // console.warn('⚠️ rotation属性取得エラー:', error)
                 }
 
                 const viewport = page.getViewport({ scale: renderScale, rotation: pageRotation })
@@ -87,23 +87,22 @@ const PDFCanvas = forwardRef<PDFCanvasHandle, PDFCanvasProps>(({
                 }
 
                 try {
-                    console.log('📏 PDFCanvas: Viewport calculated', { width: viewport.width, height: viewport.height })
+                    // console.log('📏 PDFCanvas: Viewport calculated', { width: viewport.width, height: viewport.height })
 
                     renderTaskRef.current = page.render(renderContext)
                     await renderTaskRef.current.promise
                     renderTaskRef.current = null
-                    console.log('✅ PDFCanvas: Render complete')
+                    // console.log('✅ PDFCanvas: Render complete')
                     onPageRendered?.()
                 } catch (error: any) {
                     if (error?.name === 'RenderingCancelledException') {
-                        console.log('🛑 Rendering Cancelled')
+                        // console.log('🛑 Rendering Cancelled')
                         return
                     }
-                    console.error('Render error:', error)
+                    // console.error('Render error:', error)
                 }
             }).catch((err) => {
-                // Catch errors from previous promise causing chain failure
-                console.error('Render queue error:', err)
+                // console.error('Render queue error:', err)
             })
         }
 

@@ -114,7 +114,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     useEffect(() => {
         if (!canvasRef.current || !containerRef.current) return
 
-        console.log('📏 PDFPane: splitMode変更、再フィット実行', { splitMode })
+        // console.log('📏 PDFPane: splitMode変更、再フィット実行', { splitMode })
 
         const containerH = containerRef.current.clientHeight
         const maxH = window.innerHeight - 120
@@ -148,7 +148,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     // Page Rendered Handler
 
     const handlePageRendered = () => {
-        console.log('🏁 PDFPane: handlePageRendered triggered')
+        // console.log('🏁 PDFPane: handlePageRendered triggered')
         if (!canvasRef.current || !containerRef.current) return
 
         setCanvasSize({
@@ -157,10 +157,10 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         })
 
         // Log canvas size
-        console.log('📏 PDFPane: Canvas size captured', {
-            width: canvasRef.current.width,
-            height: canvasRef.current.height
-        })
+        // console.log('📏 PDFPane: Canvas size captured', {
+        //     width: canvasRef.current.width,
+        //     height: canvasRef.current.height
+        // })
 
         // Cancel any pending RAF
         if (rafIdRef.current) {
@@ -170,13 +170,13 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         // Run fit logic in next frame to ensure layout is settled
         // Double RAF to wait for paint
         rafIdRef.current = requestAnimationFrame(() => {
-            console.log('⏳ PDFPane: RAF 1 executing')
+            // console.log('⏳ PDFPane: RAF 1 executing')
             rafIdRef.current = requestAnimationFrame(() => {
                 rafIdRef.current = null
-                console.log('⏳ PDFPane: RAF 2 executing')
+                // console.log('⏳ PDFPane: RAF 2 executing')
 
                 if (!canvasRef.current || !containerRef.current) {
-                    console.error('❌ PDFPane: canvasRef is null in RAF')
+                    // console.error('❌ PDFPane: canvasRef is null in RAF')
                     return
                 }
 
@@ -187,7 +187,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                     // 初回のみfitToScreen、以降はズームレベルを維持
                     if (!initialFitDoneRef.current) {
-                        console.log('📏 PDFPane: 初回フィット実行', { containerH, effectiveH, splitMode })
+                        // console.log('📏 PDFPane: 初回フィット実行', { containerH, effectiveH, splitMode })
                         fitToScreen(
                             canvasRef.current.width,
                             canvasRef.current.height,
@@ -196,10 +196,10 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         )
                         initialFitDoneRef.current = true
                     } else {
-                        console.log('📏 PDFPane: ズームレベル維持（ページ変更）')
+                        // console.log('📏 PDFPane: ズームレベル維持（ページ変更）')
                     }
                 } catch (e) {
-                    console.error('❌ PDFPane: Error in fitToScreen', e)
+                    // console.error('❌ PDFPane: Error in fitToScreen', e)
                 }
 
                 // Show content after fitting
@@ -322,26 +322,26 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         width: size, // Pen size always for useDrawing (since it's only for pen now)
         color: color,
         onPathComplete: (path) => {
-            console.log('✍️ PDFPane: onPathComplete', { pathLength: path.points.length })
+            // console.log('✍️ PDFPane: onPathComplete', { pathLength: path.points.length })
             // Do not add the path if it was recognized as a scratch gesture
             if (isScratchPattern(path)) {
-                console.log('🚫 PDFPane: Ignoring scratch path from permanent storage')
+                // console.log('🚫 PDFPane: Ignoring scratch path from permanent storage')
                 return
             }
             onPathAdd(path)
         },
         onScratchComplete: (scratchPath) => {
-            console.log('⚡ PDFPane: onScratchComplete', { points: scratchPath.points.length })
+            // console.log('⚡ PDFPane: onScratchComplete', { points: scratchPath.points.length })
             const currentPaths = drawingPathsRef.current
             const pathsToKeep = currentPaths.filter(existingPath =>
                 !doPathsIntersect(scratchPath, existingPath)
             )
 
             if (pathsToKeep.length < currentPaths.length) {
-                console.log("✂️ Scratch detected! Erasing paths.", { before: currentPaths.length, after: pathsToKeep.length })
+                // console.log("✂️ Scratch detected! Erasing paths.", { before: currentPaths.length, after: pathsToKeep.length })
                 onPathsChange(pathsToKeep)
             } else {
-                console.log("⚡ Scratch detected but NO intersection found.", { currentPaths: currentPaths.length })
+                // console.log("⚡ Scratch detected but NO intersection found.", { currentPaths: currentPaths.length })
             }
         }
     })
@@ -433,18 +433,18 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     // Eraser cursor state
     const [eraserCursorPos, setEraserCursorPos] = React.useState<{ x: number, y: number } | null>(null)
 
-    // Debug Rendering
-    useEffect(() => {
-        console.log('🖼️ PDFPane Render Status:', {
-            zoom,
-            panOffset,
-            canvasDimensions: canvasRef.current ? { width: canvasRef.current.width, height: canvasRef.current.height } : 'null',
-            containerDimensions: containerRef.current ? { width: containerRef.current.clientWidth, height: containerRef.current.clientHeight } : 'null',
-            pdfDocAvailable: !!pdfDoc,
-            numPages,
-            isLayoutReady
-        })
-    }, [zoom, panOffset, numPages, isLayoutReady])
+    // Debug Rendering (disabled for performance)
+    // useEffect(() => {
+    //     console.log('🖼️ PDFPane Render Status:', {
+    //         zoom,
+    //         panOffset,
+    //         canvasDimensions: canvasRef.current ? { width: canvasRef.current.width, height: canvasRef.current.height } : 'null',
+    //         containerDimensions: containerRef.current ? { width: containerRef.current.clientWidth, height: containerRef.current.clientHeight } : 'null',
+    //         pdfDocAvailable: !!pdfDoc,
+    //         numPages,
+    //         isLayoutReady
+    //     })
+    // }, [zoom, panOffset, numPages, isLayoutReady])
 
     return (
         <div
@@ -477,7 +477,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     if (tool === 'pen') {
                         startDrawing(x, y)
                     } else if (tool === 'eraser') {
-                        console.log('🧹 Eraser MouseDown:', { x, y, pathsCount: drawingPathsRef.current.length })
+                        // console.log('🧹 Eraser MouseDown:', { x, y, pathsCount: drawingPathsRef.current.length })
                         handleErase(x, y)
                     } else if (tool === 'none') {
                         // 選択/採点モード時もパン可能
