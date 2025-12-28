@@ -1222,7 +1222,9 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                     height: '100%',
                     zIndex: 100,
                     cursor: 'text',
-                    pointerEvents: isCtrlPressed ? 'none' : 'auto'
+                    touchAction: 'none',
+                    // Ctrl押下中 or 2本指ジェスチャー中はPDFPaneにイベントを通過させる
+                    pointerEvents: (isCtrlPressed || isPinchingOverlay) ? 'none' : 'auto'
                   }}
                   onClick={(e) => {
                     const rect = containerRef.current?.getBoundingClientRect()
@@ -1238,6 +1240,17 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                     const normalizedY = screenY / rect.height
 
                     handleTextClick(currentPage, normalizedX, normalizedY, e.clientX, e.clientY)
+                  }}
+                  onTouchStart={(e) => {
+                    // 2本指ジェスチャーを検出してパススルー有効化
+                    if (e.touches.length === 2) {
+                      setIsPinchingOverlay(true)
+                    }
+                  }}
+                  onTouchEnd={(e) => {
+                    if (e.touches.length === 0) {
+                      setIsPinchingOverlay(false)
+                    }
                   }}
                 />
               )
