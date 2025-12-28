@@ -1102,20 +1102,24 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
               <button
                 className="add-button"
                 onClick={() => handleFileSelect()}
-                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', height: 'auto', padding: '20px' }}
+                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '8px', height: 'auto', padding: '16px 20px' }}
+                title="ローカルファイルを開く"
               >
-                <span className="add-button-icon" style={{ fontSize: '32px', margin: 0 }}>📂</span>
-                <span>Open File</span>
+                <span style={{ fontSize: '28px' }}>📂</span>
+                <span style={{ fontSize: '18px', color: '#7f8c8d' }}>→</span>
+                <span style={{ fontSize: '28px' }}>📄</span>
               </button>
 
               {/* Catalog Button */}
               <button
                 className="add-button"
                 onClick={() => setActiveTab('catalog')}
-                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', height: 'auto', padding: '20px' }}
+                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '8px', height: 'auto', padding: '16px 20px' }}
+                title="ドリルカタログからインポート"
               >
-                <span className="add-button-icon" style={{ fontSize: '32px', margin: 0 }}>🌏</span>
-                <span>Drill Catalog</span>
+                <span style={{ fontSize: '28px' }}>🌏</span>
+                <span style={{ fontSize: '18px', color: '#7f8c8d' }}>→</span>
+                <span style={{ fontSize: '28px' }}>📄</span>
               </button>
             </div>
           </div>
