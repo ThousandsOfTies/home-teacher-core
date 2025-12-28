@@ -559,6 +559,10 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         }
                     } else {
                         // Drawing/Erasing Mode
+
+                        // Palm Rejection
+                        // @ts-ignore
+                        if (tool === 'pen' && t.touchType === 'direct') return
                         twoFingerTapRef.current = null
 
                         const x = (t.clientX - rect.left - panOffset.x) / zoom
@@ -626,6 +630,10 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         })
 
                     } else if (isDrawingInternal) { // Only force drawing if already drawing
+                        // Palm Rejection check
+                        // @ts-ignore
+                        if (tool === 'pen' && t.touchType === 'direct') return
+
                         const x = (t.clientX - rect.left - panOffset.x) / zoom
                         const y = (t.clientY - rect.top - panOffset.y) / zoom
 

@@ -91,6 +91,47 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     })
   }
 
+  /* Touch Support for Selection */
+  const handleTouchSelectionStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return
+
+    // Get relative position within the container
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    const x = e.touches[0].clientX - rect.left
+    const y = e.touches[0].clientY - rect.top
+
+    isSelectingRef.current = true
+    selectionStartRef.current = { x, y }
+    setSelectionRect({ x, y, width: 0, height: 0 })
+  }
+
+  const handleTouchSelectionMove = (e: React.TouchEvent) => {
+    if (!isSelectingRef.current || !selectionStartRef.current || !containerRef.current) return
+    // e.preventDefault() // Stop scrolling? Overlay has touch-action: none
+
+    const rect = containerRef.current.getBoundingClientRect()
+    const x = e.touches[0].clientX - rect.left
+    const y = e.touches[0].clientY - rect.top
+
+    const startX = selectionStartRef.current.x
+    const startY = selectionStartRef.current.y
+
+    setSelectionRect({
+      x: Math.min(startX, x),
+      y: Math.min(startY, y),
+      width: Math.abs(x - startX),
+      height: Math.abs(y - startY)
+    })
+  }
+
+  const handleTouchSelectionEnd = async (e: React.TouchEvent) => {
+    if (!isSelectingRef.current) return
+    // Logic is same as Mouse, call common handler or duplicate
+    await handleSelectionEnd()
+  }
+
   const handleSelectionEnd = async () => {
     if (!isSelectingRef.current || !selectionRect) return
 
@@ -993,6 +1034,9 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                 onMouseDown={handleSelectionStart}
                 onMouseMove={handleSelectionMove}
                 onMouseUp={handleSelectionEnd}
+                onTouchStart={handleTouchSelectionStart}
+                onTouchMove={handleTouchSelectionMove}
+                onTouchEnd={handleTouchSelectionEnd}
               >
                 {selectionRect && (
                   <div style={{
