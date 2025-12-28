@@ -46,10 +46,11 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
   } = useStorage();
 
   // Local UI state
-  const [activeTab, setActiveTab] = useState<'drill' | 'admin' | 'catalog'>('drill');
+  const [activeTab, setActiveTab] = useState<'drill' | 'admin'>('drill');
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; fileName: string } | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [showSNSSettings, setShowSNSSettings] = useState(false);
+  const [showCatalogPopup, setShowCatalogPopup] = useState(false);
 
   const [showGradingHistory, setShowGradingHistory] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -1113,7 +1114,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
               {/* Catalog Button */}
               <button
                 className="add-button"
-                onClick={() => setActiveTab('catalog')}
+                onClick={() => setShowCatalogPopup(true)}
                 style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '8px', height: 'auto', padding: '16px 20px' }}
                 title="ドリルカタログからインポート"
               >
@@ -1125,9 +1126,49 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
           </div>
         )}
 
-        {/* カタログモード */}
-        {activeTab === 'catalog' && (
-          <DrillCatalog addPDF={addPDF} />
+        {/* Catalog Popup Modal */}
+        {showCatalogPopup && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }} onClick={() => setShowCatalogPopup(false)}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '20px',
+              maxWidth: '90vw',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+              position: 'relative'
+            }} onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={() => setShowCatalogPopup(false)}
+                style={{
+                  position: 'absolute',
+                  top: '10px',
+                  right: '10px',
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: '#7f8c8d'
+                }}
+                title="閉じる"
+              >
+                ✕
+              </button>
+              <DrillCatalog addPDF={addPDF} />
+            </div>
+          </div>
         )}
 
         {/* 管理モード: SNS設定、ストレージ情報、採点履歴、広告 */}
