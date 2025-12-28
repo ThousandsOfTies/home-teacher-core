@@ -18,6 +18,7 @@ export interface PDFFileRecord {
   lastPageNumberA?: number; // 最後に開いていたページ番号 (A面)
   lastPageNumberB?: number; // 最後に開いていたページ番号 (B面)
   drawings: Record<number, string>; // ページ番号 -> JSON文字列のマップ
+  textAnnotations?: Record<number, string>; // ページ番号 -> JSON文字列のマップ（テキストアノテーション）
 }
 
 export interface SNSLinkRecord {
@@ -295,6 +296,32 @@ export async function getDrawing(id: string, pageNumber: number): Promise<string
   }
 
   return record.drawings[pageNumber] || null;
+}
+
+// テキストアノテーションを保存
+export async function saveTextAnnotation(id: string, pageNumber: number, textData: string): Promise<void> {
+  const record = await getPDFRecord(id);
+  if (!record) {
+    throw new Error('PDFレコードが見つかりません');
+  }
+
+  if (!record.textAnnotations) {
+    record.textAnnotations = {};
+  }
+  record.textAnnotations[pageNumber] = textData;
+  record.lastOpened = Date.now();
+
+  await savePDFRecord(record);
+}
+
+// テキストアノテーションを取得
+export async function getTextAnnotation(id: string, pageNumber: number): Promise<string | null> {
+  const record = await getPDFRecord(id);
+  if (!record) {
+    return null;
+  }
+
+  return record.textAnnotations?.[pageNumber] || null;
 }
 
 // IDを生成（ファイル名とタイムスタンプから）

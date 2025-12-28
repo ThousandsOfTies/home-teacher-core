@@ -1,7 +1,7 @@
 ﻿import { useEffect, useRef, useState, useCallback } from 'react'
 import { GradingResult as GradingResultType, GradingResponseResult, getAvailableModels, ModelInfo } from '../../services/api'
 import GradingResult from './GradingResult'
-import { savePDFRecord, getPDFRecord, updatePDFRecord, getAllSNSLinks, SNSLinkRecord, PDFFileRecord, saveGradingHistory, getGradingHistoryByPdfId, generateGradingHistoryId, getAppSettings, saveAppSettings, saveDrawing } from '../../utils/indexedDB'
+import { savePDFRecord, getPDFRecord, updatePDFRecord, getAllSNSLinks, SNSLinkRecord, PDFFileRecord, saveGradingHistory, getGradingHistoryByPdfId, generateGradingHistoryId, getAppSettings, saveAppSettings, saveDrawing, saveTextAnnotation } from '../../utils/indexedDB'
 import { ICON_SVG } from '../../constants/icons'
 import { DrawingPath } from '@thousands-of-ties/drawing-common'
 import PDFCanvas from './components/PDFCanvas'
@@ -459,6 +459,33 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     loadDrawings()
   }, [pdfId])
 
+  // テキストアノテーションの読み込み（PDF読み込み時）
+  useEffect(() => {
+    const loadTextAnnotations = async () => {
+      try {
+        const record = await getPDFRecord(pdfId)
+        if (!record?.textAnnotations) return
+
+        const newMap = new Map<number, TextAnnotation[]>()
+        for (const [pageStr, annotationsJson] of Object.entries(record.textAnnotations)) {
+          const page = parseInt(pageStr, 10)
+          const annotations = JSON.parse(annotationsJson as string) as TextAnnotation[]
+          if (annotations.length > 0) {
+            newMap.set(page, annotations)
+          }
+        }
+
+        if (newMap.size === 0) return
+
+        // console.log(`📝 テキストを復元: ${newMap.size}ページ`)
+        setTextAnnotations(newMap)
+      } catch (e) {
+        // console.error('テキストの読み込みに失敗:', e)
+      }
+    }
+    loadTextAnnotations()
+  }, [pdfId])
+
   // パス追加ハンドラ
   const handlePathAdd = (page: number, newPath: DrawingPath) => {
     setDrawingPaths(prev => {
@@ -737,6 +764,10 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
             : a
         )
         newMap.set(editingText.pageNum, updated)
+
+        // Save to IndexedDB
+        saveTextAnnotation(pdfId, editingText.pageNum, JSON.stringify(updated))
+
         return newMap
       })
       addStatusMessage('📝 テキストを更新しました')
@@ -764,7 +795,12 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     setTextAnnotations(prev => {
       const newMap = new Map(prev)
       const current = newMap.get(editingText.pageNum) || []
-      newMap.set(editingText.pageNum, [...current, newAnnotation])
+      const updatedAnnotations = [...current, newAnnotation]
+      newMap.set(editingText.pageNum, updatedAnnotations)
+
+      // Save to IndexedDB
+      saveTextAnnotation(pdfId, editingText.pageNum, JSON.stringify(updatedAnnotations))
+
       return newMap
     })
     addStatusMessage('📝 テキストを追加しました')
@@ -782,6 +818,10 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
       } else {
         newMap.set(pageNum, filtered)
       }
+
+      // Save to IndexedDB (empty array to clear or filtered list)
+      saveTextAnnotation(pdfId, pageNum, JSON.stringify(filtered))
+
       return newMap
     })
     addStatusMessage('🗑️ テキストを削除しました')
