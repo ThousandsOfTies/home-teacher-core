@@ -54,7 +54,6 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
   // Global Selection State
   const [selectionRect, setSelectionRect] = useState<{ x: number, y: number, width: number, height: number } | null>(null)
-  const [isPinchingOverlay, setIsPinchingOverlay] = useState(false) // For 2-finger gesture passthrough
   const isSelectingRef = useRef(false)
   const selectionStartRef = useRef<{ x: number, y: number } | null>(null)
 
@@ -92,10 +91,25 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     })
   }
 
+  /* 共通: オーバーレイの2本指ジェスチャーパススルー用ヘルパー */
+  const handleOverlayTwoFingerStart = (e: React.TouchEvent) => {
+    if (e.touches.length >= 2) {
+      // 即座にpointerEventsをnoneに設定（DOM直接操作で高速化）
+      (e.currentTarget as HTMLElement).style.pointerEvents = 'none'
+      return true
+    }
+    return false
+  }
+
+  const handleOverlayTouchEnd = (e: React.TouchEvent, defaultPointerEvents: string) => {
+    if (e.touches.length === 0) {
+      (e.currentTarget as HTMLElement).style.pointerEvents = defaultPointerEvents
+    }
+  }
+
   /* Touch Support for Selection with 2-finger gesture support */
   const overlayGestureRef = useRef<{
     type: 'selection' | 'pinch'
-    startZoom?: number
     startDist?: number
     startCenter?: { x: number, y: number }
   } | null>(null)
@@ -104,25 +118,9 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
 
-    if (e.touches.length === 2) {
-      // 2-finger gesture: pinch/pan
-      const t1 = e.touches[0]
-      const t2 = e.touches[1]
-      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY)
-      const center = {
-        x: (t1.clientX + t2.clientX) / 2,
-        y: (t1.clientY + t2.clientY) / 2
-      }
-
-      overlayGestureRef.current = {
-        type: 'pinch',
-        startDist: dist,
-        startCenter: center
-      }
-
-      // Enable passthrough so PDFPane receives the gesture
-      setIsPinchingOverlay(true)
-
+    // 2本指ジェスチャーを検出して即座にパススルー有効化
+    if (handleOverlayTwoFingerStart(e)) {
+      overlayGestureRef.current = { type: 'pinch' }
       // Cancel any ongoing selection
       isSelectingRef.current = false
       selectionStartRef.current = null
@@ -132,7 +130,6 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     if (e.touches.length !== 1) return
 
     // Single touch: start selection
-    setIsPinchingOverlay(false)
     overlayGestureRef.current = { type: 'selection' }
     const x = e.touches[0].clientX - rect.left
     const y = e.touches[0].clientY - rect.top
@@ -171,10 +168,8 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   }
 
   const handleTouchSelectionEnd = async (e: React.TouchEvent) => {
-    // Reset pinch state if no more touches
-    if (e.touches.length === 0) {
-      setIsPinchingOverlay(false)
-    }
+    // Reset pointer events using common helper
+    handleOverlayTouchEnd(e, isCtrlPressed ? 'none' : 'auto')
 
     overlayGestureRef.current = null
 
@@ -1109,8 +1104,8 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                   zIndex: 9999,
                   cursor: isCtrlPressed ? 'grab' : 'crosshair',
                   touchAction: 'none',
-                  // Ctrl押下中 or 2本指ジェスチャー中はPDFPaneにイベントを通過させる
-                  pointerEvents: (isCtrlPressed || isPinchingOverlay) ? 'none' : 'auto'
+                  // Ctrl押下中はPDFPaneにイベントを通過させる（2本指ジェスチャーはDOM操作で即座に切り替え）
+                  pointerEvents: isCtrlPressed ? 'none' : 'auto'
                 }}
                 onMouseDown={handleSelectionStart}
                 onMouseMove={handleSelectionMove}
@@ -1214,6 +1209,10 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
             {
               isTextMode && !editingText && (
                 <div
+                  ref={(el) => {
+                    // Store ref for immediate DOM manipulation
+                    if (el) (el as any).__textOverlayRef = el
+                  }}
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -1223,8 +1222,8 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                     zIndex: 100,
                     cursor: 'text',
                     touchAction: 'none',
-                    // Ctrl押下中 or 2本指ジェスチャー中はPDFPaneにイベントを通過させる
-                    pointerEvents: (isCtrlPressed || isPinchingOverlay) ? 'none' : 'auto'
+                    // Ctrl押下中はPDFPaneにイベントを通過させる
+                    pointerEvents: isCtrlPressed ? 'none' : 'auto'
                   }}
                   onClick={(e) => {
                     const rect = containerRef.current?.getBoundingClientRect()
@@ -1242,15 +1241,12 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                     handleTextClick(currentPage, normalizedX, normalizedY, e.clientX, e.clientY)
                   }}
                   onTouchStart={(e) => {
-                    // 2本指ジェスチャーを検出してパススルー有効化
-                    if (e.touches.length === 2) {
-                      setIsPinchingOverlay(true)
-                    }
+                    // 共通ヘルパーで2本指ジェスチャーを処理
+                    handleOverlayTwoFingerStart(e)
                   }}
                   onTouchEnd={(e) => {
-                    if (e.touches.length === 0) {
-                      setIsPinchingOverlay(false)
-                    }
+                    // 共通ヘルパーでタッチ終了時にパススルーを解除
+                    handleOverlayTouchEnd(e, isCtrlPressed ? 'none' : 'auto')
                   }}
                 />
               )
