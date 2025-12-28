@@ -308,9 +308,23 @@ app.post('/api/grade-work', async (req, res) => {
 
     const elapsedTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(2))
 
-    const problemWithMetadata = {
-      ...gradingData,
-      gradingSource: 'ai-simple',
+    // Normalize gradingData to always be an array of problems
+    let problems: any[] = []
+    if (Array.isArray(gradingData)) {
+      // AI returned an array of problems
+      problems = gradingData.map((p: any) => ({ ...p, gradingSource: 'ai-simple' }))
+    } else if (gradingData.problemNumber !== undefined) {
+      // AI returned a single problem object
+      problems = [{ ...gradingData, gradingSource: 'ai-simple' }]
+    } else {
+      // AI returned an object with numeric keys (e.g., {"0": {...}, "1": {...}})
+      const numericKeys = Object.keys(gradingData).filter(k => /^\d+$/.test(k))
+      if (numericKeys.length > 0) {
+        problems = numericKeys.map(k => ({ ...gradingData[k], gradingSource: 'ai-simple' }))
+      } else {
+        // Fallback: treat as single problem
+        problems = [{ ...gradingData, gradingSource: 'ai-simple' }]
+      }
     }
 
     const responseData = {
@@ -318,8 +332,8 @@ app.post('/api/grade-work', async (req, res) => {
       modelName: currentModelName,
       responseTime: elapsedTime,
       result: {
-        problems: [problemWithMetadata],
-        overallComment: gradingData.feedback
+        problems,
+        overallComment: gradingData.feedback || (problems[0] && problems[0].feedback)
       }
     }
 

@@ -395,6 +395,26 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
       // 切り抜き画像のみ使用（簡素化）
       const croppedImageData = selectionPreview
 
+      // Validate image size (minimum 50x50)
+      const img = new Image()
+      img.src = croppedImageData
+      await new Promise((resolve, reject) => {
+        img.onload = () => {
+          if (img.width < 50 || img.height < 50) {
+            setGradingError('選択範囲が小さすぎます。もう少し大きく選択してください。')
+            setIsGrading(false)
+            reject(new Error('Image too small'))
+          } else {
+            resolve(undefined)
+          }
+        }
+        img.onerror = () => {
+          setGradingError('画像の読み込みに失敗しました。')
+          setIsGrading(false)
+          reject(new Error('Image load error'))
+        }
+      })
+
       // APIに送信（簡素化：切り抜き画像のみ）
       addStatusMessage('🎯 AI採点中...')
       const { gradeWork } = await import('../../services/api')
@@ -404,12 +424,22 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
       )
 
       if (!response.success) {
+        setGradingError(response.error || "採点に失敗しました")
         throw new Error(response.error || "採点に失敗しました")
       }
 
       setGradingError(null)
-      setGradingResult({ ...response.result })
-      addStatusMessage(`✅ 採点完了 (${response.result.problems.length}問)`)
+
+      // Flatten problems if they have nested numeric keys (fallback for non-normalized server response)
+      let problems = response.result.problems
+      if (problems.length === 1 && Object.keys(problems[0]).some(k => /^\d+$/.test(k))) {
+        const nested = problems[0]
+        const numericKeys = Object.keys(nested).filter(k => /^\d+$/.test(k))
+        problems = numericKeys.map(k => nested[k])
+      }
+
+      setGradingResult({ ...response.result, problems })
+      addStatusMessage(`✅ 採点完了 (${problems.length}問)`)
 
       // 採点履歴を保存
       if (response.result.problems?.length) {
