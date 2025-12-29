@@ -9,6 +9,9 @@ import AdSlot from '../ads/AdSlot';
 import './AdminPanel.css';
 import { PREDEFINED_SNS, getSNSIcon } from '../../constants/sns';
 import DrillCatalog from '../drill/DrillCatalog';
+import { FaEarthAmericas, FaRegFilePdf } from 'react-icons/fa6';
+import { IoIosFolderOpen } from 'react-icons/io';
+import { VscDatabase } from 'react-icons/vsc';
 
 interface AdminPanelProps {
   onSelectPDF: (record: PDFFileRecord) => void;
@@ -1103,24 +1106,28 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
               <button
                 className="add-button"
                 onClick={() => handleFileSelect()}
-                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '8px', height: 'auto', padding: '16px 20px' }}
+                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', height: 'auto', padding: '20px 24px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none', color: 'white' }}
                 title="ローカルファイルを開く"
               >
-                <span style={{ fontSize: '28px' }}>📂</span>
-                <span style={{ fontSize: '18px', color: '#7f8c8d' }}>→</span>
-                <span style={{ fontSize: '28px' }}>📄</span>
+                <IoIosFolderOpen style={{ fontSize: '32px' }} />
+                <div style={{ fontSize: '24px', opacity: 0.7 }}>→</div>
+                <FaRegFilePdf style={{ fontSize: '32px' }} />
+                <div style={{ fontSize: '24px', opacity: 0.7 }}>→</div>
+                <VscDatabase style={{ fontSize: '32px' }} />
               </button>
 
               {/* Catalog Button */}
               <button
                 className="add-button"
                 onClick={() => setShowCatalogPopup(true)}
-                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '8px', height: 'auto', padding: '16px 20px' }}
+                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', height: 'auto', padding: '20px 24px', background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', border: 'none', color: 'white' }}
                 title="ドリルカタログからインポート"
               >
-                <span style={{ fontSize: '28px' }}>🌏</span>
-                <span style={{ fontSize: '18px', color: '#7f8c8d' }}>→</span>
-                <span style={{ fontSize: '28px' }}>📄</span>
+                <FaEarthAmericas style={{ fontSize: '32px' }} />
+                <div style={{ fontSize: '24px', opacity: 0.7 }}>→</div>
+                <FaRegFilePdf style={{ fontSize: '32px' }} />
+                <div style={{ fontSize: '24px', opacity: 0.7 }}>→</div>
+                <VscDatabase style={{ fontSize: '32px' }} />
               </button>
             </div>
           </div>
