@@ -585,11 +585,15 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
       // APIに送信（簡素化：切り抜き画像のみ）
       addStatusMessage('🎯 AI採点中...')
+      const startTime = Date.now()
       const { gradeWork } = await import('../../services/api')
       const response = await gradeWork(
         croppedImageData,
         selectedModel !== 'default' ? selectedModel : undefined
       )
+      const endTime = Date.now()
+      const responseTimeSeconds = ((endTime - startTime) / 1000).toFixed(1)
+      setGradingResponseTime(parseFloat(responseTimeSeconds))
 
       if (!response.success) {
         setGradingError(response.error || "採点に失敗しました")
