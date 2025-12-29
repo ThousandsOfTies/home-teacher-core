@@ -254,8 +254,7 @@ app.post('/api/grade-work', async (req, res) => {
     const currentModel = requestModel ? genAI.getGenerativeModel({ model: currentModelName }) : model
 
     // シンプルなプロンプト（切り抜き画像のみ）
-    const simplePrompt = `
-あなたは小中学生の家庭教師です。以下の画像には生徒の解答が写っています。
+    const simplePrompt = `あなたは小中学生の家庭教師です。以下の画像には生徒の解答が写っています。
 
 この画像を見て：
 1. 問題番号を特定してください（例: 1(1), 2(3) など）
@@ -263,7 +262,7 @@ app.post('/api/grade-work', async (req, res) => {
 3. 正誤判定をしてください
 4. 正解とフィードバックを提供してください
 
-日本語で回答してください。以下のJSON形式で返してください：
+【重要】以下のJSON形式のみを出力してください。前置きや説明文は絶対に含めないでください：
 {
   "problemNumber": "問題番号（例: '1(1)', '2(3)'）",
   "studentAnswer": "生徒の解答",
@@ -272,7 +271,8 @@ app.post('/api/grade-work', async (req, res) => {
   "feedback": "励ましのフィードバック",
   "explanation": "解説"
 }
-`
+
+JSONのみを出力してください。「はい」「承知しました」などの前置きは不要です。`
 
     // Extract mime type and clean base64
     const cropMatch = croppedImageData.match(/^data:(image\/(png|jpeg));base64,(.+)$/)
@@ -296,7 +296,15 @@ app.post('/api/grade-work', async (req, res) => {
       throw new Error('Empty response from Gemini')
     }
 
-    const jsonStr = responseText.replace(/```json\n?|\n?```/g, '')
+    // JSONを抽出（マークダウンコードブロック除去 + JSON部分を探す）
+    let jsonStr = responseText.replace(/```json\n?|\n?```/g, '')
+    // JSON部分を抽出（{から始まり}で終わる部分）
+    const jsonStart = jsonStr.indexOf('{')
+    const jsonEnd = jsonStr.lastIndexOf('}')
+    if (jsonStart !== -1 && jsonEnd > jsonStart) {
+      jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1)
+    }
+
     let gradingData
     try {
       gradingData = JSON.parse(jsonStr)
@@ -360,8 +368,7 @@ app.post('/api/grade-work-with-context', async (req, res) => {
     const currentModelName = requestModel || MODEL_NAME
     const currentModel = requestModel ? genAI.getGenerativeModel({ model: currentModelName }) : model
 
-    const simplePrompt = `
-あなたは小中学生の家庭教師です。以下の画像には生徒の解答が写っています。
+    const simplePrompt = `あなたは小中学生の家庭教師です。以下の画像には生徒の解答が写っています。
 
 この画像を見て：
 1. 問題番号を特定してください（例: 1(1), 2(3) など）
@@ -369,7 +376,7 @@ app.post('/api/grade-work-with-context', async (req, res) => {
 3. 正誤判定をしてください
 4. 正解とフィードバックを提供してください
 
-日本語で回答してください。以下のJSON形式で返してください：
+【重要】以下のJSON形式のみを出力してください。前置きや説明文は絶対に含めないでください：
 {
   "problemNumber": "問題番号（例: '1(1)', '2(3)'）",
   "studentAnswer": "生徒の解答",
@@ -378,7 +385,8 @@ app.post('/api/grade-work-with-context', async (req, res) => {
   "feedback": "励ましのフィードバック",
   "explanation": "解説"
 }
-`
+
+JSONのみを出力してください。「はい」「承知しました」などの前置きは不要です。`
 
     const cropMatch = croppedImageData.match(/^data:(image\/(png|jpeg));base64,(.+)$/)
     const cropData = cropMatch ? cropMatch[3] : croppedImageData.replace(/^data:image\/\w+;base64,/, '')
@@ -401,12 +409,20 @@ app.post('/api/grade-work-with-context', async (req, res) => {
       throw new Error('Empty response from Gemini')
     }
 
-    const jsonStr = responseText.replace(/```json\n?|\n?```/g, '')
+    // JSONを抽出（マークダウンコードブロック除去 + JSON部分を探す）
+    let jsonStr = responseText.replace(/```json\n?|\n?```/g, '')
+    const jsonStart = jsonStr.indexOf('{')
+    const jsonEnd = jsonStr.lastIndexOf('}')
+    if (jsonStart !== -1 && jsonEnd > jsonStart) {
+      jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1)
+    }
+
     let gradingData
     try {
       gradingData = JSON.parse(jsonStr)
     } catch (e) {
       console.error("JSON Parse Error:", e)
+      console.log("Raw Response:", responseText)
       throw new Error("Failed to parse AI response")
     }
 
