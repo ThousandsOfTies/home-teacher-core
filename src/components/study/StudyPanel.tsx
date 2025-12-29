@@ -429,17 +429,24 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   const [snsLinks, setSnsLinks] = useState<SNSLinkRecord[]>([])
   const [snsTimeLimit, setSnsTimeLimit] = useState<number>(30)
 
-  // SNSリンクの読み込み
+  // SNSリンクとアプリ設定の読み込み
   useEffect(() => {
-    const loadSNSLinks = async () => {
+    const loadSNSData = async () => {
       try {
+        // SNSリンクを読み込み
         const links = await getAllSNSLinks()
         setSnsLinks(links)
+
+        // アプリ設定を読み込み（SNS利用時間制限など）
+        const settings = await getAppSettings()
+        if (settings?.snsTimeLimitMinutes) {
+          setSnsTimeLimit(settings.snsTimeLimitMinutes)
+        }
       } catch (error) {
-        console.error('Failed to load SNS links:', error)
+        console.error('Failed to load SNS data:', error)
       }
     }
-    loadSNSLinks()
+    loadSNSData()
   }, [])
 
   // 描画パスの状態
