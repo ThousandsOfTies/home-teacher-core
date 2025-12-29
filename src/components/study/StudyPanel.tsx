@@ -429,6 +429,19 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   const [snsLinks, setSnsLinks] = useState<SNSLinkRecord[]>([])
   const [snsTimeLimit, setSnsTimeLimit] = useState<number>(30)
 
+  // SNSリンクの読み込み
+  useEffect(() => {
+    const loadSNSLinks = async () => {
+      try {
+        const links = await getAllSNSLinks()
+        setSnsLinks(links)
+      } catch (error) {
+        console.error('Failed to load SNS links:', error)
+      }
+    }
+    loadSNSLinks()
+  }, [])
+
   // 描画パスの状態
   const [drawingPaths, setDrawingPaths] = useState<Map<number, DrawingPath[]>>(new Map())
 
