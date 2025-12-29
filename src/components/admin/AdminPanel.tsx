@@ -9,8 +9,9 @@ import AdSlot from '../ads/AdSlot';
 import './AdminPanel.css';
 import { PREDEFINED_SNS, getSNSIcon } from '../../constants/sns';
 import DrillCatalog from '../drill/DrillCatalog';
-import { FaEarthAmericas, FaRegFilePdf } from 'react-icons/fa6';
+import { FaEarthAmericas } from 'react-icons/fa6';
 import { IoIosFolderOpen } from 'react-icons/io';
+import { ImFilePdf } from 'react-icons/im';
 import { VscDatabase } from 'react-icons/vsc';
 
 interface AdminPanelProps {
@@ -1076,6 +1077,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                         setDeleteConfirm({ id: record.id, fileName: record.fileName });
                       }}
                       title="削除"
+                      style={{ color: '#95a5a6' }}
                     >
                       <svg
                         width="20"
@@ -1106,28 +1108,28 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
               <button
                 className="add-button"
                 onClick={() => handleFileSelect()}
-                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', height: 'auto', padding: '20px 24px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none', color: 'white' }}
+                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', height: 'auto', padding: '20px 24px', background: 'white', border: '2px solid #bdc3c7', borderRadius: '8px' }}
                 title="ローカルファイルを開く"
               >
-                <IoIosFolderOpen style={{ fontSize: '32px' }} />
-                <div style={{ fontSize: '24px', opacity: 0.7 }}>→</div>
-                <FaRegFilePdf style={{ fontSize: '32px' }} />
-                <div style={{ fontSize: '24px', opacity: 0.7 }}>→</div>
-                <VscDatabase style={{ fontSize: '32px' }} />
+                <IoIosFolderOpen style={{ fontSize: '32px', color: '#f39c12' }} />
+                <div style={{ fontSize: '24px', color: '#2c3e50' }}>→</div>
+                <ImFilePdf style={{ fontSize: '32px', color: '#e74c3c' }} />
+                <div style={{ fontSize: '24px', color: '#2c3e50' }}>→</div>
+                <VscDatabase style={{ fontSize: '32px', color: '#34495e' }} />
               </button>
 
               {/* Catalog Button */}
               <button
                 className="add-button"
                 onClick={() => setShowCatalogPopup(true)}
-                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', height: 'auto', padding: '20px 24px', background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', border: 'none', color: 'white' }}
+                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', height: 'auto', padding: '20px 24px', background: 'white', border: '2px solid #bdc3c7', borderRadius: '8px' }}
                 title="ドリルカタログからインポート"
               >
-                <FaEarthAmericas style={{ fontSize: '32px' }} />
-                <div style={{ fontSize: '24px', opacity: 0.7 }}>→</div>
-                <FaRegFilePdf style={{ fontSize: '32px' }} />
-                <div style={{ fontSize: '24px', opacity: 0.7 }}>→</div>
-                <VscDatabase style={{ fontSize: '32px' }} />
+                <FaEarthAmericas style={{ fontSize: '32px', color: '#3498db' }} />
+                <div style={{ fontSize: '24px', color: '#2c3e50' }}>→</div>
+                <ImFilePdf style={{ fontSize: '32px', color: '#e74c3c' }} />
+                <div style={{ fontSize: '24px', color: '#2c3e50' }}>→</div>
+                <VscDatabase style={{ fontSize: '32px', color: '#34495e' }} />
               </button>
             </div>
           </div>

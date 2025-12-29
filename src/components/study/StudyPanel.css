@@ -110,14 +110,14 @@
    Let's try color: inherit or standard text color suitable for light background. 
 */
 .toolbar button.active {
-  background-color: #F1F8E9;
-  /* Light Green 100-ish */
+  background-color: #C8E6C9;
+  /* Light Green 200 - more visible */
   color: inherit;
   /* Keep original color (e.g. for pen) */
-  border-color: #81C784;
-  /* Lighter green border */
+  border-color: #66BB6A;
+  /* Medium green border */
   transform: scale(1.05);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(102, 187, 106, 0.3);
 }
 
 
