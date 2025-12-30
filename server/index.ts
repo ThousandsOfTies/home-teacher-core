@@ -125,8 +125,18 @@ app.post('/api/grade-work', async (req, res) => {
   "isCorrect": true または false,
   "correctAnswer": "正解",
   "feedback": "励ましのフィードバック",
-  "explanation": "解説"
+  "explanation": "解説",
+  "explanationSvg": "解説を補足するSVGコード（必要な場合のみ。不要ならnull）"
 }
+
+
+【SVG生成ルール】（必要な場合のみ）
+・解説に図解（図形、グラフ、数直線など）があると分かりやすい場合は、シンプルなSVGコードを生成してください。
+・複数の図が必要な場合は、1つのSVG内にレイアウト（左右や上下に配置）してまとめてください。
+・解説テキスト内では「図の左側」「図の右側」のように参照してください。
+・SVGタグのみを含めてください（\`\`\`xmlなどは不要）。
+・レスポンシブに表示できるよう、width/height属性は指定せず、viewBoxを適切に設定してください。
+・色は #333 (黒), #e74c3c (赤/強調), #3498db (青/補助) などを使い分けてください。
 
 JSONのみを出力してください。「はい」「承知しました」などの前置きは不要です。`
 
@@ -153,8 +163,8 @@ JSONのみを出力してください。「はい」「承知しました」な�
     }
 
     // JSONを抽出（マークダウンコードブロック除去 + JSON部分を探す）
-    // 開始タグ (```json など) と終了タグ (```) の両方を削除
-    let jsonStr = responseText.replace(/```\w*\s*/g, '').replace(/```/g, '').trim()
+    // 開始タグ (```json など) と終了タグ(```) の両方を削除
+    let jsonStr = responseText.replace(/```\w *\s * /g, '').replace(/```/g, '').trim()
 
     // JSON部分を抽出（オブジェクト {} または 配列 [] を検出）
     const firstBrace = jsonStr.indexOf('{')
@@ -220,7 +230,7 @@ JSONのみを出力してください。「はい」「承知しました」な�
       }
     }
 
-    console.log(`Grading complete. Problem: ${gradingData.problemNumber}, Correct: ${gradingData.isCorrect}`)
+    console.log(`Grading complete.Problem: ${gradingData.problemNumber}, Correct: ${gradingData.isCorrect}`)
     res.json(responseData)
 
   } catch (error) {

@@ -292,3 +292,21 @@
   height: 40px;
   transition: fill 0.2s ease;
 }
+
+.explanation-svg-container {
+  margin-top: 12px;
+  padding: 16px;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+.explanation-svg-container svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}

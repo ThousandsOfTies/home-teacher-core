@@ -293,6 +293,12 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
                     <div className="explanation">
                       <strong>解説:</strong>
                       <p>{problem.explanation}</p>
+                      {problem.explanationSvg && (
+                        <div
+                          className="explanation-svg-container"
+                          dangerouslySetInnerHTML={{ __html: problem.explanationSvg }}
+                        />
+                      )}
                     </div>
                   )}
 
