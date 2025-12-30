@@ -5,6 +5,53 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 
 dotenv.config()
 
+// 文字列の正規化と一致判定を行う関数
+function validateAndOverrideGrading(student: string, correct: string): boolean {
+  if (!student || !correct) return false;
+
+  const normalize = (str: string) => {
+    return str
+      .trim()
+      // 全角英数字を半角に
+      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+      // 不要な空白を削除
+      .replace(/\s+/g, '')
+      // 文末の句読点や「です」「ます」を削除（簡易的）
+      .replace(/[、。\.．]$/, '')
+      .replace(/(です|ます|だ)$/, '')
+      // 単位の揺れを吸収（一旦削除して数値のみ比較する戦略もアリだが、ここでは簡易正規化）
+      .toLowerCase();
+  };
+
+  const normStudent = normalize(student);
+  const normCorrect = normalize(correct);
+
+  // 完全一致
+  if (normStudent === normCorrect) return true;
+
+  // 数値としての比較（"40" と "40.0" など）
+  const numStudent = parseFloat(normStudent);
+  const numCorrect = parseFloat(normCorrect);
+  if (!isNaN(numStudent) && !isNaN(numCorrect) && Math.abs(numStudent - numCorrect) < 0.0001) {
+    return true;
+  }
+
+  // "40" と "40度" のような包含関係（正解が短い数字で、生徒が単位をつけている場合など）
+  // ただし逆（正解"40度"、生徒"40"）は文脈によるため慎重に。
+  // ここでは「正解」が「生徒の解答」に含まれている、またはその逆で、かつ数値が含まれている場合を救済
+  if ((normStudent.includes(normCorrect) || normCorrect.includes(normStudent)) && !isNaN(numCorrect)) {
+    // 数字が含まれていて、かつ包含関係にあるならOKとする（危険かもしれないが40と40度は救いたい）
+    // いや、 "140" と "40" がマッチしてしまうのを防ぐ必要がある。
+    // ここはシンプルに「単位を除去して一致するか」を見る
+    const removeUnit = (s: string) => s.replace(/[^0-9\.]/g, '');
+    if (removeUnit(normStudent) === removeUnit(normCorrect) && removeUnit(normStudent).length > 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 const app = express()
 const port = process.env.PORT || 3003
 
@@ -219,6 +266,20 @@ JSONのみを出力してください。「はい」「承知しました」な�
         problems = [{ ...gradingData, gradingSource: 'ai-simple' }]
       }
     }
+
+    // AIの判定結果をサーバーサイドで検証・オーバーライド
+    problems = problems.map(problem => {
+      const { studentAnswer, correctAnswer, isCorrect } = problem
+
+      // もしAIが不正解と判定していても、文字列として一致していれば正解に強制変更
+      if (!isCorrect && studentAnswer && correctAnswer) {
+        if (validateAndOverrideGrading(studentAnswer, correctAnswer)) {
+          console.log(`[Override] AI judged incorrect, but server validation matched. Force CORRECT. Answer: "${studentAnswer}"`)
+          return { ...problem, isCorrect: true, gradingSource: 'server-override' }
+        }
+      }
+      return problem
+    })
 
     const responseData = {
       success: true,
