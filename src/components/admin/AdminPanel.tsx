@@ -60,11 +60,9 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [showStorageInfo, setShowStorageInfo] = useState(false);
-  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [snsTimeLimit, setSnsTimeLimit] = useState<number>(30); // デフォルト30分
   const [snsTimeLimitInput, setSnsTimeLimitInput] = useState<string>('30'); // 入力フィールド用
   const [notificationEnabled, setNotificationEnabled] = useState<boolean>(false); // 通知の有効/無効
-  const [tempNotificationEnabled, setTempNotificationEnabled] = useState<boolean>(false); // 一時的な通知設定（編集中）
 
   // Load data on mount
   useEffect(() => {
@@ -85,14 +83,12 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
       setSnsTimeLimit(settings.snsTimeLimitMinutes);
       setSnsTimeLimitInput(String(settings.snsTimeLimitMinutes));
       setNotificationEnabled(settings.notificationEnabled);
-      setTempNotificationEnabled(settings.notificationEnabled);
     } catch (error) {
       console.error('Failed to load settings:', error);
       // エラーの場合はデフォルト値を使用
       setSnsTimeLimit(30);
       setSnsTimeLimitInput('30');
       setNotificationEnabled(false);
-      setTempNotificationEnabled(false);
       // データベースを再作成する必要がある場合
       if (error instanceof Error && error.message.includes('object stores was not found')) {
         console.log('⚠️ データベースの再作成が必要です。ブラウザをリロードしてください。');
@@ -146,44 +142,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
     }
   };
 
-  // 通知設定を開く（tempに現在の値をコピー）
-  const openNotificationSettings = () => {
-    setTempNotificationEnabled(notificationEnabled);
-    setShowNotificationSettings(true);
-  };
 
-  // 通知設定を保存
-  const saveNotificationSettings = async () => {
-    try {
-      // 通知を有効にする場合は許可をリクエスト
-      if (tempNotificationEnabled && notificationPermission !== 'granted') {
-        await requestNotificationPermission();
-        // 許可されなかった場合は保存せずに終了
-        if (Notification.permission !== 'granted') {
-          return;
-        }
-      }
-
-      // 設定を保存
-      await saveAppSettings({
-        id: 'app-settings',
-        snsTimeLimitMinutes: snsTimeLimit,
-        notificationEnabled: tempNotificationEnabled
-      });
-      setNotificationEnabled(tempNotificationEnabled);
-      setShowNotificationSettings(false);
-    } catch (error) {
-      console.error('Failed to save notification settings:', error);
-      setErrorMessage('通知設定の保存に失敗しました');
-    }
-  };
-
-
-  // 通知設定をキャンセル
-  const cancelNotificationSettings = () => {
-    setTempNotificationEnabled(notificationEnabled);
-    setShowNotificationSettings(false);
-  };
 
   // 通知許可をリクエスト
   const requestNotificationPermission = async () => {
@@ -357,7 +316,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
               overflowY: 'auto',
               padding: '16px 24px'
             }}>
-              {/* 時間制限設定 */}
+              {/* 時間制限設定 & 通知設定 統合セクション */}
               <div style={{
                 marginBottom: '20px',
                 padding: '16px',
@@ -365,49 +324,122 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                 borderRadius: '8px',
                 backgroundColor: '#f0f8ff'
               }}>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  color: '#2c3e50'
+                {/* 1行目: 時間制限 */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '16px'
                 }}>
-                  ⏱️ SNS利用時間制限
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <input
-                    type="number"
-                    min="1"
-                    max="120"
-                    value={snsTimeLimitInput}
-                    onChange={(e) => setSnsTimeLimitInput(e.target.value)}
-                    onBlur={(e) => {
-                      const value = parseInt(e.target.value);
-                      if (isNaN(value) || value < 1) {
-                        setSnsTimeLimit(1);
-                        setSnsTimeLimitInput('1');
-                      } else if (value > 120) {
-                        setSnsTimeLimit(120);
-                        setSnsTimeLimitInput('120');
+                  <label style={{
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: '#2c3e50',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <span>⏱️</span>
+                    <span>SNS利用時間制限</span>
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="number"
+                      min="1"
+                      max="120"
+                      value={snsTimeLimitInput}
+                      onChange={(e) => setSnsTimeLimitInput(e.target.value)}
+                      onBlur={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (isNaN(value) || value < 1) {
+                          setSnsTimeLimit(1);
+                          setSnsTimeLimitInput('1');
+                        } else if (value > 120) {
+                          setSnsTimeLimit(120);
+                          setSnsTimeLimitInput('120');
+                        } else {
+                          setSnsTimeLimit(value);
+                          setSnsTimeLimitInput(String(value));
+                        }
+                      }}
+                      style={{
+                        width: '60px',
+                        padding: '6px',
+                        fontSize: '16px',
+                        border: '2px solid #bdc3c7',
+                        borderRadius: '6px',
+                        textAlign: 'center'
+                      }}
+                    />
+                    <span style={{ fontSize: '14px', color: '#7f8c8d' }}>分</span>
+                  </div>
+                </div>
+
+                {/* 2行目: 通知トグル */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingTop: '12px',
+                  borderTop: '1px solid #dcdcdc'
+                }}>
+                  <label style={{
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: '#2c3e50',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <span>🔔</span>
+                    <span>時間切れ時に通知</span>
+                  </label>
+
+                  {/* トグルスイッチ */}
+                  <div
+                    onClick={async () => {
+                      const newValue = !notificationEnabled;
+                      if (newValue) {
+                        await requestNotificationPermission();
+                        // ユーザーが拒否した場合はONにしない
+                        if (Notification.permission === 'granted') {
+                          setNotificationEnabled(true);
+                        }
                       } else {
-                        setSnsTimeLimit(value);
-                        setSnsTimeLimitInput(String(value));
+                        setNotificationEnabled(false);
                       }
                     }}
                     style={{
-                      width: '80px',
-                      padding: '8px',
-                      fontSize: '16px',
-                      border: '2px solid #bdc3c7',
-                      borderRadius: '6px',
-                      textAlign: 'center'
+                      width: '44px',
+                      height: '24px',
+                      backgroundColor: notificationEnabled ? '#27ae60' : '#bdc3c7',
+                      borderRadius: '12px',
+                      position: 'relative',
+                      transition: 'background-color 0.2s ease',
+                      cursor: 'pointer',
+                      flexShrink: 0
                     }}
-                  />
-                  <span style={{ fontSize: '14px', color: '#7f8c8d' }}>分</span>
+                  >
+                    <div style={{
+                      width: '18px',
+                      height: '18px',
+                      backgroundColor: 'white',
+                      borderRadius: '50%',
+                      position: 'absolute',
+                      top: '3px',
+                      left: notificationEnabled ? '23px' : '3px',
+                      transition: 'left 0.2s ease',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                    }} />
+                  </div>
                 </div>
-                <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#7f8c8d' }}>
-                  時間が経過すると警告が繰り返し表示されます
-                </p>
+
+                {/* 通知許可状態の警告表示 (必要な場合のみ) */}
+                {notificationEnabled && notificationPermission === 'denied' && (
+                  <div style={{ marginTop: '8px', fontSize: '11px', color: '#e74c3c' }}>
+                    ⚠️ ブラウザの通知がブロックされています。設定を確認してください。
+                  </div>
+                )}
               </div>
 
               {PREDEFINED_SNS.map((sns) => {
@@ -696,192 +728,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
         </div>
       )}
 
-      {showNotificationSettings && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.7)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '12px',
-            maxWidth: '500px',
-            maxHeight: '80vh',
-            width: '90%',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            {/* ヘッダー（固定） */}
-            <div style={{ padding: '24px 24px 16px 24px', borderBottom: '1px solid #ecf0f1' }}>
-              <h3 style={{ margin: '0 0 8px 0', color: '#2c3e50', fontSize: '20px' }}>
-                🔔 Notification (for 👨‍👩‍👧‍👦)
-              </h3>
-              <p style={{ margin: 0, color: '#7f8c8d', fontSize: '14px' }}>
-                ⚠️ iOS/iPadOSの場合、ホーム画面に追加したアプリでのみ通知が動作します
-              </p>
-            </div>
 
-            {/* コンテンツ（スクロール可能） */}
-            <div style={{
-              flex: 1,
-              overflowY: 'auto',
-              padding: '16px 24px'
-            }}>
-              {/* トグルスイッチ */}
-              <div style={{
-                padding: '16px',
-                border: '2px solid #3498db',
-                borderRadius: '8px',
-                backgroundColor: tempNotificationEnabled ? '#f0f8ff' : 'white',
-                transition: 'all 0.2s ease'
-              }}>
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer'
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      color: '#2c3e50',
-                      marginBottom: '4px'
-                    }}>
-                      通知を有効にする
-                    </div>
-                    <div style={{
-                      fontSize: '13px',
-                      color: '#7f8c8d'
-                    }}>
-                      時間切れの際に通知を送信します
-                    </div>
-                  </div>
-                  {/* トグルスイッチ */}
-                  <div
-                    onClick={() => setTempNotificationEnabled(!tempNotificationEnabled)}
-                    style={{
-                      width: '50px',
-                      height: '28px',
-                      backgroundColor: tempNotificationEnabled ? '#27ae60' : '#bdc3c7',
-                      borderRadius: '14px',
-                      position: 'relative',
-                      transition: 'background-color 0.2s ease',
-                      cursor: 'pointer',
-                      marginLeft: '12px'
-                    }}
-                  >
-                    <div style={{
-                      width: '22px',
-                      height: '22px',
-                      backgroundColor: 'white',
-                      borderRadius: '50%',
-                      position: 'absolute',
-                      top: '3px',
-                      left: tempNotificationEnabled ? '25px' : '3px',
-                      transition: 'left 0.2s ease',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                    }} />
-                  </div>
-                </label>
-              </div>
-
-              {/* 通知許可状態の表示 */}
-              {notificationPermission === 'granted' && (
-                <div style={{
-                  marginTop: '12px',
-                  padding: '12px',
-                  backgroundColor: '#d4edda',
-                  borderRadius: '8px',
-                  border: '1px solid #c3e6cb'
-                }}>
-                  <div style={{ color: '#155724', fontSize: '13px' }}>
-                    ✅ ブラウザの通知許可: 有効
-                  </div>
-                </div>
-              )}
-
-              {notificationPermission === 'default' && (
-                <div style={{
-                  marginTop: '12px',
-                  padding: '12px',
-                  backgroundColor: '#fff3cd',
-                  borderRadius: '8px',
-                  border: '1px solid #ffeeba'
-                }}>
-                  <div style={{ color: '#856404', fontSize: '13px' }}>
-                    ⚠️ 通知を有効にする際、ブラウザの許可が必要です
-                  </div>
-                </div>
-              )}
-
-              {notificationPermission === 'denied' && (
-                <div style={{
-                  marginTop: '12px',
-                  padding: '12px',
-                  backgroundColor: '#f8d7da',
-                  borderRadius: '8px',
-                  border: '1px solid #f5c6cb'
-                }}>
-                  <div style={{ color: '#721c24', fontWeight: '600', marginBottom: '4px', fontSize: '13px' }}>
-                    ❌ ブラウザの通知許可: 拒否されています
-                  </div>
-                  <div style={{ color: '#721c24', fontSize: '12px' }}>
-                    iPadの設定 → Safari → TutoTuto から通知を許可してください
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* フッター（固定） */}
-            <div style={{
-              padding: '16px 24px',
-              borderTop: '1px solid #ecf0f1',
-              display: 'flex',
-              gap: '12px',
-              justifyContent: 'flex-end'
-            }}>
-              <button
-                onClick={cancelNotificationSettings}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#95a5a6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveNotificationSettings}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#27ae60',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {currentError && (
         <div style={{
@@ -1328,7 +1175,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                 </div>
               )}
 
-              {/* SNS Links Section */}
+              {/* SNS Links Section - Merged with Notification */}
               <button
                 onClick={() => setShowSNSSettings(true)}
                 style={{
@@ -1355,47 +1202,11 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                   e.currentTarget.style.borderColor = '#ecf0f1';
                   e.currentTarget.style.transform = 'translateY(0)';
                 }}
-                title="リンク設定"
+                title="リンクと通知の設定"
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <span style={{ fontSize: '24px' }}>❤️</span>
-                  <span>Links ({snsLinks.length})</span>
-                </div>
-                <span style={{ fontSize: '20px', opacity: 0.5 }}>↗</span>
-              </button>
-
-              {/* 通知設定セクション */}
-              <button
-                onClick={openNotificationSettings}
-                style={{
-                  width: '100%',
-                  backgroundColor: 'white',
-                  borderRadius: '12px',
-                  padding: '20px',
-                  border: '2px solid #ecf0f1',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '12px',
-                  fontSize: '18px',
-                  fontWeight: '600',
-                  color: '#2c3e50',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#e74c3c';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#ecf0f1';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-                title="通知設定"
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '24px' }}>🔔</span>
-                  <span>Notification (for 👨‍👩‍👧‍👦)</span>
+                  <span>Links & Notification</span>
                 </div>
                 <span style={{ fontSize: '20px', opacity: 0.5 }}>↗</span>
               </button>
@@ -1405,10 +1216,10 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
             <div style={{ marginTop: '20px' }}>
               <AdSlot slot="admin-sidebar" />
             </div>
-          </div >
+          </div>
         )
         }
-      </div >
+      </div>
 
       {/* 採点履歴モーダル */}
       {
