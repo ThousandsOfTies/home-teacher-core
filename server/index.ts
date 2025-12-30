@@ -154,10 +154,28 @@ JSONのみを出力してください。「はい」「承知しました」な�
 
     // JSONを抽出（マークダウンコードブロック除去 + JSON部分を探す）
     // 開始タグ (```json など) と終了タグ (```) の両方を削除
-    let jsonStr = responseText.replace(/```\w*\s*/g, '').replace(/```/g, '')
-    // JSON部分を抽出（{から始まり}で終わる部分）
-    const jsonStart = jsonStr.indexOf('{')
-    const jsonEnd = jsonStr.lastIndexOf('}')
+    let jsonStr = responseText.replace(/```\w*\s*/g, '').replace(/```/g, '').trim()
+
+    // JSON部分を抽出（オブジェクト {} または 配列 [] を検出）
+    const firstBrace = jsonStr.indexOf('{')
+    const firstBracket = jsonStr.indexOf('[')
+
+    let jsonStart: number
+    let jsonEnd: number
+
+    if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
+      // 配列が先に見つかった場合
+      jsonStart = firstBracket
+      jsonEnd = jsonStr.lastIndexOf(']')
+    } else if (firstBrace !== -1) {
+      // オブジェクトが先に見つかった場合
+      jsonStart = firstBrace
+      jsonEnd = jsonStr.lastIndexOf('}')
+    } else {
+      jsonStart = -1
+      jsonEnd = -1
+    }
+
     if (jsonStart !== -1 && jsonEnd > jsonStart) {
       jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1)
     }
