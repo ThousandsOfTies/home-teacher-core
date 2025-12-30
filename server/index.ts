@@ -153,7 +153,8 @@ JSONのみを出力してください。「はい」「承知しました」な�
     }
 
     // JSONを抽出（マークダウンコードブロック除去 + JSON部分を探す）
-    let jsonStr = responseText.replace(/```\w*\s*/g, '')
+    // 開始タグ (```json など) と終了タグ (```) の両方を削除
+    let jsonStr = responseText.replace(/```\w*\s*/g, '').replace(/```/g, '')
     // JSON部分を抽出（{から始まり}で終わる部分）
     const jsonStart = jsonStr.indexOf('{')
     const jsonEnd = jsonStr.lastIndexOf('}')
