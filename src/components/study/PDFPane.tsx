@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react'
 import { PDFFileRecord } from '../../utils/indexedDB'
 import PDFCanvas, { PDFCanvasHandle } from './components/PDFCanvas'
-import { DrawingPath, DrawingCanvas, useDrawing, useZoomPan, doPathsIntersect, isScratchPattern } from '@thousands-of-ties/drawing-common'
+import { DrawingPath, DrawingCanvas, useDrawing, useZoomPan, doPathsIntersect, isScratchPattern, useLassoSelection } from '@thousands-of-ties/drawing-common'
 import { RENDER_SCALE } from '../../constants/pdf'
 import './StudyPanel.css'
 
@@ -328,6 +328,11 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // console.log('🚫 PDFPane: Ignoring scratch path from permanent storage')
                 return
             }
+            // Check for lasso (closed loop) selection first
+            if (checkForLasso(path)) {
+                // console.log('🔵 PDFPane: Lasso selection activated')
+                return // Don't add lasso path as a drawing
+            }
             onPathAdd(path)
         },
         onScratchComplete: (scratchPath) => {
@@ -345,6 +350,18 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             }
         }
     })
+
+    // Lasso Selection Hook
+    const {
+        selectionState,
+        hasSelection,
+        checkForLasso,
+        isPointInSelection,
+        startDrag,
+        drag,
+        endDrag,
+        clearSelection
+    } = useLassoSelection(drawingPaths, onPathsChange)
 
     // Undo via Parent
     // Note: PDFPaneHandle.undo calls this.
@@ -474,9 +491,27 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     const x = (e.clientX - rect.left - panOffset.x) / zoom
                     const y = (e.clientY - rect.top - panOffset.y) / zoom
 
+                    // 正規化座標に変換
+                    const cw = canvasSize?.width || canvasRef.current?.width || 1
+                    const ch = canvasSize?.height || canvasRef.current?.height || 1
+                    const normalizedPoint = { x: x / cw, y: y / ch }
+
                     if (tool === 'pen') {
+                        // 選択中の場合
+                        if (hasSelection) {
+                            if (isPointInSelection(normalizedPoint)) {
+                                // バウンディングボックス内 → ドラッグ開始
+                                startDrag(normalizedPoint)
+                                return
+                            } else {
+                                // バウンディングボックス外 → 選択解除
+                                clearSelection()
+                            }
+                        }
                         startDrawing(x, y)
                     } else if (tool === 'eraser') {
+                        // 消しゴム時も選択を解除
+                        if (hasSelection) clearSelection()
                         // console.log('🧹 Eraser MouseDown:', { x, y, pathsCount: drawingPathsRef.current.length })
                         handleErase(x, y)
                     } else if (tool === 'none') {
@@ -498,6 +533,17 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 const x = (e.clientX - rect.left - panOffset.x) / zoom
                 const y = (e.clientY - rect.top - panOffset.y) / zoom
 
+                // 正規化座標に変換
+                const cw = canvasSize?.width || canvasRef.current?.width || 1
+                const ch = canvasSize?.height || canvasRef.current?.height || 1
+                const normalizedPoint = { x: x / cw, y: y / ch }
+
+                // 選択ドラッグ中
+                if (selectionState?.isDragging) {
+                    drag(normalizedPoint)
+                    return
+                }
+
                 if (tool === 'pen' && isDrawingInternal) {
                     draw(x, y)
                 } else if (tool === 'eraser') {
@@ -511,10 +557,19 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
             }}
             onMouseUp={(e) => {
+                // 選択ドラッグ終了
+                if (selectionState?.isDragging) {
+                    endDrag()
+                    return
+                }
                 stopDrawing()
                 stopPanning()
             }}
             onMouseLeave={() => {
+                // 選択ドラッグ終了
+                if (selectionState?.isDragging) {
+                    endDrag()
+                }
                 stopDrawing()
                 stopPanning()
                 setEraserCursorPos(null)
@@ -769,6 +824,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         paths={drawingPaths}
                         isCtrlPressed={isCtrlPressed}
                         stylusOnly={false}
+                        selectionState={selectionState}
                         onPathAdd={() => { }} // Interaction handled by useDrawing hook in PDFPane
                     />
                 </div>
