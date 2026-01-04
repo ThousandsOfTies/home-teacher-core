@@ -28,7 +28,7 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
     problem.problemNumber !== null && problem.isCorrect !== null
   ) || []
 
-  // iOS Safari対応: ネイティブイベントリスナーでタッチをブロック
+  // iOS Safari対応: ネイティブイベントリスナーでタッチ・ポインターイベントをブロック
   // ただしパネル内のタッチは許可（ボタンやドラッグ操作のため）
   useEffect(() => {
     const overlay = overlayRef.current
@@ -49,15 +49,33 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
       e.stopPropagation()
     }
 
+    // Apple Pencil対応: PointerEventもブロック（pointerType: "pen"）
+    const blockPointer = (e: PointerEvent) => {
+      // パネル内のポインターは許可（ボタンクリック、ドラッグ等）
+      if (panel && panel.contains(e.target as Node)) {
+        return // パネル内のポインターは許可
+      }
+      // オーバーレイ直接のポインターはPDFへの伝播をブロック
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
     // passive: false で登録することでpreventDefaultが確実に動作
     overlay.addEventListener('touchstart', blockTouch, { passive: false, capture: true })
     overlay.addEventListener('touchmove', blockTouch, { passive: false, capture: true })
     overlay.addEventListener('touchend', blockTouch, { passive: false, capture: true })
+    // Apple Pencil（PointerEvent）対応
+    overlay.addEventListener('pointerdown', blockPointer, { passive: false, capture: true })
+    overlay.addEventListener('pointermove', blockPointer, { passive: false, capture: true })
+    overlay.addEventListener('pointerup', blockPointer, { passive: false, capture: true })
 
     return () => {
       overlay.removeEventListener('touchstart', blockTouch, true)
       overlay.removeEventListener('touchmove', blockTouch, true)
       overlay.removeEventListener('touchend', blockTouch, true)
+      overlay.removeEventListener('pointerdown', blockPointer, true)
+      overlay.removeEventListener('pointermove', blockPointer, true)
+      overlay.removeEventListener('pointerup', blockPointer, true)
     }
   }, [])
 
@@ -167,9 +185,9 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
         e.stopPropagation()
         e.preventDefault()
       }}
-      onPointerDown={(e) => e.stopPropagation()}
-      onPointerMove={(e) => e.stopPropagation()}
-      onPointerUp={(e) => e.stopPropagation()}
+      onPointerDown={(e) => { e.stopPropagation(); e.preventDefault() }}
+      onPointerMove={(e) => { e.stopPropagation(); e.preventDefault() }}
+      onPointerUp={(e) => { e.stopPropagation(); e.preventDefault() }}
     >
       <div
         ref={panelRef}
@@ -207,12 +225,15 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
         }}
         onPointerDown={(e) => {
           e.stopPropagation()
+          e.preventDefault()
         }}
         onPointerMove={(e) => {
           e.stopPropagation()
+          e.preventDefault()
         }}
         onPointerUp={(e) => {
           e.stopPropagation()
+          e.preventDefault()
         }}
       >
         <div

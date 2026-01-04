@@ -592,8 +592,13 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
         selectedModel !== 'default' ? selectedModel : undefined
       )
       const endTime = Date.now()
-      const responseTimeSeconds = ((endTime - startTime) / 1000).toFixed(1)
-      setGradingResponseTime(parseFloat(responseTimeSeconds))
+      const clientResponseTimeSeconds = parseFloat(((endTime - startTime) / 1000).toFixed(1))
+      // サーバーからの計測時間があればそれを使用、なければクライアント側計測時間を使用
+      setGradingResponseTime(response.responseTime ?? clientResponseTimeSeconds)
+      // サーバーから返されたモデル名を設定
+      if (response.modelName) {
+        setGradingModelName(response.modelName)
+      }
 
       if (!response.success) {
         setGradingError(response.error || "採点に失敗しました")
