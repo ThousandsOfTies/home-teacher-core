@@ -81,8 +81,13 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         resetZoom,
         setZoom,
         setPanOffset,
-        fitToScreen
-    } = useZoomPan(containerRef, RENDER_SCALE, 0.1, () => { })
+        fitToScreen,
+        applyPanLimit,
+        getFitToScreenZoom,
+        overscroll,
+        setOverscroll,
+        resetOverscroll
+    } = useZoomPan(containerRef, RENDER_SCALE, 0.1, () => { }, canvasRef)
 
     // ページナビゲーション
     const numPages = pdfDoc ? pdfDoc.numPages : 0
@@ -100,6 +105,44 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     const goToNext10Pages = () => {
         onPageChange(Math.min(numPages, pageNum + 10))
     }
+
+    // Ref for stable access to overscroll in callbacks
+    const overscrollRef = useRef(overscroll)
+    useEffect(() => {
+        overscrollRef.current = overscroll
+    }, [overscroll])
+
+    const SWIPE_THRESHOLD = window.innerHeight * 0.08
+
+    // スワイプ判定と完了処理
+    // useCallbackで定義し、依存配列を空にしてuseEffectから安全に呼べるようにする
+    // （値はrefから取る）
+    const checkAndFinishSwipe = React.useCallback(() => {
+        const currentOverscroll = overscrollRef.current
+
+        if (currentOverscroll.y > SWIPE_THRESHOLD) {
+            if (pageNum > 1) {
+                goToPrevPage()
+            }
+        } else if (currentOverscroll.y < -SWIPE_THRESHOLD) {
+            if (pageNum < numPages) {
+                goToNextPage()
+            }
+        }
+        resetOverscroll()
+    }, [pageNum, numPages, onPageChange, resetOverscroll]) // pageNumなどは変わるので依存に入れる
+
+    // グローバルなMouseUp監視（ドラッグ中に外に出た場合などを救済）
+    useEffect(() => {
+        const handleGlobalMouseUp = () => {
+            if (isPanning) {
+                stopPanning()
+                checkAndFinishSwipe()
+            }
+        }
+        window.addEventListener('mouseup', handleGlobalMouseUp)
+        return () => window.removeEventListener('mouseup', handleGlobalMouseUp)
+    }, [isPanning, checkAndFinishSwipe])
 
     // キャンバスサイズの状態（DrawingCanvas との同期用）
     const [canvasSize, setCanvasSize] = React.useState<{ width: number, height: number } | null>(null)
@@ -476,9 +519,15 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // パン中はgrabbing、Ctrl押下中はgrab（全モード共通）
                 cursor: isPanning ? 'grabbing' : (isCtrlPressed ? 'grab' : 'default')
             }}
-            onMouseDown={(e) => {
-                // Ignore events on pager bar
+            onPointerDown={(e) => {
+                // タッチ操作はonTouchStartで処理（マルチタッチ対応のため）
+                if (e.pointerType === 'touch') return
+
+                // Ignore events on pager bar (Do this BEFORE capture)
                 if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
+
+                // マウス/ペンの場合はポインタキャプチャ（ウィンドウ外操作のため）
+                (e.currentTarget as Element).setPointerCapture(e.pointerId)
 
                 // Ctrl+ドラッグでパン（どのモードでも有効）
                 if (isCtrlPressed) {
@@ -520,13 +569,26 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     }
                 }
             }}
-            onMouseMove={(e) => {
+            onPointerMove={(e) => {
+                // タッチ操作はonTouchMoveで処理
+                if (e.pointerType === 'touch') return
+
+                // Apple Pencil Pro hover support
+                if (tool === 'eraser' && e.pointerType === 'pen') {
+                    const rect = containerRef.current?.getBoundingClientRect()
+                    if (rect) {
+                        setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+                    }
+                }
+
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
                 // パン中またはCtrl押下中はパン処理
                 if (isPanning || isCtrlPressed) {
                     doPanning(e)
+                    // MouseUp判定はglobalで行うが、pointer captureしていればここで完了判定しても良いかも？
+                    // しかしMouseUpイベントで判定しているので、ここでは座標更新のみ
                     return
                 }
 
@@ -550,13 +612,22 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     if (e.buttons === 1) {
                         handleErase(x, y)
                     }
-                    setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+                    if (e.pointerType !== 'pen' || tool === 'eraser') { // ペン以外、または消しゴムモードならカーソル更新
+                        setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+                    }
                 } else if (tool === 'none' && e.buttons === 1) {
                     // 採点モードでドラッグ時もパン
                     doPanning(e)
                 }
             }}
-            onMouseUp={(e) => {
+            onPointerUp={(e) => {
+                if (e.pointerType === 'touch') return
+
+                // リリースキャプチャ
+                if ((e.currentTarget as Element).hasPointerCapture(e.pointerId)) {
+                    (e.currentTarget as Element).releasePointerCapture(e.pointerId)
+                }
+
                 // 選択ドラッグ終了
                 if (selectionState?.isDragging) {
                     endDrag()
@@ -564,25 +635,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
                 stopDrawing()
                 stopPanning()
-            }}
-            onMouseLeave={() => {
-                // 選択ドラッグ終了
-                if (selectionState?.isDragging) {
-                    endDrag()
-                }
-                stopDrawing()
-                stopPanning()
-                setEraserCursorPos(null)
-            }}
-            onPointerMove={(e) => {
-                // Apple Pencil Pro hover support - update eraser cursor position
-                // This fires even when the stylus is hovering above the screen
-                if (tool === 'eraser' && e.pointerType === 'pen') {
-                    const rect = containerRef.current?.getBoundingClientRect()
-                    if (rect) {
-                        setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
-                    }
-                }
+                // ここで判定しても良いが、Global MouseUpが動いているならそちらに任せる？
+                // captureしていればGlobal MouseUpより確実にここで取れる。
+                checkAndFinishSwipe()
             }}
             onPointerLeave={(e) => {
                 // Clear eraser cursor when stylus leaves hover range
@@ -707,7 +762,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                         // 1. Calculate New Zoom
                         const scale = dist / startDist
-                        const newZoom = Math.min(Math.max(startZoom * scale, 0.1), 5.0)
+                        // 動的な最小倍率（Fitサイズ）を取得して制限を適用
+                        const dynamicMinZoom = getFitToScreenZoom()
+                        const newZoom = Math.min(Math.max(startZoom * scale, dynamicMinZoom), 5.0)
 
                         // 2. Calculate New Pan (Keep content under center stationary)
                         const startCenterRelX = startCenter.x - rect.left
@@ -722,8 +779,10 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         const newPanX = centerRelX - (contentX * newZoom)
                         const newPanY = centerRelY - (contentY * newZoom)
 
+                        // パン制限を適用
+                        const limitedOffset = applyPanLimit({ x: newPanX, y: newPanY }, newZoom)
                         setZoom(newZoom)
-                        setPanOffset({ x: newPanX, y: newPanY })
+                        setPanOffset(limitedOffset)
                     }
                 } else if (e.touches.length === 1) {
                     // --- Handle Single Touch ---
@@ -736,10 +795,22 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         const dx = t.clientX - startCenter.x
                         const dy = t.clientY - startCenter.y
 
-                        setPanOffset({
+                        // パン制限を適用
+                        const limitedOffset = applyPanLimit({
                             x: startPan.x + dx,
                             y: startPan.y + dy
                         })
+
+                        // オーバースクロール計算 (Touch)
+                        // 制限後の値と、制限前の値の差分を計算
+                        const OVERSCROLL_RESISTANCE = 0.6 // 0.4 -> 0.6 に緩和
+                        const rawY = startPan.y + dy
+                        const diffY = (rawY - limitedOffset.y) * OVERSCROLL_RESISTANCE
+
+                        // ユーザー要望に合わせて縦のみ追跡
+                        setOverscroll({ x: 0, y: diffY })
+
+                        setPanOffset(limitedOffset)
 
                     } else if (isDrawingInternal) { // Only force drawing if already drawing
                         // Palm Rejection check
@@ -784,15 +855,16 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                 stopDrawing()
                 stopPanning()
+                checkAndFinishSwipe()
             }}
         >
             <div className="canvas-wrapper" ref={wrapperRef}>
                 <div
                     className="canvas-layer"
                     style={{
-                        transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+                        transform: `translate(${panOffset.x + overscroll.x}px, ${panOffset.y + overscroll.y}px) scale(${zoom})`,
                         transformOrigin: '0 0',
-                        transition: 'none',
+                        transition: isPanning ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
                         opacity: isLayoutReady ? 1 : 0,
                         visibility: isLayoutReady ? 'visible' : 'hidden'
                     }}
@@ -829,6 +901,57 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     />
                 </div>
             </div>
+
+            {/* Overscroll Indicators */}
+            {Math.abs(overscroll.y) > 5 && (
+                <>
+                    {/* Top Indicator (Prev Page) */}
+                    {pageNum > 1 && overscroll.y > 0 && (
+                        <div style={{
+                            position: 'absolute',
+                            top: 20,
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            opacity: Math.min(overscroll.y / 50, 1),
+                            pointerEvents: 'none',
+                            transition: 'opacity 0.2s, color 0.2s',
+                            color: overscroll.y > SWIPE_THRESHOLD ? '#007AFF' : '#888',
+                            fontWeight: 'bold',
+                            background: 'rgba(255,255,255,0.9)',
+                            padding: '8px 16px',
+                            borderRadius: '20px',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                            zIndex: 10000,
+                            userSelect: 'none'
+                        }}>
+                            {overscroll.y > SWIPE_THRESHOLD ? '↑ 離して前のページへ' : '↓ 引っ張って前のページ'}
+                        </div>
+                    )}
+
+                    {/* Bottom Indicator (Next Page) */}
+                    {pageNum < numPages && overscroll.y < 0 && (
+                        <div style={{
+                            position: 'absolute',
+                            bottom: 20,
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            opacity: Math.min(-overscroll.y / 50, 1),
+                            pointerEvents: 'none',
+                            transition: 'opacity 0.2s, color 0.2s',
+                            color: overscroll.y < -SWIPE_THRESHOLD ? '#007AFF' : '#888',
+                            fontWeight: 'bold',
+                            background: 'rgba(255,255,255,0.9)',
+                            padding: '8px 16px',
+                            borderRadius: '20px',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                            zIndex: 10000,
+                            userSelect: 'none'
+                        }}>
+                            {overscroll.y < -SWIPE_THRESHOLD ? '↓ 離して次のページへ' : '↑ 引っ張って次のページ'}
+                        </div>
+                    )}
+                </>
+            )}
 
             {/* Eraser Cursor */}
             {tool === 'eraser' && eraserCursorPos && (
