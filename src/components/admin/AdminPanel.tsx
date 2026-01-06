@@ -9,6 +9,8 @@ import AdSlot from '../ads/AdSlot';
 import './AdminPanel.css';
 import { PREDEFINED_SNS, getSNSIcon } from '../../constants/sns';
 import DrillCatalog from '../drill/DrillCatalog';
+import PrivacyPolicy from '../legal/PrivacyPolicy';
+import TermsOfService from '../legal/TermsOfService';
 import { FaEarthAmericas } from 'react-icons/fa6';
 import { IoIosFolderOpen } from 'react-icons/io';
 import { ImFilePdf } from 'react-icons/im';
@@ -57,6 +59,8 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
   const [showCatalogPopup, setShowCatalogPopup] = useState(false);
 
   const [showGradingHistory, setShowGradingHistory] = useState(false);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [showTermsOfService, setShowTermsOfService] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [showStorageInfo, setShowStorageInfo] = useState(false);
@@ -1221,6 +1225,58 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
         }
       </div>
 
+      {/* フッター */}
+      <footer style={{
+        padding: '16px 20px',
+        backgroundColor: '#f8f9fa',
+        borderTop: '1px solid #ecf0f1',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '24px',
+          flexWrap: 'wrap',
+          fontSize: '13px'
+        }}>
+          <button
+            onClick={() => setShowPrivacyPolicy(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#7f8c8d',
+              cursor: 'pointer',
+              padding: 0,
+              fontSize: '13px',
+              textDecoration: 'underline'
+            }}
+          >
+            プライバシーポリシー
+          </button>
+          <button
+            onClick={() => setShowTermsOfService(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#7f8c8d',
+              cursor: 'pointer',
+              padding: 0,
+              fontSize: '13px',
+              textDecoration: 'underline'
+            }}
+          >
+            利用規約
+          </button>
+        </div>
+        <div style={{
+          marginTop: '8px',
+          fontSize: '11px',
+          color: '#95a5a6'
+        }}>
+          © 2026 TutoTuto
+        </div>
+      </footer>
+
       {/* 採点履歴モーダル */}
       {
         showGradingHistory && (
@@ -1229,6 +1285,16 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
           />
         )
       }
+
+      {/* プライバシーポリシーモーダル */}
+      {showPrivacyPolicy && (
+        <PrivacyPolicy onClose={() => setShowPrivacyPolicy(false)} />
+      )}
+
+      {/* 利用規約モーダル */}
+      {showTermsOfService && (
+        <TermsOfService onClose={() => setShowTermsOfService(false)} />
+      )}
     </>
   );
 }
