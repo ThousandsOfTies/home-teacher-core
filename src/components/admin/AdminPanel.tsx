@@ -11,6 +11,8 @@ import { PREDEFINED_SNS, getSNSIcon } from '../../constants/sns';
 import DrillCatalog from '../drill/DrillCatalog';
 import PrivacyPolicy from '../legal/PrivacyPolicy';
 import TermsOfService from '../legal/TermsOfService';
+import About from '../legal/About';
+import Contact from '../legal/Contact';
 import { FaEarthAmericas } from 'react-icons/fa6';
 import { IoIosFolderOpen } from 'react-icons/io';
 import { ImFilePdf } from 'react-icons/im';
@@ -61,6 +63,8 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
   const [showGradingHistory, setShowGradingHistory] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showTermsOfService, setShowTermsOfService] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+  const [showContact, setShowContact] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [showStorageInfo, setShowStorageInfo] = useState(false);
@@ -1235,10 +1239,38 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
         <div style={{
           display: 'flex',
           justifyContent: 'center',
-          gap: '24px',
+          gap: '16px',
           flexWrap: 'wrap',
           fontSize: '13px'
         }}>
+          <button
+            onClick={() => setShowAbout(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#7f8c8d',
+              cursor: 'pointer',
+              padding: 0,
+              fontSize: '13px',
+              textDecoration: 'underline'
+            }}
+          >
+            TutoTutoについて
+          </button>
+          <button
+            onClick={() => setShowContact(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#7f8c8d',
+              cursor: 'pointer',
+              padding: 0,
+              fontSize: '13px',
+              textDecoration: 'underline'
+            }}
+          >
+            お問い合わせ
+          </button>
           <button
             onClick={() => setShowPrivacyPolicy(true)}
             style={{
@@ -1294,6 +1326,16 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
       {/* 利用規約モーダル */}
       {showTermsOfService && (
         <TermsOfService onClose={() => setShowTermsOfService(false)} />
+      )}
+
+      {/* 運営者情報モーダル */}
+      {showAbout && (
+        <About onClose={() => setShowAbout(false)} />
+      )}
+
+      {/* お問い合わせモーダル */}
+      {showContact && (
+        <Contact onClose={() => setShowContact(false)} />
       )}
     </>
   );
