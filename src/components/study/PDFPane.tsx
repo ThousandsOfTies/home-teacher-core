@@ -521,7 +521,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             }}
             onPointerDown={(e) => {
                 // タッチ操作はonTouchStartで処理（マルチタッチ対応のため）
-                if (e.pointerType === 'touch') return
+                // Apple Pencil (pen) もonTouchStartで処理（二重発火防止）
+                if (e.pointerType === 'touch' || e.pointerType === 'pen') return
 
                 // Ignore events on pager bar (Do this BEFORE capture)
                 if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
@@ -573,13 +574,16 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // タッチ操作はonTouchMoveで処理
                 if (e.pointerType === 'touch') return
 
-                // Apple Pencil Pro hover support
+                // Apple Pencil Pro hover support (消しゴムカーソル表示のみ)
                 if (tool === 'eraser' && e.pointerType === 'pen') {
                     const rect = containerRef.current?.getBoundingClientRect()
                     if (rect) {
                         setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
                     }
                 }
+
+                // Apple Pencil の描画はonTouchMoveで処理（二重発火防止）
+                if (e.pointerType === 'pen') return
 
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
@@ -612,16 +616,16 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     if (e.buttons === 1) {
                         handleErase(x, y)
                     }
-                    if (e.pointerType !== 'pen' || tool === 'eraser') { // ペン以外、または消しゴムモードならカーソル更新
-                        setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
-                    }
+                    // マウスの消しゴムカーソル更新
+                    setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
                 } else if (tool === 'none' && e.buttons === 1) {
                     // 採点モードでドラッグ時もパン
                     doPanning(e)
                 }
             }}
             onPointerUp={(e) => {
-                if (e.pointerType === 'touch') return
+                // タッチ・ペンはonTouchEndで処理（二重発火防止）
+                if (e.pointerType === 'touch' || e.pointerType === 'pen') return
 
                 // リリースキャプチャ
                 if ((e.currentTarget as Element).hasPointerCapture(e.pointerId)) {
@@ -718,6 +722,12 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         if (tool === 'pen' && t.touchType === 'direct') return
                         twoFingerTapRef.current = null
 
+                        // Apple Pencil で描画開始時は、前のジェスチャー状態をクリア
+                        // @ts-ignore
+                        if (t.touchType === 'stylus') {
+                            gestureRef.current = null
+                        }
+
                         const x = (t.clientX - rect.left - panOffset.x) / zoom
                         const y = (t.clientY - rect.top - panOffset.y) / zoom
 
@@ -781,6 +791,12 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                         // パン制限を適用
                         const limitedOffset = applyPanLimit({ x: newPanX, y: newPanY }, newZoom)
+
+                        // オーバースクロール計算 (Pinch/2-Finger Pan)
+                        const OVERSCROLL_RESISTANCE = 0.6
+                        const diffY = (newPanY - limitedOffset.y) * OVERSCROLL_RESISTANCE
+                        setOverscroll({ x: 0, y: diffY })
+
                         setZoom(newZoom)
                         setPanOffset(limitedOffset)
                     }
@@ -864,7 +880,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     style={{
                         transform: `translate(${panOffset.x + overscroll.x}px, ${panOffset.y + overscroll.y}px) scale(${zoom})`,
                         transformOrigin: '0 0',
-                        transition: isPanning ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                        // ピンチ/パン操作中はtransitionを無効化（残像防止）
+                        transition: (isPanning || gestureRef.current) ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
                         opacity: isLayoutReady ? 1 : 0,
                         visibility: isLayoutReady ? 'visible' : 'hidden'
                     }}
