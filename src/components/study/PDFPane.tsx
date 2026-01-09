@@ -744,10 +744,23 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         const normalizedPoint = { x: x / cw, y: y / ch }
 
                         if (tool === 'pen') {
+                            // 選択モード中の場合
+                            if (hasSelection) {
+                                if (isPointInSelection(normalizedPoint)) {
+                                    // ラッソ上 → ドラッグ開始
+                                    startDrag(normalizedPoint)
+                                    return
+                                } else {
+                                    // ラッソ外 → 選択解除
+                                    clearSelection()
+                                }
+                            }
                             // 長押し検出開始
                             startLongPress(normalizedPoint)
                             startDrawing(x, y)
                         } else if (tool === 'eraser') {
+                            // 消しゴム時も選択を解除
+                            if (hasSelection) clearSelection()
                             handleErase(x, y)
                         }
                     }
