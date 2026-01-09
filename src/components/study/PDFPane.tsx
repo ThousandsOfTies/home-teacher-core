@@ -360,7 +360,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         isDrawing: isDrawingInternal,
         startDrawing,
         draw,
-        stopDrawing
+        stopDrawing,
+        cancelDrawing
     } = useDrawing(drawingCanvasRef, {
         width: size, // Pen size always for useDrawing (since it's only for pen now)
         color: color,
@@ -371,11 +372,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // console.log('🚫 PDFPane: Ignoring scratch path from permanent storage')
                 return
             }
-            // Check for lasso (closed loop) selection first
-            if (checkForLasso(path)) {
-                // console.log('🔵 PDFPane: Lasso selection activated')
-                return // Don't add lasso path as a drawing
-            }
+            // 新しい方式：描画完了時にはnagewaチェックしない（長押しで発動）
             onPathAdd(path)
         },
         onScratchComplete: (scratchPath) => {
@@ -394,17 +391,21 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         }
     })
 
-    // Lasso Selection Hook
+    // Lasso Selection Hook (長押しベース)
     const {
         selectionState,
         hasSelection,
-        checkForLasso,
+        startLongPress,
+        cancelLongPress,
+        checkLongPressMove,
         isPointInSelection,
         startDrag,
         drag,
         endDrag,
         clearSelection
-    } = useLassoSelection(drawingPaths, onPathsChange)
+    } = useLassoSelection(drawingPaths, onPathsChange, {
+        onSelectionActivate: cancelDrawing
+    })
 
     // Undo via Parent
     // Note: PDFPaneHandle.undo calls this.
@@ -558,6 +559,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                                 clearSelection()
                             }
                         }
+                        // 長押し検出開始
+                        startLongPress(normalizedPoint)
                         startDrawing(x, y)
                     } else if (tool === 'eraser') {
                         // 消しゴム時も選択を解除
@@ -611,6 +614,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
 
                 if (tool === 'pen' && isDrawingInternal) {
+                    // 長押しキャンセル判定（移動があれば）
+                    checkLongPressMove(normalizedPoint)
                     draw(x, y)
                 } else if (tool === 'eraser') {
                     if (e.buttons === 1) {
@@ -637,6 +642,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     endDrag()
                     return
                 }
+                // 長押しキャンセル
+                cancelLongPress()
                 stopDrawing()
                 stopPanning()
                 // ここで判定しても良いが、Global MouseUpが動いているならそちらに任せる？
@@ -731,7 +738,14 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         const x = (t.clientX - rect.left - panOffset.x) / zoom
                         const y = (t.clientY - rect.top - panOffset.y) / zoom
 
+                        // 正規化座標に変換
+                        const cw = canvasSize?.width || canvasRef.current?.width || 1
+                        const ch = canvasSize?.height || canvasRef.current?.height || 1
+                        const normalizedPoint = { x: x / cw, y: y / ch }
+
                         if (tool === 'pen') {
+                            // 長押し検出開始
+                            startLongPress(normalizedPoint)
                             startDrawing(x, y)
                         } else if (tool === 'eraser') {
                             handleErase(x, y)
@@ -836,7 +850,14 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         const x = (t.clientX - rect.left - panOffset.x) / zoom
                         const y = (t.clientY - rect.top - panOffset.y) / zoom
 
+                        // 正規化座標に変換
+                        const cw = canvasSize?.width || canvasRef.current?.width || 1
+                        const ch = canvasSize?.height || canvasRef.current?.height || 1
+                        const normalizedPoint = { x: x / cw, y: y / ch }
+
                         if (tool === 'pen') {
+                            // 長押しキャンセル判定
+                            checkLongPressMove(normalizedPoint)
                             draw(x, y)
                         } else if (tool === 'eraser') {
                             handleErase(x, y)
@@ -869,6 +890,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     gestureRef.current = null
                 }
 
+                // 長押しキャンセル
+                cancelLongPress()
                 stopDrawing()
                 stopPanning()
                 checkAndFinishSwipe()
