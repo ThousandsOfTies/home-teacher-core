@@ -818,6 +818,17 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     // --- Handle Single Touch ---
                     const t = e.touches[0]
 
+                    // 選択ドラッグ中の処理（Apple Pencil対応）
+                    if (selectionState?.isDragging) {
+                        const x = (t.clientX - rect.left - panOffset.x) / zoom
+                        const y = (t.clientY - rect.top - panOffset.y) / zoom
+                        const cw = canvasSize?.width || canvasRef.current?.width || 1
+                        const ch = canvasSize?.height || canvasRef.current?.height || 1
+                        const normalizedPoint = { x: x / cw, y: y / ch }
+                        drag(normalizedPoint)
+                        return
+                    }
+
                     if (gestureRef.current?.type === 'pan') {
                         // Pan Logic
                         const { startPan, startCenter } = gestureRef.current
@@ -888,6 +899,12 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // Clear gesture state if all touches end or if gesture is broken
                 if (e.touches.length === 0) {
                     gestureRef.current = null
+                }
+
+                // 選択ドラッグ終了（Apple Pencil対応）
+                if (selectionState?.isDragging) {
+                    endDrag()
+                    return
                 }
 
                 // 長押しキャンセル
