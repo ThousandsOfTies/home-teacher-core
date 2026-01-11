@@ -1,11 +1,47 @@
-import React, { useState } from 'react';
-import { usePDFRecords } from '../../hooks/admin/usePDFRecords';
+import React from 'react';
 
-const OFFICIAL_DRILLS = [
-    { title: 'けいさんドリル (1ねん たしざん Lv1)', file: 'math-g1-add-lv1.pdf', description: 'Basic addition up to 10' },
-    { title: 'けいさんドリル (1ねん たしざん Lv2)', file: 'math-g1-add-lv2.pdf', description: 'Addition up to 20' },
-    { title: 'ずけいドリル (3ねん めんせき)', file: 'math-g3-area-rect.pdf', description: 'Calculate area of rectangles' },
-    { title: 'ぶんしょうだい (2ねん かけざん)', file: 'math-g2-word-multi.pdf', description: 'Multiplication word problems' },
+// 推奨教材サイト一覧
+const RECOMMENDED_SITES = [
+    {
+        name: 'やまぐち学習支援プログラム',
+        description: '山口県教育委員会が公開。学年ごとの一括PDFがダウンロード可能！全単元を網羅した高品質な教材です。',
+        url: 'https://shien.ysn21.jp/',
+        highlight: '🏆 一括ダウンロード可能',
+        subjects: ['算数', '国語', '理科', '社会'],
+        grades: ['小1〜小6', '中1〜中3'],
+    },
+    {
+        name: 'すきるまドリル',
+        description: '市販ドリルに近い構成。単元の導入→練習→まとめの流れが作りやすく、家庭学習に最適です。',
+        url: 'https://sukiruma.net/',
+        highlight: '📚 市販ドリル風の構成',
+        subjects: ['算数', '国語', '英語'],
+        grades: ['小1〜小6', '中1〜中3'],
+    },
+    {
+        name: 'ちびむすドリル',
+        description: '非常に細かく単元が分かれており、苦手なところだけを重点的に練習したい時に最適です。',
+        url: 'https://happylilac.net/syogaku.html',
+        highlight: '🎯 苦手克服に最適',
+        subjects: ['算数', '国語', '理科', '社会', '英語'],
+        grades: ['幼児', '小1〜小6', '中1〜中3'],
+    },
+    {
+        name: '算願（さんがん）',
+        description: '計算ドリル、筆算、文章題、図形など、算数に特化した豊富なプリント集。',
+        url: 'https://www.sangan.jp/',
+        highlight: '🔢 算数特化',
+        subjects: ['算数・数学'],
+        grades: ['小1〜中3'],
+    },
+    {
+        name: '計算プリント.com',
+        description: '計算問題に特化したシンプルなドリル。繰り返し練習に最適です。',
+        url: 'https://keipri.com/',
+        highlight: '✏️ 計算練習特化',
+        subjects: ['算数（計算）'],
+        grades: ['小1〜小6'],
+    },
 ];
 
 interface DrillCatalogProps {
@@ -13,139 +49,173 @@ interface DrillCatalogProps {
     addPDF: (file: Blob, fileName: string) => Promise<boolean>;
 }
 
-export default function DrillCatalog({ addPDF }: DrillCatalogProps) {
-    const [customUrl, setCustomUrl] = useState('');
-    const [importing, setImporting] = useState(false);
-    const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
-
-    // Get API base URL for proxy
-    const getApiBaseUrl = (): string => {
-        const envUrl = import.meta.env.VITE_API_URL;
-        if (envUrl) return envUrl;
-
-        if (typeof window !== 'undefined') {
-            const hostname = window.location.hostname;
-            if (hostname.endsWith('.github.io')) {
-                return 'https://hometeacher-api-736494768812.asia-northeast1.run.app';
-            }
-            if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-                return 'https://hometeacher-api-736494768812.asia-northeast1.run.app';
-            }
-        }
-        return 'http://localhost:3003';
-    };
-
-    const handleImport = async (url: string, fileName: string, isLocal: boolean = false) => {
-        setImporting(true);
-        setMessage(null);
-        try {
-            let fetchUrl = url;
-
-            // For external URLs, use proxy to bypass CORS
-            if (!isLocal && url.startsWith('http')) {
-                const apiBase = getApiBaseUrl();
-                fetchUrl = `${apiBase}/api/proxy-pdf?url=${encodeURIComponent(url)}`;
-                console.log('📥 Using proxy for external URL:', url);
-            }
-
-            const response = await fetch(fetchUrl);
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(errorText || `Failed to fetch: ${response.statusText}`);
-            }
-            const blob = await response.blob();
-
-            const success = await addPDF(blob, fileName);
-            if (success) {
-                setMessage({ text: `Successfully imported: ${fileName}`, type: 'success' });
-            } else {
-                setMessage({ text: 'Failed to save PDF', type: 'error' });
-            }
-        } catch (error) {
-            console.error(error);
-            setMessage({ text: `Failed to download PDF: ${error instanceof Error ? error.message : 'Unknown error'}`, type: 'error' });
-        } finally {
-            setImporting(false);
-        }
-    };
-
-    const handleCustomImport = () => {
-        if (!customUrl) return;
-        const fileName = customUrl.split('/').pop() || 'downloaded.pdf';
-        handleImport(customUrl, fileName, false);
+export default function DrillCatalog({ }: DrillCatalogProps) {
+    const handleOpenSite = (url: string) => {
+        window.open(url, '_blank', 'noopener,noreferrer');
     };
 
     return (
-        <div className="drill-catalog" style={{ padding: '20px' }}>
-            <h2>Drill Catalog</h2>
+        <div className="drill-catalog" style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
+            <h2 style={{
+                textAlign: 'center',
+                marginBottom: '10px',
+                color: '#2c3e50'
+            }}>
+                📚 おすすめ無料教材サイト
+            </h2>
 
-            {message && (
-                <div style={{
-                    padding: '10px',
-                    marginBottom: '20px',
-                    borderRadius: '5px',
-                    backgroundColor: message.type === 'success' ? '#d4edda' : '#f8d7da',
-                    color: message.type === 'success' ? '#155724' : '#721c24'
-                }}>
-                    {message.text}
-                </div>
-            )}
+            <p style={{
+                textAlign: 'center',
+                color: '#666',
+                marginBottom: '25px',
+                fontSize: '14px',
+                lineHeight: '1.6'
+            }}>
+                以下のサイトからPDFをダウンロードして、<br />
+                ホーム画面の「<strong>+ Add PDF</strong>」ボタンで登録してください。
+            </p>
 
-            <div className="section" style={{ marginBottom: '30px' }}>
-                <h3>Official Drills</h3>
-                <div className="drill-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-                    {OFFICIAL_DRILLS.map((drill) => (
-                        <div key={drill.file} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '15px', backgroundColor: 'white' }}>
-                            <h4 style={{ margin: '0 0 10px 0' }}>{drill.title}</h4>
-                            <p style={{ fontSize: '14px', color: '#666' }}>{drill.description}</p>
+            <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px'
+            }}>
+                {RECOMMENDED_SITES.map((site) => (
+                    <div
+                        key={site.name}
+                        style={{
+                            border: '1px solid #e0e0e0',
+                            borderRadius: '12px',
+                            padding: '20px',
+                            backgroundColor: '#fff',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                            transition: 'transform 0.2s, box-shadow 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
+                        }}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                            <div style={{ flex: 1, minWidth: '200px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                                    <h3 style={{ margin: 0, color: '#2c3e50', fontSize: '18px' }}>
+                                        {site.name}
+                                    </h3>
+                                    <span style={{
+                                        backgroundColor: '#e8f5e9',
+                                        color: '#2e7d32',
+                                        padding: '3px 10px',
+                                        borderRadius: '12px',
+                                        fontSize: '12px',
+                                        fontWeight: 'bold',
+                                        whiteSpace: 'nowrap'
+                                    }}>
+                                        {site.highlight}
+                                    </span>
+                                </div>
+
+                                <p style={{
+                                    margin: '0 0 12px 0',
+                                    color: '#555',
+                                    fontSize: '14px',
+                                    lineHeight: '1.5'
+                                }}>
+                                    {site.description}
+                                </p>
+
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    <span style={{
+                                        fontSize: '12px',
+                                        color: '#888',
+                                        backgroundColor: '#f5f5f5',
+                                        padding: '2px 8px',
+                                        borderRadius: '4px'
+                                    }}>
+                                        📖 {site.subjects.join(' / ')}
+                                    </span>
+                                    <span style={{
+                                        fontSize: '12px',
+                                        color: '#888',
+                                        backgroundColor: '#f5f5f5',
+                                        padding: '2px 8px',
+                                        borderRadius: '4px'
+                                    }}>
+                                        🎒 {site.grades.join(' / ')}
+                                    </span>
+                                </div>
+                            </div>
+
                             <button
-                                onClick={() => handleImport(`./drills/${drill.file}`, drill.file, true)}
-                                disabled={importing}
+                                onClick={() => handleOpenSite(site.url)}
                                 style={{
-                                    width: '100%',
-                                    padding: '8px',
+                                    padding: '12px 24px',
                                     backgroundColor: '#3498db',
                                     color: 'white',
                                     border: 'none',
-                                    borderRadius: '4px',
+                                    borderRadius: '8px',
                                     cursor: 'pointer',
-                                    opacity: importing ? 0.7 : 1
+                                    fontSize: '14px',
+                                    fontWeight: 'bold',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    transition: 'background-color 0.2s',
+                                    whiteSpace: 'nowrap'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#2980b9';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#3498db';
                                 }}
                             >
-                                {importing ? 'Importing...' : 'Get Drill'}
+                                サイトを開く
+                                <span style={{ fontSize: '16px' }}>→</span>
                             </button>
                         </div>
-                    ))}
-                </div>
+                    </div>
+                ))}
             </div>
 
-            <div className="section">
-                <h3>Import from URL</h3>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                    <input
-                        type="text"
-                        value={customUrl}
-                        onChange={(e) => setCustomUrl(e.target.value)}
-                        placeholder="https://example.com/drill.pdf"
-                        style={{ flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
-                    />
-                    <button
-                        onClick={handleCustomImport}
-                        disabled={importing || !customUrl}
-                        style={{
-                            padding: '10px 20px',
-                            backgroundColor: '#27ae60',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        Import
-                    </button>
-                </div>
-                <p style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>
-                    Note: External URLs might fail due to CORS. If it fails, please download the file and use the "+ PDF" button in the library.
+            <div style={{
+                marginTop: '30px',
+                padding: '16px',
+                backgroundColor: '#fff3e0',
+                borderRadius: '8px',
+                border: '1px solid #ffe0b2'
+            }}>
+                <p style={{
+                    margin: 0,
+                    fontSize: '13px',
+                    color: '#e65100',
+                    lineHeight: '1.6'
+                }}>
+                    💡 <strong>使い方のヒント：</strong><br />
+                    「やまぐち学習支援プログラム」では、学年ごとに全単元をまとめた一括PDFがダウンロードできます。<br />
+                    コンビニで両面印刷すれば、市販ドリルのように使えます！
+                </p>
+            </div>
+
+            <div style={{
+                marginTop: '16px',
+                padding: '12px',
+                backgroundColor: '#f5f5f5',
+                borderRadius: '8px',
+                textAlign: 'center'
+            }}>
+                <p style={{
+                    margin: 0,
+                    fontSize: '11px',
+                    color: '#888',
+                    lineHeight: '1.5'
+                }}>
+                    ※ 各サイトの教材は、それぞれのサイトの利用規約に従ってご利用ください。<br />
+                    HomeTeacherは教材の配布元ではなく、リンクを紹介しているのみです。
                 </p>
             </div>
         </div>
