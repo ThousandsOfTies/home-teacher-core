@@ -34,7 +34,7 @@ const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onClose }) => {
           </ul>
           <p>
             <strong>これらの情報はすべてお客様のデバイス内（IndexedDB）に保存され、
-            外部サーバーには送信されません。</strong>
+              外部サーバーには送信されません。</strong>
           </p>
 
           <h3>2. AI採点機能について</h3>
@@ -73,7 +73,7 @@ const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onClose }) => {
             本プライバシーポリシーに関するお問い合わせは、以下までご連絡ください：
           </p>
           <p>
-            <strong>メール:</strong> tututu.app@gmail.com
+            <strong>メール:</strong> thousands.of.ties@gmail.com
           </p>
 
           <h3>7. プライバシーポリシーの変更</h3>

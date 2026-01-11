@@ -96,7 +96,7 @@ const TermsOfService: React.FC<TermsOfServiceProps> = ({ onClose }) => {
                         本規約に関するお問い合わせは、以下までご連絡ください：
                     </p>
                     <p>
-                        <strong>メール:</strong> tututu.app@gmail.com
+                        <strong>メール:</strong> thousands.of.ties@gmail.com
                     </p>
                 </div>
 

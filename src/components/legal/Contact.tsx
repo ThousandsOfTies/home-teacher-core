@@ -34,7 +34,7 @@ const Contact: React.FC<ContactProps> = ({ onClose }) => {
                             メールアドレス
                         </p>
                         <a
-                            href="mailto:tututu.app@gmail.com"
+                            href="mailto:thousands.of.ties@gmail.com"
                             style={{
                                 fontSize: '18px',
                                 fontWeight: '600',
@@ -42,7 +42,7 @@ const Contact: React.FC<ContactProps> = ({ onClose }) => {
                                 textDecoration: 'none'
                             }}
                         >
-                            tututu.app@gmail.com
+                            thousands.of.ties@gmail.com
                         </a>
                     </div>
 

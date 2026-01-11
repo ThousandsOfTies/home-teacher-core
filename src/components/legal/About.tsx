@@ -53,8 +53,8 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
                         </p>
                         <p style={{ margin: '0 0 8px 0' }}>
                             <strong>メール:</strong>{' '}
-                            <a href="mailto:tututu.app@gmail.com" style={{ color: '#3498db' }}>
-                                tututu.app@gmail.com
+                            <a href="mailto:thousands.of.ties@gmail.com" style={{ color: '#3498db' }}>
+                                thousands.of.ties@gmail.com
                             </a>
                         </p>
                         <p style={{ margin: 0 }}>
