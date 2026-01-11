@@ -19,17 +19,17 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
                 <div className="legal-modal-content">
                     <h3>TutoTutoとは</h3>
                     <p>
-                        TutoTutoは、お子様の家庭学習をサポートするためのPWA（Progressive Web App）です。
-                        PDF形式の教材に直接書き込みができ、AI技術を活用した自動採点機能により、
-                        効率的な学習体験を提供します。
+                        TutoTutoでは、お子様のSNSの利用の前に「本アプリでの学習」という制限を設けることが可能になります。
+                        お勉強に用いる教材はPDFファイルで登録します。
+                        PDFファイルに直接書き込みを行い、採点はAIが行います。
                     </p>
 
                     <h3>主な機能</h3>
                     <ul>
                         <li><strong>PDF教材の管理</strong> - 学習用のPDFファイルをアプリに登録して管理できます</li>
-                        <li><strong>手書き書き込み</strong> - タッチペンや指で直接PDFに書き込みができます</li>
-                        <li><strong>AI自動採点</strong> - Google Gemini AIを使用した自動採点機能</li>
-                        <li><strong>オフライン対応</strong> - インターネット接続がなくても基本機能が使えます</li>
+                        <li><strong>手書き編集</strong> - タッチペンや指で直接PDFを編集することができます</li>
+                        <li><strong>AI自動採点</strong> - Google Gemini AIを使用して自動採点します</li>
+                        <li><strong>SNSアクセス</strong> - 採点後に時間制限を設けたSNSへのアクセス許可を与えることが可能です</li>
                         <li><strong>学習履歴</strong> - 採点結果の履歴を確認できます</li>
                     </ul>
 
@@ -37,8 +37,9 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
                     <p>以下のデバイス・ブラウザでご利用いただけます：</p>
                     <ul>
                         <li>iPad / iPhone（Safari）- Apple Pencil対応</li>
-                        <li>Android タブレット / スマートフォン（Chrome）</li>
-                        <li>Windows / Mac PC（Chrome, Edge, Safari）</li>
+                        <li>Windows PC（Chrome, Edge）</li>
+                        <li>Mac PC（Safari）- 未確認</li>
+                        <li>Android タブレット / スマートフォン（Chrome）- 未確認</li>
                     </ul>
 
                     <h3>開発・運営</h3>
@@ -85,6 +86,26 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
                         <li>PDF.js - PDF表示ライブラリ</li>
                         <li>Google Gemini AI - 自動採点エンジン</li>
                     </ul>
+
+                    <h3>⚠️ 免責事項</h3>
+                    <div style={{
+                        backgroundColor: '#fff3cd',
+                        border: '1px solid #ffc107',
+                        padding: '16px',
+                        borderRadius: '8px',
+                        margin: '16px 0'
+                    }}>
+                        <p style={{ margin: '0 0 8px 0', fontWeight: 'bold', color: '#856404' }}>
+                            AI自動採点について
+                        </p>
+                        <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.6', color: '#856404' }}>
+                            本アプリのAI自動採点機能は、Google Gemini AIを使用していますが、
+                            <strong>採点結果が必ずしも正確であるとは限りません</strong>。
+                            AIによる判定には誤りが含まれる可能性があるため、
+                            保護者の方は必ずお子様の解答を確認し、最終的な正誤判定を行ってください。
+                            本機能はあくまで学習のサポートツールとしてご利用ください。
+                        </p>
+                    </div>
                 </div>
 
                 <div className="legal-modal-footer">
