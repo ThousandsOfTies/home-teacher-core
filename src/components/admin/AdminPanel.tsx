@@ -17,6 +17,7 @@ import { FaEarthAmericas } from 'react-icons/fa6';
 import { IoIosFolderOpen } from 'react-icons/io';
 import { ImFilePdf } from 'react-icons/im';
 import { VscDatabase } from 'react-icons/vsc';
+import { ICON_SVG } from '../../constants/icons';
 
 interface AdminPanelProps {
   onSelectPDF: (record: PDFFileRecord) => void;
@@ -568,17 +569,119 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
             backgroundColor: 'white',
             borderRadius: '12px',
             padding: '24px',
-            maxWidth: '400px',
-            width: '90%'
+            maxWidth: '600px',
+            maxHeight: '80vh',
+            width: '90%',
+            overflow: 'auto'
           }}>
             <h3 style={{ margin: '0 0 16px 0', color: '#2c3e50', fontSize: '20px' }}>
-              How to Use
+              📖 使い方ガイド
             </h3>
-            <ul style={{ margin: '0 0 24px 0', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
-              <li>Click on a PDF to open it</li>
-              <li>Click the <strong>+ PDF</strong> button to add a new file</li>
-              <li>Click the trash icon to delete a file</li>
-            </ul>
+
+            {/* Step 1: PDF登録 */}
+            <div style={{ marginBottom: '20px' }}>
+              <h4 style={{ margin: '0 0 8px 0', color: '#3498db', fontSize: '16px' }}>
+                1️⃣ 教材PDFを登録する
+              </h4>
+              <p style={{ margin: '0 0 8px 0', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.6' }}>
+                ホーム画面の下部にある2つのボタンから教材を登録できます：
+              </p>
+              <ul style={{ margin: '0 0 12px 16px', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    <FaEarthAmericas style={{ fontSize: '16px', color: '#3498db' }} />
+                  </span>
+                  →
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    <ImFilePdf style={{ fontSize: '16px', color: '#e74c3c' }} />
+                  </span>
+                  →
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    <IoIosFolderOpen style={{ fontSize: '16px', color: '#f39c12' }} />
+                  </span>
+                  おすすめ無料教材サイトからダウンロード
+                </li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    <IoIosFolderOpen style={{ fontSize: '16px', color: '#f39c12' }} />
+                  </span>
+                  →
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    <ImFilePdf style={{ fontSize: '16px', color: '#e74c3c' }} />
+                  </span>
+                  →
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    <VscDatabase style={{ fontSize: '16px', color: '#34495e' }} />
+                  </span>
+                  ローカルファイルから直接登録
+                </li>
+              </ul>
+            </div>
+
+            {/* Step 2: 学習 */}
+            <div style={{ marginBottom: '20px' }}>
+              <h4 style={{ margin: '0 0 8px 0', color: '#3498db', fontSize: '16px' }}>
+                2️⃣ PDFで学習する
+              </h4>
+              <ul style={{ margin: '0 0 12px 16px', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
+                <li>登録したPDFをタップして開きます</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    {ICON_SVG.pen(true, '#000000')}
+                  </span>
+                  <strong>ペンモード</strong>で書き込み、
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    {ICON_SVG.eraser(true)}
+                  </span>
+                  <strong>消しゴムモード</strong>で消去
+                </li>
+                <li>指やApple Pencilで直接書き込みができます</li>
+                <li>ピンチ操作で拡大・縮小、2本指ドラッグで移動</li>
+              </ul>
+            </div>
+
+            {/* Step 3: 採点 */}
+            <div style={{ marginBottom: '20px' }}>
+              <h4 style={{ margin: '0 0 8px 0', color: '#3498db', fontSize: '16px' }}>
+                3️⃣ AI採点を受ける
+              </h4>
+              <ul style={{ margin: '0 0 12px 16px', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <strong>✅ 採点</strong>ボタンをタップ
+                </li>
+                <li>採点したい範囲をドラッグで選択</li>
+                <li>「採点する」ボタンで送信</li>
+                <li>AIが自動で丸付けとフィードバックを行います</li>
+              </ul>
+              <p style={{ margin: '0', padding: '8px', backgroundColor: '#fff3cd', borderRadius: '4px', fontSize: '12px', color: '#856404', lineHeight: '1.5' }}>
+                ⚠️ AI採点は100%正確ではありません。保護者の方は必ず確認してください。
+              </p>
+            </div>
+
+            {/* Step 4: SNS制限 */}
+            <div style={{ marginBottom: '20px' }}>
+              <h4 style={{ margin: '0 0 8px 0', color: '#3498db', fontSize: '16px' }}>
+                4️⃣ SNSアクセス許可を設定する
+              </h4>
+              <ul style={{ margin: '0 0 12px 16px', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
+                <li><strong>⚙️ Admin</strong>タブ → <strong>❤️ Links & Notification</strong></li>
+                <li>SNS利用時間制限を設定（5分〜60分）</li>
+                <li>採点後、設定した時間だけSNSリンクが有効になります</li>
+              </ul>
+            </div>
+
+            {/* Step 5: その他 */}
+            <div style={{ marginBottom: '20px' }}>
+              <h4 style={{ margin: '0 0 8px 0', color: '#3498db', fontSize: '16px' }}>
+                5️⃣ その他の機能
+              </h4>
+              <ul style={{ margin: '0', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
+                <li><strong>🕒 History</strong> - 採点履歴を確認</li>
+                <li><strong>💾 Storage</strong> - データ使用状況を確認</li>
+                <li><strong>🗑️ ゴミ箱アイコン</strong> - PDFを削除</li>
+              </ul>
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setShowHelp(false)}
@@ -593,7 +696,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                   cursor: 'pointer'
                 }}
               >
-                OK
+                閉じる
               </button>
             </div>
           </div>
