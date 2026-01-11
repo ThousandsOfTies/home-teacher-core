@@ -3,12 +3,20 @@ import React from 'react';
 // 推奨教材サイト一覧
 const RECOMMENDED_SITES = [
     {
-        name: 'やまぐち学習支援プログラム',
-        description: '山口県教育委員会が公開。学年ごとの一括PDFがダウンロード可能！全単元を網羅した高品質な教材です。',
-        url: 'https://shien.ysn21.jp/',
-        highlight: '🏆 一括ダウンロード可能',
-        subjects: ['算数', '国語', '理科', '社会'],
-        grades: ['小1〜小6', '中1〜中3'],
+        name: 'ふたば問題集',
+        description: '文部科学省の新学習指導要領に対応。小学校で習う算数の全分野をカバーした無料プリント集です。',
+        url: 'https://futaba-workbook.com/',
+        highlight: '🏆 全単元カバー',
+        subjects: ['算数'],
+        grades: ['小1〜小6'],
+    },
+    {
+        name: 'すたぺんドリル',
+        description: 'プロの塾講師が作成。足し算から図形・思考力問題まで幅広くカバー。質の高い教材が揃っています。',
+        url: 'https://startoo.co/workbook/sansu/',
+        highlight: '👨‍🏫 塾講師監修',
+        subjects: ['算数', '国語', '理科', '社会', '英語'],
+        grades: ['幼児', '小1〜小6'],
     },
     {
         name: 'すきるまドリル',
@@ -196,8 +204,8 @@ export default function DrillCatalog({ }: DrillCatalogProps) {
                     lineHeight: '1.6'
                 }}>
                     💡 <strong>使い方のヒント：</strong><br />
-                    「やまぐち学習支援プログラム」では、学年ごとに全単元をまとめた一括PDFがダウンロードできます。<br />
-                    コンビニで両面印刷すれば、市販ドリルのように使えます！
+                    「ふたば問題集」は新学習指導要領に対応した全単元カバーのプリントが揃っています。<br />
+                    PDFをダウンロードしたら、コンビニで両面印刷すれば市販ドリルのように使えます！
                 </p>
             </div>
 
