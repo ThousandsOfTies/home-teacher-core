@@ -959,28 +959,28 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
               gap: '20px',
               marginTop: '20px'
             }}>
-              {/* Local Import Button */}
-              <button
-                className="add-button"
-                onClick={() => handleFileSelect()}
-                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', height: 'auto', padding: '20px 24px', background: 'white', border: '2px solid #bdc3c7', borderRadius: '8px' }}
-                title="ローカルファイルを開く"
-              >
-                <IoIosFolderOpen style={{ fontSize: '32px', color: '#f39c12' }} />
-                <div style={{ fontSize: '24px', color: '#2c3e50' }}>→</div>
-                <ImFilePdf style={{ fontSize: '32px', color: '#e74c3c' }} />
-                <div style={{ fontSize: '24px', color: '#2c3e50' }}>→</div>
-                <VscDatabase style={{ fontSize: '32px', color: '#34495e' }} />
-              </button>
-
-              {/* Catalog Button */}
+              {/* Catalog Button (外部サイトからダウンロード) */}
               <button
                 className="add-button"
                 onClick={() => setShowCatalogPopup(true)}
                 style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', height: 'auto', padding: '20px 24px', background: 'white', border: '2px solid #bdc3c7', borderRadius: '8px' }}
-                title="ドリルカタログからインポート"
+                title="おすすめ無料教材サイト"
               >
                 <FaEarthAmericas style={{ fontSize: '32px', color: '#3498db' }} />
+                <div style={{ fontSize: '24px', color: '#2c3e50' }}>→</div>
+                <ImFilePdf style={{ fontSize: '32px', color: '#e74c3c' }} />
+                <div style={{ fontSize: '24px', color: '#2c3e50' }}>→</div>
+                <IoIosFolderOpen style={{ fontSize: '32px', color: '#f39c12' }} />
+              </button>
+
+              {/* Local Import Button (ローカルファイルを登録) */}
+              <button
+                className="add-button"
+                onClick={() => handleFileSelect()}
+                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', height: 'auto', padding: '20px 24px', background: 'white', border: '2px solid #bdc3c7', borderRadius: '8px' }}
+                title="ローカルファイルを登録"
+              >
+                <IoIosFolderOpen style={{ fontSize: '32px', color: '#f39c12' }} />
                 <div style={{ fontSize: '24px', color: '#2c3e50' }}>→</div>
                 <ImFilePdf style={{ fontSize: '32px', color: '#e74c3c' }} />
                 <div style={{ fontSize: '24px', color: '#2c3e50' }}>→</div>
