@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { GradingResponseResult } from '../../services/api'
 import { SNSLinkRecord } from '../../utils/indexedDB'
 import { getSNSIcon } from '../../constants/sns'
@@ -14,6 +15,7 @@ interface GradingResultProps {
 }
 
 const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, modelName, responseTime }: GradingResultProps) => {
+  const { t } = useTranslation()
   if (!result) return null
 
   // ドラッグ位置の状態管理
@@ -245,7 +247,7 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
             touchAction: 'none' // タッチアクションを無効化
           }}
         >
-          <h2>採点結果</h2>
+          <h2>{t('gradingResult.title')}</h2>
         </div>
 
         <div
@@ -281,7 +283,7 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
                       {problem.isCorrect ? '⭕' : '❌'}
                     </span>
                     <h3>
-                      {problem.problemNumber || `問題 ${index + 1}`}
+                      {problem.problemNumber || `${t('gradingResult.problem')} ${index + 1}`}
                     </h3>
                   </div>
 
@@ -293,26 +295,26 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
 
                   {problem.studentAnswer && (
                     <div className="student-answer">
-                      <strong>あなたの解答:</strong> {problem.studentAnswer}
+                      <strong>{t('gradingResult.yourAnswer')}</strong> {problem.studentAnswer}
                     </div>
                   )}
 
                   {!problem.isCorrect && problem.correctAnswer && (
                     <div className="correct-answer">
-                      <strong>正しい解答:</strong> {problem.correctAnswer}
+                      <strong>{t('gradingResult.correctAnswer')}</strong> {problem.correctAnswer}
                     </div>
                   )}
 
                   {problem.feedback && (
                     <div className="feedback">
-                      <strong>フィードバック:</strong>
+                      <strong>{t('gradingResult.feedback')}</strong>
                       <p>{problem.feedback}</p>
                     </div>
                   )}
 
                   {problem.explanation && (
                     <div className="explanation">
-                      <strong>解説:</strong>
+                      <strong>{t('gradingResult.explanation')}</strong>
                       <p>{problem.explanation}</p>
                       {problem.explanationSvg && (
                         <div
@@ -332,20 +334,20 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
                     fontSize: '12px',
                     color: '#666'
                   }}>
-                    <strong>採点ソース:</strong>{' '}
+                    <strong>{t('gradingResult.gradingSource')}</strong>{' '}
                     {problem.gradingSource === 'db' ? (
                       <span style={{ color: '#2e7d32' }}>
-                        📚 登録済み解答から判定
+                        {t('gradingResult.sourceDb')}
                         {problem.dbMatchedAnswer && (
                           <span style={{ display: 'block', marginTop: '4px', fontSize: '11px' }}>
-                            問題ページ: {problem.dbMatchedAnswer.problemPageNumber ?? '不明'},
-                            登録正解: {problem.dbMatchedAnswer.correctAnswer}
+                            {t('gradingResult.problemPage')}: {problem.dbMatchedAnswer.problemPageNumber ?? '不明'},
+                            {t('gradingResult.registeredAnswer')}: {problem.dbMatchedAnswer.correctAnswer}
                           </span>
                         )}
                       </span>
                     ) : (
                       <span style={{ color: '#e65100' }}>
-                        🤖 AIの推論による判定
+                        {t('gradingResult.sourceAi')}
                       </span>
                     )}
                   </div>
@@ -360,7 +362,7 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
 
           {result.overallComment && validProblems.length > 0 && (
             <div className="overall-comment">
-              <h3>全体コメント</h3>
+              <h3>{t('gradingResult.overallComment')}</h3>
               <p>{result.overallComment}</p>
             </div>
           )}
@@ -395,7 +397,7 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
                 e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)'
               }}
             >
-              📱 SNSを見る
+              {t('gradingResult.viewSns')}
             </button>
           </div>
         )}
@@ -407,7 +409,7 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
               : modelName || (responseTime != null ? `${responseTime}s` : '')}
           </div>
           <button className="footer-close-btn" onClick={onClose}>
-            閉じる
+            {t('gradingResult.close')}
           </button>
         </div>
       </div>

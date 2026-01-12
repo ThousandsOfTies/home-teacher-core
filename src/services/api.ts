@@ -119,7 +119,8 @@ export const getAvailableModels = async (): Promise<AvailableModelsResponse> => 
 // 簡素化された採点API（切り抜き画像のみ）
 export const gradeWork = async (
   croppedImageData: string,
-  model?: string
+  model?: string,
+  language: string = 'ja'
 ): Promise<GradeResponse> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/grade-work`, {
@@ -130,6 +131,7 @@ export const gradeWork = async (
       body: JSON.stringify({
         croppedImageData,
         model,
+        language,
       }),
     })
 

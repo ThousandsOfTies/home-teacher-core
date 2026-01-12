@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { requestPersistentStorage, getStorageEstimate, getPlatformInfo, getStorageAdviceMessage } from '../../utils/storageManager'
+import { useTranslation } from 'react-i18next'
 
 export const useStorage = () => {
+  const { t } = useTranslation()
   const [storageInfo, setStorageInfo] = useState<{
     isPersisted: boolean
     usageMB: number
@@ -35,7 +37,7 @@ export const useStorage = () => {
   }
 
   const clearAllStorage = async () => {
-    if (!confirm('すべてのデータ（PDF、採点履歴、SNSリンク）を削除しますか？この操作は取り消せません。')) {
+    if (!confirm(t('storage.deleteConfirm'))) {
       return
     }
 

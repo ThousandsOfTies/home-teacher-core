@@ -262,19 +262,19 @@
 
 .footer-close-btn {
   padding: 0.6rem 1.5rem;
-  background: #2196F3;
-  color: white;
-  border: none;
+  background: white;
+  color: #2196F3;
+  border: 1px solid #2196F3;
   border-radius: 6px;
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
   white-space: nowrap;
 }
 
 .footer-close-btn:hover {
-  background: #1976D2;
+  background: #E3F2FD;
 }
 
 /* SNSリンクセクション */

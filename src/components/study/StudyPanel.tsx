@@ -1,4 +1,6 @@
 ﻿import { useEffect, useRef, useState, useCallback } from 'react'
+import { FaCheck, FaRedo } from 'react-icons/fa'
+import { useTranslation } from 'react-i18next'
 import { GradingResult as GradingResultType, GradingResponseResult, getAvailableModels, ModelInfo } from '../../services/api'
 import GradingResult from './GradingResult'
 import { savePDFRecord, getPDFRecord, updatePDFRecord, getAllSNSLinks, SNSLinkRecord, PDFFileRecord, saveGradingHistory, getGradingHistoryByPdfId, generateGradingHistoryId, getAppSettings, saveAppSettings, saveDrawing, saveTextAnnotation } from '../../utils/indexedDB'
@@ -47,6 +49,7 @@ interface StudyPanelProps {
 }
 
 const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
+  const { t, i18n } = useTranslation()
   // Refs
   const paneARef = useRef<PDFPaneHandle>(null)
   const paneBRef = useRef<PDFPaneHandle>(null)
@@ -589,7 +592,8 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
       const { gradeWork } = await import('../../services/api')
       const response = await gradeWork(
         croppedImageData,
-        selectedModel !== 'default' ? selectedModel : undefined
+        selectedModel !== 'default' ? selectedModel : undefined,
+        i18n.language
       )
       const endTime = Date.now()
       const clientResponseTimeSeconds = parseFloat(((endTime - startTime) / 1000).toFixed(1))
@@ -1070,7 +1074,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                 onClick={isSelectionMode ? handleCancelSelection : startGrading}
                 className={isSelectionMode ? 'active' : ''}
                 disabled={isGrading}
-                title={isSelectionMode ? 'キャンセル' : '範囲を選択して採点'}
+                title={isSelectionMode ? t('gradingConfirmation.cancel') : t('gradingConfirmation.gradeBySelection')}
               >
                 {isGrading ? '⏳' : '✅'}
               </button>
@@ -1476,7 +1480,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
               <textarea
                 autoFocus
                 defaultValue={editingText.initialText || ''}
-                placeholder="テキストを入力..."
+                placeholder={t('textMode.placeholder')}
                 style={{
                   fontSize: `${textFontSize}px`,
                   color: penColor,
@@ -1521,10 +1525,10 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
           gradingError && (
             <div className="error-popup">
               <div className="error-popup-content">
-                <h3>❌ エラー</h3>
+                <h3>{t('gradingConfirmation.errorTitle')}</h3>
                 <p>{gradingError}</p>
                 <button onClick={() => setGradingError(null)} className="close-btn">
-                  閉じる
+                  {t('gradingConfirmation.close')}
                 </button>
               </div>
             </div>
@@ -1535,12 +1539,12 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
           selectionPreview && (
             <div className="selection-confirm-popup">
               <div className="selection-confirm-content">
-                <h3>📐 この範囲を採点しますか？</h3>
+                <h3>{t('gradingConfirmation.title')}</h3>
                 <div className="preview-image-container">
-                  <img src={selectionPreview} alt="選択範囲のプレビュー" className="preview-image" />
+                  <img src={selectionPreview} alt={t('gradingConfirmation.previewAlt')} className="preview-image" />
                 </div>
                 <div style={{ marginTop: '16px', marginBottom: '16px' }}>
-                  <label style={{ fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>AIモデル:</label>
+                  <label style={{ fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>{t('gradingConfirmation.modelLabel')}</label>
                   <select
                     value={selectedModel}
                     onChange={(e) => setSelectedModel(e.target.value)}
@@ -1553,7 +1557,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                       cursor: 'pointer'
                     }}
                   >
-                    <option value="default">デフォルト ({defaultModelName})</option>
+                    <option value="default">{t('gradingConfirmation.defaultModel')} ({defaultModelName})</option>
                     {availableModels.map(model => (
                       <option key={model.id} value={model.id}>
                         {model.name}
@@ -1561,7 +1565,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                     ))}
                   </select>
                   <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                    {selectedModel === 'default' && `✨ ${defaultModelName} を使用`}
+                    {selectedModel === 'default' && t('gradingConfirmation.usingDefault', { modelName: defaultModelName })}
                     {availableModels.find(m => m.id === selectedModel)?.description}
                   </div>
                 </div>
@@ -1571,7 +1575,8 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                     className="cancel-button"
                     disabled={isGrading}
                   >
-                    {isGrading ? 'キャンセル' : 'やり直す'}
+                    <FaRedo size={18} />
+                    {isGrading ? t('gradingConfirmation.cancel') : t('gradingConfirmation.retry')}
                   </button>
                   <button
                     onClick={confirmAndGrade}
@@ -1579,7 +1584,8 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                     disabled={isGrading}
                     style={isGrading ? { opacity: 0.7, cursor: 'wait' } : undefined}
                   >
-                    {isGrading ? '⏳ 採点中...' : '採点する'}
+                    <FaCheck size={18} />
+                    {isGrading ? t('gradingConfirmation.grading') : t('gradingConfirmation.grade')}
                   </button>
                 </div>
               </div>

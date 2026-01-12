@@ -18,6 +18,7 @@ import { IoIosFolderOpen } from 'react-icons/io';
 import { ImFilePdf } from 'react-icons/im';
 import { VscDatabase } from 'react-icons/vsc';
 import { ICON_SVG } from '../../constants/icons';
+import { useTranslation } from 'react-i18next';
 
 interface AdminPanelProps {
   onSelectPDF: (record: PDFFileRecord) => void;
@@ -26,6 +27,9 @@ interface AdminPanelProps {
 }
 
 export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }: AdminPanelProps) {
+  // i18n
+  const { t, i18n } = useTranslation();
+
   // Custom hooks
   const {
     pdfRecords,
@@ -60,6 +64,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
   const [showHelp, setShowHelp] = useState(false);
   const [showSNSSettings, setShowSNSSettings] = useState(false);
   const [showCatalogPopup, setShowCatalogPopup] = useState(false);
+  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
 
   const [showGradingHistory, setShowGradingHistory] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
@@ -132,6 +137,13 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
     if (!deleteConfirm) return;
     await handleDeleteRecord(deleteConfirm.id);
     setDeleteConfirm(null);
+  };
+
+  // 言語切り替え
+  const toggleLanguage = () => {
+    const newLang = i18n.language === 'ja' ? 'en' : 'ja';
+    i18n.changeLanguage(newLang);
+    localStorage.setItem('language', newLang);
   };
 
   // SNS設定を保存
@@ -312,10 +324,10 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
             {/* ヘッダー（固定） */}
             <div style={{ padding: '24px 24px 16px 24px', borderBottom: '1px solid #ecf0f1' }}>
               <h3 style={{ margin: '0 0 8px 0', color: '#2c3e50', fontSize: '20px' }}>
-                Enjoy Links Settings
+                {t('snsSettings.title')}
               </h3>
               <p style={{ margin: 0, color: '#7f8c8d', fontSize: '14px' }}>
-                Select which links to show and set time limit
+                {t('snsSettings.description')}
               </p>
             </div>
 
@@ -349,7 +361,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                     gap: '6px'
                   }}>
                     <span>⏱️</span>
-                    <span>SNS利用時間制限</span>
+                    <span>{t('snsSettings.timeLimit')}</span>
                   </label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <input
@@ -380,7 +392,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                         textAlign: 'center'
                       }}
                     />
-                    <span style={{ fontSize: '14px', color: '#7f8c8d' }}>分</span>
+                    <span style={{ fontSize: '14px', color: '#7f8c8d' }}>{t('snsSettings.minutes')}</span>
                   </div>
                 </div>
 
@@ -401,7 +413,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                     gap: '6px'
                   }}>
                     <span>🔔</span>
-                    <span>時間切れ時に通知</span>
+                    <span>{t('snsSettings.notificationEnable')}</span>
                   </label>
 
                   {/* トグルスイッチ */}
@@ -530,7 +542,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                   cursor: 'pointer'
                 }}
               >
-                Cancel
+                {t('snsSettings.cancel')}
               </button>
               <button
                 onClick={saveSNSSettings}
@@ -545,7 +557,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                   cursor: 'pointer'
                 }}
               >
-                Save
+                {t('snsSettings.save')}
               </button>
             </div>
           </div>
@@ -575,18 +587,15 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
             overflow: 'auto'
           }}>
             <h3 style={{ margin: '0 0 16px 0', color: '#2c3e50', fontSize: '20px' }}>
-              📖 使い方ガイド
+              {t('howToUse.title')}
             </h3>
 
             {/* Step 1: PDF登録 */}
             <div style={{ marginBottom: '20px' }}>
               <h4 style={{ margin: '0 0 8px 0', color: '#3498db', fontSize: '16px' }}>
-                1️⃣ 教材PDFを登録する
+                {t('howToUse.step1.title')}
               </h4>
-              <p style={{ margin: '0 0 8px 0', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.6' }}>
-                ホーム画面の下部にある2つのボタンから教材を登録できます：
-              </p>
-              <ul style={{ margin: '0 0 12px 16px', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
+              <ul style={{ margin: '0 0 12px 0', paddingLeft: '1em', listStyle: 'none', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
                 <li style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                     <FaEarthAmericas style={{ fontSize: '16px', color: '#3498db' }} />
@@ -599,7 +608,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                   <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                     <IoIosFolderOpen style={{ fontSize: '16px', color: '#f39c12' }} />
                   </span>
-                  おすすめ無料教材サイトからダウンロード
+                  {t('howToUse.step1.catalog')}
                 </li>
                 <li style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center' }}>
@@ -613,72 +622,72 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                   <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                     <VscDatabase style={{ fontSize: '16px', color: '#34495e' }} />
                   </span>
-                  ローカルファイルから直接登録
+                  {t('howToUse.step1.local')}
                 </li>
               </ul>
             </div>
 
-            {/* Step 2: 学習 */}
+            {/* Step 2: SNS制限 */}
             <div style={{ marginBottom: '20px' }}>
               <h4 style={{ margin: '0 0 8px 0', color: '#3498db', fontSize: '16px' }}>
-                2️⃣ PDFで学習する
+                {t('howToUse.step2.title')}
               </h4>
-              <ul style={{ margin: '0 0 12px 16px', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
-                <li>登録したPDFをタップして開きます</li>
+              <ul style={{ margin: '0 0 12px 0', paddingLeft: '1em', listStyle: 'none', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
+                <li>{t('howToUse.step2.line1')}</li>
+                <li>{t('howToUse.step2.line2')}</li>
+                <li>{t('howToUse.step2.line3')}</li>
+              </ul>
+            </div>
+
+            {/* Step 3: 学習 */}
+            <div style={{ marginBottom: '20px' }}>
+              <h4 style={{ margin: '0 0 8px 0', color: '#3498db', fontSize: '16px' }}>
+                {t('howToUse.step3.title')}
+              </h4>
+              <ul style={{ margin: '0 0 12px 0', paddingLeft: '1em', listStyle: 'none', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
+                <li>{t('howToUse.step3.line1')}</li>
                 <li style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                     {ICON_SVG.pen(true, '#000000')}
                   </span>
-                  <strong>ペンモード</strong>で書き込み、
+                  <strong>{t('howToUse.step3.line2Pen')}</strong>{t('howToUse.step3.line2Write')}
                   <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                     {ICON_SVG.eraser(true)}
                   </span>
-                  <strong>消しゴムモード</strong>で消去
+                  <strong>{t('howToUse.step3.line2Eraser')}</strong>{t('howToUse.step3.line2Erase')}
                 </li>
-                <li>指やApple Pencilで直接書き込みができます</li>
-                <li>ピンチ操作で拡大・縮小、2本指ドラッグで移動</li>
+                <li>{t('howToUse.step3.line3')}</li>
+                <li>{t('howToUse.step3.line4')}</li>
               </ul>
             </div>
 
-            {/* Step 3: 採点 */}
+            {/* Step 4: 採点 */}
             <div style={{ marginBottom: '20px' }}>
               <h4 style={{ margin: '0 0 8px 0', color: '#3498db', fontSize: '16px' }}>
-                3️⃣ AI採点を受ける
+                {t('howToUse.step4.title')}
               </h4>
-              <ul style={{ margin: '0 0 12px 16px', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
+              <ul style={{ margin: '0 0 12px 0', paddingLeft: '1em', listStyle: 'none', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
                 <li style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <strong>✅ 採点</strong>ボタンをタップ
+                  <strong>{t('howToUse.step4.line1')}</strong> {t('howToUse.step4.line1Tap')}
                 </li>
-                <li>採点したい範囲をドラッグで選択</li>
-                <li>「採点する」ボタンで送信</li>
-                <li>AIが自動で丸付けとフィードバックを行います</li>
+                <li>{t('howToUse.step4.line2')}</li>
+                <li>{t('howToUse.step4.line3')}</li>
+                <li>{t('howToUse.step4.line4')}</li>
               </ul>
               <p style={{ margin: '0', padding: '8px', backgroundColor: '#fff3cd', borderRadius: '4px', fontSize: '12px', color: '#856404', lineHeight: '1.5' }}>
-                ⚠️ AI採点は100%正確ではありません。保護者の方は必ず確認してください。
+                {t('howToUse.step4.warning')}
               </p>
-            </div>
-
-            {/* Step 4: SNS制限 */}
-            <div style={{ marginBottom: '20px' }}>
-              <h4 style={{ margin: '0 0 8px 0', color: '#3498db', fontSize: '16px' }}>
-                4️⃣ SNSアクセス許可を設定する
-              </h4>
-              <ul style={{ margin: '0 0 12px 16px', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
-                <li><strong>⚙️ Admin</strong>タブ → <strong>❤️ Links & Notification</strong></li>
-                <li>SNS利用時間制限を設定（5分〜60分）</li>
-                <li>採点後、設定した時間だけSNSリンクが有効になります</li>
-              </ul>
             </div>
 
             {/* Step 5: その他 */}
             <div style={{ marginBottom: '20px' }}>
               <h4 style={{ margin: '0 0 8px 0', color: '#3498db', fontSize: '16px' }}>
-                5️⃣ その他の機能
+                {t('howToUse.step5.title')}
               </h4>
-              <ul style={{ margin: '0', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
-                <li><strong>🕒 History</strong> - 採点履歴を確認</li>
-                <li><strong>💾 Storage</strong> - データ使用状況を確認</li>
-                <li><strong>🗑️ ゴミ箱アイコン</strong> - PDFを削除</li>
+              <ul style={{ margin: 0, paddingLeft: '1em', listStyle: 'none', color: '#7f8c8d', fontSize: '14px', lineHeight: '1.8' }}>
+                <li>{t('howToUse.step5.history')}</li>
+                <li>{t('howToUse.step5.storage')}</li>
+                <li>{t('howToUse.step5.delete')}</li>
               </ul>
             </div>
 
@@ -696,7 +705,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                   cursor: 'pointer'
                 }}
               >
-                閉じる
+                {t('howToUse.closeButton')}
               </button>
             </div>
           </div>
@@ -724,7 +733,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
             width: '90%'
           }}>
             <h3 style={{ margin: '0 0 16px 0', color: '#2c3e50', fontSize: '20px' }}>
-              💾 Storage Information
+              {t('storage.title')}
             </h3>
 
             <div style={{ marginBottom: '20px' }}>
@@ -735,7 +744,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                 fontSize: '14px',
                 color: '#7f8c8d'
               }}>
-                <span>Usage:</span>
+                <span>{t('storage.usage')}:</span>
                 <span style={{ fontWeight: '600', color: '#2c3e50' }}>
                   {storageInfo.usageMB.toFixed(2)} MB / {storageInfo.quotaMB.toFixed(0)} MB
                 </span>
@@ -762,7 +771,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                 color: '#95a5a6',
                 textAlign: 'right'
               }}>
-                {storageInfo.usagePercent.toFixed(1)}% used
+                {storageInfo.usagePercent.toFixed(1)}% {t('storage.used')}
               </div>
             </div>
 
@@ -779,7 +788,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                 color: storageInfo.isPersisted ? '#155724' : '#856404',
                 marginBottom: '4px'
               }}>
-                {storageInfo.isPersisted ? '✅ Protected' : '⚠️ Not Protected'}
+                {storageInfo.isPersisted ? t('storage.protected') : t('storage.notProtected')}
               </div>
               <div style={{
                 fontSize: '12px',
@@ -787,10 +796,10 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                 lineHeight: '1.5'
               }}>
                 {storageInfo.isPersisted
-                  ? 'Your data is protected from automatic deletion.'
+                  ? t('storage.protectedMessage')
                   : getPlatformInfo().isIOS && !getPlatformInfo().isPWA
-                    ? 'Add this app to your home screen to protect your data from automatic deletion after 7 days of inactivity.'
-                    : 'Install this app or use it regularly to protect your data.'}
+                    ? t('storage.notProtectedMessageIOS')
+                    : t('storage.notProtectedMessageOther')}
               </div>
             </div>
 
@@ -814,7 +823,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#c0392b'}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#e74c3c'}
               >
-                🗑️ すべて削除
+                {t('storage.deleteAll')}
               </button>
               <button
                 onClick={() => setShowStorageInfo(false)}
@@ -832,7 +841,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2980b9'}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3498db'}
               >
-                閉じる
+                {t('storage.close')}
               </button>
             </div>
           </div>
@@ -892,6 +901,90 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
       )}
 
       <div className="admin-container">
+        {/* 言語切り替えドロップダウン */}
+        <div style={{
+          position: 'absolute',
+          top: '20px',
+          right: '80px',
+          zIndex: 100
+        }}>
+          <button
+            onClick={() => setIsLanguageMenuOpen(!isLanguageMenuOpen)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#3498db',
+              color: 'white',
+              border: 'none',
+              borderRadius: '20px',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              height: '40px'
+            }}
+          >
+            {i18n.language === 'ja' ? '日本語' : 'English'}
+            <span style={{ fontSize: '10px' }}>▼</span>
+          </button>
+
+          {isLanguageMenuOpen && (
+            <div style={{
+              position: 'absolute',
+              top: '110%',
+              right: 0,
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              border: '1px solid #ecf0f1',
+              minWidth: '120px',
+              overflow: 'hidden'
+            }}>
+              <button
+                onClick={() => {
+                  i18n.changeLanguage('ja');
+                  localStorage.setItem('language', 'ja');
+                  setIsLanguageMenuOpen(false);
+                }}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '10px 16px',
+                  backgroundColor: i18n.language === 'ja' ? '#f0f8ff' : 'white',
+                  color: '#2c3e50',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                日本語
+              </button>
+              <button
+                onClick={() => {
+                  i18n.changeLanguage('en');
+                  localStorage.setItem('language', 'en');
+                  setIsLanguageMenuOpen(false);
+                }}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '10px 16px',
+                  backgroundColor: i18n.language === 'en' ? '#f0f8ff' : 'white',
+                  color: '#2c3e50',
+                  border: 'none',
+                  borderTop: '1px solid #ecf0f1',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                English
+              </button>
+            </div>
+          )}
+        </div>
+
         <button className="help-button" onClick={() => setShowHelp(true)} title="Help">
           ?
         </button>
@@ -939,9 +1032,9 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
               onClick={() => setActiveTab('admin')}
               style={{
                 padding: '12px 24px',
-                backgroundColor: activeTab === 'admin' ? '#27ae60' : 'white',
+                backgroundColor: activeTab === 'admin' ? '#3498db' : 'white',
                 color: activeTab === 'admin' ? 'white' : '#2c3e50',
-                border: `2px solid #27ae60`,
+                border: `2px solid #3498db`,
                 borderRadius: '12px',
                 fontSize: '16px',
                 fontWeight: '600',
@@ -1055,6 +1148,8 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                 ))}
               </div>
             )}
+
+
 
             <div style={{
               display: 'grid',

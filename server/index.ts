@@ -143,7 +143,7 @@ app.get('/api/proxy-pdf', async (req, res) => {
 // 簡素化された採点API（切り抜き画像のみ）
 app.post('/api/grade-work', async (req, res) => {
   try {
-    const { croppedImageData, model: requestModel } = req.body
+    const { croppedImageData, model: requestModel, language } = req.body
 
     if (!croppedImageData) {
       return res.status(400).json({ error: 'croppedImageData is required' })
@@ -157,7 +157,13 @@ app.post('/api/grade-work', async (req, res) => {
     const currentModel = requestModel ? genAI.getGenerativeModel({ model: currentModelName }) : model
 
     // シンプルなプロンプト（切り抜き画像のみ）
-    const simplePrompt = `あなたは小中学生の家庭教師です。以下の画像には生徒の解答が写っています。
+    // 言語設定の確認
+    const isJapanese = !language || language.startsWith('ja');
+
+    let simplePrompt = '';
+
+    if (isJapanese) {
+      simplePrompt = `あなたは小中学生の家庭教師です。以下の画像には生徒の解答が写っています。
 
 この画像を見て：
 1. 問題番号を特定してください（例: 1(1), 2(3) など）
@@ -185,7 +191,36 @@ app.post('/api/grade-work', async (req, res) => {
 ・レスポンシブに表示できるよう、width/height属性は指定せず、viewBoxを適切に設定してください。
 ・色は #333 (黒), #e74c3c (赤/強調), #3498db (青/補助) などを使い分けてください。
 
-JSONのみを出力してください。「はい」「承知しました」などの前置きは不要です。`
+JSONのみを出力してください。「はい」「承知しました」などの前置きは不要です。`;
+    } else {
+      // 英語プロンプト
+      simplePrompt = `You are a helpful tutor for students. The image shows a student's answer.
+
+Please analyze this image:
+1. Identify the problem number (e.g., 1(1), 2(3)).
+2. Recognize the student's handwritten answer.
+3. Determine if the answer is correct provided the context.
+4. Provide the correct answer and feedback.
+
+【IMPORTANT】Output ONLY the following JSON format. Do NOT include any introductory text or markdowns:
+{
+  "problemNumber": "Problem Number (e.g., '1(1)', '2(3)')",
+  "studentAnswer": "Student's Answer",
+  "isCorrect": true or false,
+  "correctAnswer": "Correct Answer",
+  "feedback": "Encouraging feedback",
+  "explanation": "Explanation",
+  "explanationSvg": "SVG code if helpful (optional, null if not needed)"
+}
+
+【SVG Rules】(Optional)
+- Generate simple SVG code if diagrams (shapes, graphs, etc.) help explain.
+- No \`\`\`xml tags. Just the SVG tag.
+- Do not specify width/height, use viewBox.
+- Use colors like #333 (black), #e74c3c (red/emphasis), #3498db (blue/secondary).
+
+Output ONLY JSON. No introductory text.`;
+    }
 
     // Extract mime type and clean base64
     const cropMatch = croppedImageData.match(/^data:(image\/(png|jpeg));base64,(.+)$/)

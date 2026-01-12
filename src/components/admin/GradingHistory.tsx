@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { GradingHistoryRecord, getAllGradingHistory, deleteGradingHistory, SNSUsageHistoryRecord, getSNSUsageHistory } from '../../utils/indexedDB'
 import './GradingHistory.css'
+import { useTranslation } from 'react-i18next'
 
 interface GradingHistoryProps {
   onClose: () => void
@@ -8,6 +9,7 @@ interface GradingHistoryProps {
 }
 
 const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
+  const { t } = useTranslation()
   const [historyList, setHistoryList] = useState<GradingHistoryRecord[]>([])
   const [snsHistoryList, setSnsHistoryList] = useState<SNSUsageHistoryRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -15,6 +17,7 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
   const [filterType, setFilterType] = useState<'all' | 'grading' | 'sns'>('all')
   const [filterCorrect, setFilterCorrect] = useState<'all' | 'correct' | 'incorrect'>('all')
   const [searchQuery, setSearchQuery] = useState('')
+
 
   // 履歴を読み込む
   useEffect(() => {
@@ -38,7 +41,7 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
   // 履歴を削除
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!confirm('この履歴を削除しますか？')) return
+    if (!confirm(t('gradingHistory.deleteConfirm'))) return
 
     try {
       await deleteGradingHistory(id)
@@ -48,7 +51,7 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
       }
     } catch (error) {
       console.error('履歴の削除に失敗:', error)
-      alert('履歴の削除に失敗しました')
+      alert(t('gradingHistory.deleteError'))
     }
   }
 
@@ -117,7 +120,7 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
     <div className="grading-history-overlay">
       <div className="grading-history-panel">
         <div className="history-header">
-          <h2>学習タイムライン</h2>
+          <h2>{t('gradingHistory.title')}</h2>
           <button className="close-btn" onClick={onClose}>
             ✕
           </button>
@@ -135,8 +138,8 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
                 <span className="result-badge incorrect" style={{ width: '20px', height: '20px', fontSize: '12px' }}>✗</span>
                 {incorrectCount}
               </span>
-              <span>📱 SNS: {snsCount}回</span>
-              <span>正答率: {correctRate}%</span>
+              <span>📱 {t('gradingHistory.snsCount')}: {snsCount}{t('gradingHistory.times')}</span>
+              <span>{t('gradingHistory.correctRate')}: {correctRate}%</span>
             </span>
           </div>
         </div>
@@ -149,21 +152,21 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
               onClick={() => setFilterType('all')}
               title="すべて表示"
             >
-              全て
+              {t('gradingHistory.filterAll')}
             </button>
             <button
               className={filterType === 'grading' ? 'active' : ''}
               onClick={() => setFilterType('grading')}
               title="採点のみ"
             >
-              📝 採点
+              {t('gradingHistory.filterGrading')}
             </button>
             <button
               className={filterType === 'sns' ? 'active' : ''}
               onClick={() => setFilterType('sns')}
               title="SNSのみ"
             >
-              📱 SNS
+              {t('gradingHistory.filterSNS')}
             </button>
 
             {filterType !== 'sns' && (
@@ -191,7 +194,7 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
           <input
             type="text"
             className="search-input"
-            placeholder="問題集名、問題番号、SNS名で検索..."
+            placeholder={t('gradingHistory.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -200,12 +203,12 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
         {/* 統合タイムライン */}
         <div className="history-content">
           {loading ? (
-            <div className="loading">読み込み中...</div>
+            <div className="loading">{t('gradingHistory.loading')}</div>
           ) : filteredHistory.length === 0 ? (
             <div className="empty-message">
               {searchQuery || filterType !== 'all'
-                ? '条件に一致する履歴がありません'
-                : 'まだ履歴がありません'}
+                ? t('gradingHistory.noResults')
+                : t('gradingHistory.noHistory')}
             </div>
           ) : (
             <div className="history-list">
@@ -223,7 +226,7 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
                           {item.data.isCorrect ? '✓' : '✗'}
                         </span>
                         <span className="problem-info">
-                          {item.data.pdfFileName} - ページ{item.data.pageNumber} - 問{item.data.problemNumber}
+                          {item.data.pdfFileName} - {t('gradingHistory.page')}{item.data.pageNumber} - {t('gradingHistory.problem')}{item.data.problemNumber}
                         </span>
                         <button
                           className="delete-btn"
@@ -247,7 +250,7 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
                       <div className="history-item-header" style={{ backgroundColor: '#f8f9fa' }}>
                         <span style={{ fontSize: '20px' }}>📱</span>
                         <span className="problem-info" style={{ color: '#7f8c8d' }}>
-                          {item.data.snsName} - {item.data.timeLimitMinutes}分
+                          {item.data.snsName} - {item.data.timeLimitMinutes}{t('gradingHistory.minutes_short')}
                         </span>
                       </div>
                       <div className="history-item-content">
@@ -268,49 +271,49 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
         {selectedHistory && (
           <div className="history-detail">
             <div className="detail-header">
-              <h3>詳細情報</h3>
+              <h3>{t('gradingHistory.detailTitle')}</h3>
               <button className="close-detail-btn" onClick={() => setSelectedHistory(null)}>
                 ✕
               </button>
             </div>
             <div className="detail-content">
               <div className="detail-section">
-                <h4>問題情報</h4>
-                <p><strong>問題集:</strong> {selectedHistory.pdfFileName}</p>
-                <p><strong>ページ:</strong> {selectedHistory.pageNumber}</p>
-                <p><strong>問題番号:</strong> {selectedHistory.problemNumber}</p>
-                <p><strong>実施日時:</strong> {formatDate(selectedHistory.timestamp)}</p>
+                <h4>{t('gradingHistory.problemInfo')}</h4>
+                <p><strong>{t('gradingHistory.workbook')}:</strong> {selectedHistory.pdfFileName}</p>
+                <p><strong>{t('gradingHistory.page')}:</strong> {selectedHistory.pageNumber}</p>
+                <p><strong>{t('gradingHistory.problemNumber')}:</strong> {selectedHistory.problemNumber}</p>
+                <p><strong>{t('gradingHistory.dateTime')}:</strong> {formatDate(selectedHistory.timestamp)}</p>
               </div>
 
               <div className="detail-section">
-                <h4>解答</h4>
+                <h4>{t('gradingHistory.answer')}</h4>
                 <div className={`result-indicator ${selectedHistory.isCorrect ? 'correct' : 'incorrect'}`}>
-                  {selectedHistory.isCorrect ? '✓ 正解' : '✗ 不正解'}
+                  {selectedHistory.isCorrect ? t('gradingHistory.correct') : t('gradingHistory.incorrect')}
                 </div>
-                <p><strong>あなたの解答:</strong></p>
+                <p><strong>{t('gradingHistory.yourAnswer')}:</strong></p>
                 <div className="answer-box">{selectedHistory.studentAnswer}</div>
               </div>
 
               {!selectedHistory.isCorrect && (
                 <div className="detail-section">
-                  <h4>正しい解答</h4>
+                  <h4>{t('gradingHistory.correctAnswer')}</h4>
                   <div className="answer-box">{selectedHistory.correctAnswer}</div>
                 </div>
               )}
 
               <div className="detail-section">
-                <h4>フィードバック</h4>
+                <h4>{t('gradingHistory.feedback')}</h4>
                 <div className="feedback-box">{selectedHistory.feedback}</div>
               </div>
 
               <div className="detail-section">
-                <h4>解説</h4>
+                <h4>{t('gradingHistory.explanation')}</h4>
                 <div className="explanation-box">{selectedHistory.explanation}</div>
               </div>
 
               {selectedHistory.imageData && (
                 <div className="detail-section">
-                  <h4>採点時の画像</h4>
+                  <h4>{t('gradingHistory.gradingImage')}</h4>
                   <img
                     src={selectedHistory.imageData}
                     alt="採点時の画像"
@@ -352,7 +355,7 @@ const GradingHistory = ({ onClose, onSelectHistory }: GradingHistoryProps) => {
 
         <div className="history-footer">
           <button className="close-button" onClick={onClose}>
-            Close
+            {t('gradingHistory.closeButton')}
           </button>
         </div>
       </div>

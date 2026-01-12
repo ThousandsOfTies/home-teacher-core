@@ -21,9 +21,9 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background-color: #3498db;
-  color: white;
-  border: none;
+  background-color: white;
+  color: #7f8c8d;
+  border: 1px solid #ddd;
   font-size: 24px;
   border-radius: 8px;
   font-size: 14px;

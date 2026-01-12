@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 // 推奨教材サイト一覧
-const RECOMMENDED_SITES = [
+// 推奨教材サイト一覧 (JA)
+const RECOMMENDED_SITES_JA = [
     {
         name: 'ふたば問題集',
         description: '文部科学省の新学習指導要領に対応。小学校で習う算数の全分野をカバーした無料プリント集です。',
@@ -52,12 +54,59 @@ const RECOMMENDED_SITES = [
     },
 ];
 
+// Recommended Sites (EN)
+const RECOMMENDED_SITES_EN = [
+    {
+        name: 'K5 Learning',
+        description: 'Free worksheets for kindergarten to grade 5. Organized by grade and topic.',
+        url: 'https://www.k5learning.com/free-math-worksheets',
+        highlight: '🏆 Comprehensive',
+        subjects: ['Math', 'Reading', 'Science'],
+        grades: ['K-5'],
+    },
+    {
+        name: 'Math-Drills.com',
+        description: 'One of the largest collections of free math worksheets. Over 50,000 pages.',
+        url: 'https://www.math-drills.com/',
+        highlight: '🔢 Huge Collection',
+        subjects: ['Math'],
+        grades: ['K-12'],
+    },
+    {
+        name: 'Dad\'s Worksheets',
+        description: 'Focused on math practice. Great for specific topics like fractions or geometry.',
+        url: 'https://www.dadsworksheets.com/',
+        highlight: '✏️ Math Focused',
+        subjects: ['Math'],
+        grades: ['K-6'],
+    },
+    {
+        name: 'Math Worksheets 4 Kids',
+        description: 'A wealth of worksheets for Math, English, Science, and Social Studies.',
+        url: 'https://www.mathworksheets4kids.com/',
+        highlight: '🎨 Colorful & Fun',
+        subjects: ['Math', 'English', 'Science'],
+        grades: ['K-8'],
+    },
+    {
+        name: 'Education.com',
+        description: 'High quality worksheets. Some require a free account to download.',
+        url: 'https://www.education.com/worksheets/math/',
+        highlight: '👨‍🏫 Teacher Created',
+        subjects: ['Math', 'Reading', 'Writing'],
+        grades: ['PreK-8'],
+    }
+];
+
 interface DrillCatalogProps {
     onImportConfig?: (addPDF: (file: Blob, fileName: string) => Promise<boolean>) => void;
     addPDF: (file: Blob, fileName: string) => Promise<boolean>;
 }
 
 export default function DrillCatalog({ }: DrillCatalogProps) {
+    const { t, i18n } = useTranslation();
+    const sites = (i18n.language === 'en' || i18n.language?.startsWith('en')) ? RECOMMENDED_SITES_EN : RECOMMENDED_SITES_JA;
+
     const handleOpenSite = (url: string) => {
         window.open(url, '_blank', 'noopener,noreferrer');
     };
@@ -69,7 +118,7 @@ export default function DrillCatalog({ }: DrillCatalogProps) {
                 marginBottom: '10px',
                 color: '#2c3e50'
             }}>
-                📚 おすすめ無料教材サイト
+                {t('drillCatalog.title')}
             </h2>
 
             <p style={{
@@ -78,17 +127,14 @@ export default function DrillCatalog({ }: DrillCatalogProps) {
                 marginBottom: '25px',
                 fontSize: '14px',
                 lineHeight: '1.6'
-            }}>
-                以下のサイトからPDFをダウンロードして、<br />
-                ホーム画面の「<strong>+ Add PDF</strong>」ボタンで登録してください。
-            </p>
+            }} dangerouslySetInnerHTML={{ __html: t('drillCatalog.description') }} />
 
             <div style={{
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '16px'
             }}>
-                {RECOMMENDED_SITES.map((site) => (
+                {sites.map((site) => (
                     <div
                         key={site.name}
                         style={{
@@ -162,9 +208,9 @@ export default function DrillCatalog({ }: DrillCatalogProps) {
                                 onClick={() => handleOpenSite(site.url)}
                                 style={{
                                     padding: '12px 24px',
-                                    backgroundColor: '#3498db',
-                                    color: 'white',
-                                    border: 'none',
+                                    backgroundColor: 'white',
+                                    color: '#3498db',
+                                    border: '1px solid #3498db',
                                     borderRadius: '8px',
                                     cursor: 'pointer',
                                     fontSize: '14px',
@@ -176,13 +222,13 @@ export default function DrillCatalog({ }: DrillCatalogProps) {
                                     whiteSpace: 'nowrap'
                                 }}
                                 onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#2980b9';
+                                    e.currentTarget.style.backgroundColor = '#f0f8ff';
                                 }}
                                 onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#3498db';
+                                    e.currentTarget.style.backgroundColor = 'white';
                                 }}
                             >
-                                サイトを開く
+                                {t('drillCatalog.openSite')}
                                 <span style={{ fontSize: '16px' }}>→</span>
                             </button>
                         </div>
@@ -203,9 +249,8 @@ export default function DrillCatalog({ }: DrillCatalogProps) {
                     color: '#e65100',
                     lineHeight: '1.6'
                 }}>
-                    💡 <strong>使い方のヒント：</strong><br />
-                    「ふたば問題集」は新学習指導要領に対応した全単元カバーのプリントが揃っています。<br />
-                    PDFをダウンロードしたら、コンビニで両面印刷すれば市販ドリルのように使えます！
+                    <strong>{t('drillCatalog.tipsTitle')}</strong><br />
+                    <span dangerouslySetInnerHTML={{ __html: t('drillCatalog.tipsContent') }} />
                 </p>
             </div>
 
@@ -221,10 +266,7 @@ export default function DrillCatalog({ }: DrillCatalogProps) {
                     fontSize: '11px',
                     color: '#888',
                     lineHeight: '1.5'
-                }}>
-                    ※ 各サイトの教材は、それぞれのサイトの利用規約に従ってご利用ください。<br />
-                    HomeTeacherは教材の配布元ではなく、リンクを紹介しているのみです。
-                </p>
+                }} dangerouslySetInnerHTML={{ __html: t('drillCatalog.disclaimer') }} />
             </div>
         </div>
     );

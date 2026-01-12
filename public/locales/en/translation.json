@@ -1,0 +1,141 @@
+{
+    "howToUse": {
+        "title": "📖 How to Use",
+        "step1": {
+            "title": "1️⃣ Register PDF Materials",
+            "catalog": "Download from recommended free material sites",
+            "local": "Register from local files"
+        },
+        "step2": {
+            "title": "2️⃣ Configure SNS Access Permissions",
+            "line1": "⚙️ Admin tab → ❤️ Links & Notification",
+            "line2": "Set SNS usage time limit (5-60 minutes)",
+            "line3": "SNS links become active for the set duration after grading"
+        },
+        "step3": {
+            "title": "3️⃣ Study with PDF",
+            "line1": "Tap to open registered PDF",
+            "line2Pen": "Pen Mode",
+            "line2Write": "to write,",
+            "line2Eraser": "Eraser Mode",
+            "line2Erase": "to erase",
+            "line3": "Write directly with finger or Apple Pencil",
+            "line4": "Pinch to zoom, 2-finger drag to pan"
+        },
+        "step4": {
+            "title": "4️⃣ AI Grading",
+            "line1": "✅ Grading",
+            "line1Tap": "Tap the button",
+            "line2": "Drag to select the area to grade",
+            "line3": "Send with \"Grade\" button",
+            "line4": "AI automatically grades and provides feedback",
+            "warning": "⚠️ AI grading is not 100% accurate. Parents must verify."
+        },
+        "step5": {
+            "title": "5️⃣ Other Features",
+            "history": "🕒 History - View grading history",
+            "storage": "💾 Storage - Check data usage",
+            "delete": "🗑️ Trash Icon - Delete PDF"
+        },
+        "closeButton": "Close"
+    },
+    "about": {
+        "title": "About TutoTuto"
+    },
+    "snsSettings": {
+        "title": "Enjoy Links Settings",
+        "description": "Select which links to show and set time limit",
+        "timeLimit": "Time Limit",
+        "minutes": "min",
+        "notification": "Notification",
+        "notificationEnable": "Enable notifications",
+        "cancel": "Cancel",
+        "save": "Save"
+    },
+    "gradingHistory": {
+        "title": "Learning Timeline",
+        "snsCount": "SNS",
+        "times": "times",
+        "correctRate": "Correct Rate",
+        "filterAll": "All",
+        "filterGrading": "📝 Grading",
+        "filterSNS": "📱 SNS",
+        "searchPlaceholder": "Search by workbook, problem number, SNS name...",
+        "loading": "Loading...",
+        "noResults": "No history matches the criteria",
+        "noHistory": "No history yet",
+        "page": "Page",
+        "problem": "Problem",
+        "deleteConfirm": "Delete this history?",
+        "deleteError": "Failed to delete history",
+        "detailTitle": "Detail Information",
+        "problemInfo": "Problem Information",
+        "workbook": "Workbook",
+        "problemNumber": "Problem Number",
+        "dateTime": "Date Time",
+        "answer": "Answer",
+        "correct": "✓ Correct",
+        "incorrect": "✗ Incorrect",
+        "yourAnswer": "Your Answer",
+        "correctAnswer": "Correct Answer",
+        "feedback": "Feedback",
+        "explanation": "Explanation",
+        "gradingImage": "Grading Image",
+        "closeButton": "Close",
+        "minutes_short": "min"
+    },
+    "storage": {
+        "title": "Storage Information",
+        "usage": "Usage",
+        "used": "used",
+        "protected": "✅ Protected",
+        "notProtected": "⚠️ Not Protected",
+        "protectedMessage": "Your data is protected from automatic deletion.",
+        "notProtectedMessageIOS": "Add this app to your home screen to protect your data from automatic deletion after 7 days of inactivity.",
+        "notProtectedMessageOther": "Install this app or use it regularly to protect your data.",
+        "deleteAll": "🗑️ Delete All",
+        "close": "Close",
+        "deleteConfirm": "Delete all data (PDFs, grading history, SNS links)? This action cannot be undone."
+    },
+    "gradingConfirmation": {
+        "title": "📐 Grade this selection?",
+        "gradeBySelection": "Select Area to Grade",
+        "previewAlt": "Selection Preview",
+        "modelLabel": "AI Model:",
+        "defaultModel": "Default",
+        "usingDefault": "✨ Using {{modelName}}",
+        "cancel": "Cancel",
+        "retry": "Retry",
+        "grading": "⏳ Grading...",
+        "grade": "Grade",
+        "errorTitle": "❌ Error",
+        "close": "Close"
+    },
+    "gradingResult": {
+        "title": "Grading Result",
+        "problem": "Problem",
+        "yourAnswer": "Your Answer:",
+        "correctAnswer": "Correct Answer:",
+        "feedback": "Feedback:",
+        "explanation": "Explanation:",
+        "gradingSource": "Source:",
+        "sourceDb": "📚 Using Registered Answers",
+        "problemPage": "Problem Page",
+        "registeredAnswer": "Correct Answer",
+        "sourceAi": "🤖 AI Inference",
+        "overallComment": "Overall Comment",
+        "viewSns": "📱 View SNS",
+        "close": "Close"
+    },
+    "drillCatalog": {
+        "title": "📚 Recommended Free Worksheets",
+        "description": "Download PDFs from the sites below and add them using the '<strong>+ Add PDF</strong>' button on the home screen.",
+        "openSite": "Open Site",
+        "tipsTitle": "💡 Tips:",
+        "tipsContent": "<strong>K5 Learning</strong> offers comprehensive worksheets organized by grade and topic.<br />Download the PDF and print it out for a great workbook experience!",
+        "disclaimer": "※ Please use materials from each site in accordance with their respective terms of use.<br />HomeTeacher only provides links and is not the distributor."
+    },
+    "textMode": {
+        "placeholder": "Enter text..."
+    }
+}
