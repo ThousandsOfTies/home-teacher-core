@@ -12,14 +12,7 @@ const RECOMMENDED_SITES_JA = [
         subjects: ['算数'],
         grades: ['小1〜小6'],
     },
-    {
-        name: 'すたぺんドリル',
-        description: 'プロの塾講師が作成。足し算から図形・思考力問題まで幅広くカバー。質の高い教材が揃っています。',
-        url: 'https://startoo.co/workbook/sansu/',
-        highlight: '👨‍🏫 塾講師監修',
-        subjects: ['算数', '国語', '理科', '社会', '英語'],
-        grades: ['幼児', '小1〜小6'],
-    },
+
     {
         name: 'すきるまドリル',
         description: '市販ドリルに近い構成。単元の導入→練習→まとめの流れが作りやすく、家庭学習に最適です。',
