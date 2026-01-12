@@ -9,7 +9,7 @@ i18n
         lng: localStorage.getItem('language') || 'ja', // デフォルト言語（日本語）
         fallbackLng: 'ja', // フォールバック言語
         backend: {
-            loadPath: '/locales/{{lng}}/translation.json' // 翻訳ファイルのパス
+            loadPath: import.meta.env.BASE_URL + 'locales/{{lng}}/translation.json' // 翻訳ファイルのパス
         },
         interpolation: {
             escapeValue: false // Reactは既にXSS対策済み
