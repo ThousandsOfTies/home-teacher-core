@@ -5,6 +5,14 @@ import { useTranslation } from 'react-i18next';
 // 推奨教材サイト一覧 (JA)
 const RECOMMENDED_SITES_JA = [
     {
+        name: 'ThousandsOfTies ドリル',
+        description: 'HomeTeacherの開発者によるサンプル問題集です。動作確認やデモに使用できます。',
+        url: 'https://thousandsofties.github.io/drills/',
+        highlight: '🎥 公式サンプル',
+        subjects: ['算数', 'その他'],
+        grades: ['全学年'],
+    },
+    {
         name: 'ふたば問題集',
         description: '文部科学省の新学習指導要領に対応。小学校で習う算数の全分野をカバーした無料プリント集です。',
         url: 'https://futaba-workbook.com/',
@@ -49,6 +57,14 @@ const RECOMMENDED_SITES_JA = [
 
 // Recommended Sites (EN)
 const RECOMMENDED_SITES_EN = [
+    {
+        name: 'ThousandsOfTies Drills',
+        description: 'Sample worksheets created by the developers. Useful for testing and demos.',
+        url: 'https://thousandsofties.github.io/drills/',
+        highlight: '🎥 Official Samples',
+        subjects: ['Math', 'Others'],
+        grades: ['All'],
+    },
     {
         name: 'K5 Learning',
         description: 'Free worksheets for kindergarten to grade 5. Organized by grade and topic.',
