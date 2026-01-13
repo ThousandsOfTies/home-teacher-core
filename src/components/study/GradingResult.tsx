@@ -12,9 +12,10 @@ interface GradingResultProps {
   timeLimitMinutes?: number // SNS利用時間制限（分）
   modelName?: string | null
   responseTime?: number | null
+  pdfId?: string // SNS終了後に戻るドリルのID
 }
 
-const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, modelName, responseTime }: GradingResultProps) => {
+const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, modelName, responseTime, pdfId }: GradingResultProps) => {
   const { t } = useTranslation()
   if (!result) return null
 
@@ -155,8 +156,10 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
 
     // SNS管理ページへ遷移（SNS選択UIを表示）
     // 戻り先URLを明示的に渡す（PWA/IndexedDB安定性のため）
-    const returnUrl = `${window.location.origin}${import.meta.env.BASE_URL || '/'}`
-    const manageUrl = `${returnUrl}manage.html?time=${timeLimitMinutes}&snsLinks=${encodeURIComponent(snsLinksJson)}&returnUrl=${encodeURIComponent(returnUrl)}`
+    // pdfIdがあれば、戻り先URLにも含めてドリルを再開できるようにする
+    const baseUrl = `${window.location.origin}${import.meta.env.BASE_URL || '/'}`
+    const returnUrl = pdfId ? `${baseUrl}?pdfId=${encodeURIComponent(pdfId)}` : baseUrl
+    const manageUrl = `${baseUrl}manage.html?time=${timeLimitMinutes}&snsLinks=${encodeURIComponent(snsLinksJson)}&returnUrl=${encodeURIComponent(returnUrl)}`
 
     // console.log('🔄 SNS管理ページへ遷移:', { manageUrl, returnUrl })
 

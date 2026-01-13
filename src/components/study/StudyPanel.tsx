@@ -1517,9 +1517,11 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
               timeLimitMinutes={snsTimeLimit}
               modelName={gradingModelName}
               responseTime={gradingResponseTime}
+              pdfId={pdfId}
             />
           )
         }
+
 
         {
           gradingError && (

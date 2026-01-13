@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import AdminPanel from './components/admin/AdminPanel'
 import StudyPanel from './components/study/StudyPanel'
-import { PDFFileRecord } from './utils/indexedDB'
+import { PDFFileRecord, getPDFRecord } from './utils/indexedDB'
 
 type AppView = 'admin' | 'viewer'
 
@@ -23,13 +23,37 @@ function App() {
     },
   })
 
-  // PWA起動時に常にHome画面（管理画面）に戻る
+  // PWA起動時: URLパラメータでpdfIdがあればドリルを再開、なければHome画面
   useEffect(() => {
-    // ページロード時（PWA再起動時）にadmin画面にリセット
-    setCurrentView('admin')
-    setSelectedPDF(null)
-    console.log('🏠 PWA起動: Home画面を表示')
+    const restoreSession = async () => {
+      const urlParams = new URLSearchParams(window.location.search)
+      const pdfId = urlParams.get('pdfId')
+
+      if (pdfId) {
+        try {
+          const record = await getPDFRecord(pdfId)
+          if (record) {
+            console.log('📖 SNS終了後: ドリルを再開', { pdfId, fileName: record.fileName })
+            setSelectedPDF(record)
+            setCurrentView('viewer')
+            // URLからパラメータを削除（履歴を残さない）
+            window.history.replaceState({}, '', window.location.pathname)
+            return
+          }
+        } catch (error) {
+          console.error('ドリルの復元に失敗:', error)
+        }
+      }
+
+      // pdfIdがないか、復元に失敗した場合はHome画面
+      setCurrentView('admin')
+      setSelectedPDF(null)
+      console.log('🏠 PWA起動: Home画面を表示')
+    }
+
+    restoreSession()
   }, [])
+
 
   const handleSelectPDF = (record: PDFFileRecord) => {
     setSelectedPDF(record)
