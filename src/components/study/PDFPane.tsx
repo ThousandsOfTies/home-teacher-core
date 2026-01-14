@@ -569,7 +569,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                             }
                         }
                         // 長押し検出開始
-                        startLongPress(normalizedPoint)
+                        // FIXME: 一時的に無効化してiPad問題を切り分け
+                        // startLongPress(normalizedPoint)
                         startDrawing(x, y)
                     } else if (tool === 'eraser') {
                         // 消しゴム時も選択を解除
@@ -789,7 +790,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                                     clearSelection()
                                 }
                             }
-                            startLongPress(normalizedPoint)
+                            // 長押し検出開始
+                            // FIXME: 一時的に無効化してiPad問題を切り分け
+                            // startLongPress(normalizedPoint)
                             startDrawing(x, y)
                         } else if (tool === 'eraser') {
                             if (hasSelection) clearSelection()
