@@ -918,6 +918,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             }}
             onTouchEnd={(e) => {
                 // 2本指タップでUndo判定
+                // FIXME: パームリジェクションとの兼ね合いで誤爆が多いため一時的に無効化
+                /*
                 if (twoFingerTapRef.current && e.touches.length === 0) {
                     const elapsed = Date.now() - twoFingerTapRef.current.time
                     if (elapsed < 300) {
@@ -925,6 +927,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     }
                     twoFingerTapRef.current = null
                 }
+                */
 
                 if (e.touches.length === 0) {
                     gestureRef.current = null
