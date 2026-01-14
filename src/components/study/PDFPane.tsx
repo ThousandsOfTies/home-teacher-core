@@ -384,6 +384,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             // 新しい方式：描画完了時にはnagewaチェックしない（長押しで発動）
             onPathAdd(path)
         },
+        // FIXME: 一時的に無効化してiPad問題を切り分け
+        onScratchComplete: undefined
+        /*
         onScratchComplete: (scratchPath) => {
             // console.log('⚡ PDFPane: onScratchComplete', { points: scratchPath.points.length })
             const currentPaths = drawingPathsRef.current
@@ -398,6 +401,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // console.log("⚡ Scratch detected but NO intersection found.", { currentPaths: currentPaths.length })
             }
         }
+        */
     })
 
     // Lasso Selection Hook (長押しベース)
