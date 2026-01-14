@@ -374,6 +374,13 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // console.log('🚫 PDFPane: Ignoring scratch path from permanent storage')
                 return
             }
+
+            // Ignore single-point paths (taps) to prevent accidental state updates/clears
+            // Users usually drag slightly even for dots, so 2 points is a safe threshold
+            if (path.points.length < 2) {
+                return
+            }
+
             // 新しい方式：描画完了時にはnagewaチェックしない（長押しで発動）
             onPathAdd(path)
         },
