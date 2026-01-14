@@ -175,8 +175,10 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     // RAFキャンセル用ref
     const rafIdRef = useRef<number | null>(null)
 
-    // 2本指タップでUndo用
+    // 2本指タップUndo用
     const twoFingerTapRef = useRef<{ time: number, startPos: { x: number, y: number }[] } | null>(null)
+    // 最初のタッチの時刻を記録（同時押し判定用）
+    const firstTouchTimeRef = useRef<number>(0)
 
     // Gesture State for Pinch/Pan
     const gestureRef = useRef<{
@@ -691,6 +693,11 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 })
                 if (hasStylus) return
 
+                // 最初のタッチの時間を記録
+                if (e.touches.length === 1) {
+                    firstTouchTimeRef.current = Date.now()
+                }
+
                 if (e.touches.length === 2) {
                     // --- 2-Finger Gesture (Pinch/Pan) ---
                     const t1 = e.touches[0]
@@ -713,12 +720,22 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     }
 
                     // For Undo Tap Detection
-                    twoFingerTapRef.current = {
-                        time: Date.now(),
-                        startPos: [
-                            { x: t1.clientX, y: t1.clientY },
-                            { x: t2.clientX, y: t2.clientY }
-                        ]
+                    // 同時押し判定: 2本目の指が最初の指から少し遅れても許容するが、
+                    // パームリジェクション対策として「最初の指がずっと置いてあった場合」は弾く
+                    const timeDiff = Date.now() - firstTouchTimeRef.current
+                    const isSimultaneous = e.changedTouches.length === 2 || timeDiff < 150
+
+                    if (isSimultaneous) {
+                        twoFingerTapRef.current = {
+                            time: Date.now(),
+                            startPos: [
+                                { x: t1.clientX, y: t1.clientY },
+                                { x: t2.clientX, y: t2.clientY }
+                            ]
+                        }
+                    } else {
+                        // 同時でない場合はタップ判定しない
+                        twoFingerTapRef.current = null
                     }
                 } else if (e.touches.length === 1) {
                     // --- Single Touch (Finger) ---
@@ -798,6 +815,16 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         }
 
                         const { startZoom, startPan, startDist, startCenter } = gestureRef.current
+
+                        // 2本指タップ判定の無効化（移動量が大きい場合）
+                        if (twoFingerTapRef.current) {
+                            const d1 = Math.hypot(t1.clientX - twoFingerTapRef.current.startPos[0].x, t1.clientY - twoFingerTapRef.current.startPos[0].y)
+                            const d2 = Math.hypot(t2.clientX - twoFingerTapRef.current.startPos[1].x, t2.clientY - twoFingerTapRef.current.startPos[1].y)
+                            // 10px以上動いたらタップとみなさない
+                            if (d1 > 10 || d2 > 10) {
+                                twoFingerTapRef.current = null
+                            }
+                        }
 
                         // 1. Calculate New Zoom
                         const scale = dist / startDist
