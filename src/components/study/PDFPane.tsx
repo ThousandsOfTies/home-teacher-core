@@ -987,6 +987,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         paths={drawingPaths}
                         isCtrlPressed={isCtrlPressed}
                         stylusOnly={false}
+                        isDrawingExternal={isDrawingInternal}
                         selectionState={selectionState}
                         onPathAdd={() => { }} // Interaction handled by useDrawing hook in PDFPane
                     />
