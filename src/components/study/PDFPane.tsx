@@ -997,7 +997,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         paths={drawingPaths}
                         isCtrlPressed={isCtrlPressed}
                         stylusOnly={false}
-                        selectionState={selectionState}
+                        // FIXME: 一時的にnullにしてiPad問題を切り分け
+                        selectionState={null}
                         onPathAdd={() => { }} // Interaction handled by useDrawing hook in PDFPane
                     />
                 </div>
