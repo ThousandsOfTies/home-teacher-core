@@ -511,11 +511,13 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
   // パス追加ハンドラ
   const handlePathAdd = (page: number, newPath: DrawingPath) => {
+    console.log('📝 handlePathAdd called', { page, newPathPoints: newPath.points.length })
     setDrawingPaths(prev => {
       const newMap = new Map(prev)
       const currentPaths = newMap.get(page) || []
       const newPaths = [...currentPaths, newPath]
       newMap.set(page, newPaths)
+      console.log('📝 handlePathAdd state update', { page, totalPaths: newPaths.length })
 
       // Save to DB
       saveDrawing(pdfId, page, JSON.stringify(newPaths))
@@ -543,6 +545,8 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
   // パス変更ハンドラ（Undo/Redo/Eraserなど）
   const handlePathsChange = (page: number, newPaths: DrawingPath[]) => {
+    console.log('⚠️ handlePathsChange called', { page, newPathsLength: newPaths.length })
+    console.trace('handlePathsChange call stack')
     setDrawingPaths(prev => {
       const newMap = new Map(prev)
       if (newPaths.length === 0) {
