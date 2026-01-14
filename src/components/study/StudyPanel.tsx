@@ -545,10 +545,6 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
   // パス変更ハンドラ（Undo/Redo/Eraserなど）
   const handlePathsChange = (page: number, newPaths: DrawingPath[]) => {
-    // FIXME: 一時的に無効化してiPad問題を切り分け
-    console.log('⚠️ handlePathsChange called but DISABLED', { page, newPathsLength: newPaths.length })
-    return // 完全無効化
-
     console.log('⚠️ handlePathsChange called', { page, newPathsLength: newPaths.length })
     console.trace('handlePathsChange call stack')
     setDrawingPaths(prev => {

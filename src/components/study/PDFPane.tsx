@@ -384,24 +384,16 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             // 新しい方式：描画完了時にはnagewaチェックしない（長押しで発動）
             onPathAdd(path)
         },
-        // FIXME: 一時的に無効化してiPad問題を切り分け
-        onScratchComplete: undefined
-        /*
         onScratchComplete: (scratchPath) => {
-            // console.log('⚡ PDFPane: onScratchComplete', { points: scratchPath.points.length })
             const currentPaths = drawingPathsRef.current
             const pathsToKeep = currentPaths.filter(existingPath =>
                 !doPathsIntersect(scratchPath, existingPath)
             )
 
             if (pathsToKeep.length < currentPaths.length) {
-                // console.log("✂️ Scratch detected! Erasing paths.", { before: currentPaths.length, after: pathsToKeep.length })
                 onPathsChange(pathsToKeep)
-            } else {
-                // console.log("⚡ Scratch detected but NO intersection found.", { currentPaths: currentPaths.length })
             }
         }
-        */
     })
 
     // Lasso Selection Hook (長押しベース)
@@ -573,8 +565,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                             }
                         }
                         // 長押し検出開始
-                        // FIXME: 一時的に無効化してiPad問題を切り分け
-                        // startLongPress(normalizedPoint)
+                        startLongPress(normalizedPoint)
                         startDrawing(x, y)
                     } else if (tool === 'eraser') {
                         // 消しゴム時も選択を解除
@@ -795,8 +786,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                                 }
                             }
                             // 長押し検出開始
-                            // FIXME: 一時的に無効化してiPad問題を切り分け
-                            // startLongPress(normalizedPoint)
+                            startLongPress(normalizedPoint)
                             startDrawing(x, y)
                         } else if (tool === 'eraser') {
                             if (hasSelection) clearSelection()
@@ -997,8 +987,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         paths={drawingPaths}
                         isCtrlPressed={isCtrlPressed}
                         stylusOnly={false}
-                        // FIXME: 一時的にnullにしてiPad問題を切り分け
-                        selectionState={null}
+                        selectionState={selectionState}
                         onPathAdd={() => { }} // Interaction handled by useDrawing hook in PDFPane
                     />
                 </div>
