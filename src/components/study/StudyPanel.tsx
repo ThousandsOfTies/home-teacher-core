@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState, useCallback } from 'react'
+﻿import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { FaCheck, FaRedo } from 'react-icons/fa'
 import { useTranslation } from 'react-i18next'
 import { GradingResult as GradingResultType, GradingResponseResult, getAvailableModels, ModelInfo } from '../../services/api'
@@ -454,6 +454,13 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
   // 描画パスの状態
   const [drawingPaths, setDrawingPaths] = useState<Map<number, DrawingPath[]>>(new Map())
+
+  // 安定した参照のための空配列定数（|| [] が毎回新しい配列を作らないように）
+  const EMPTY_PATHS: DrawingPath[] = useMemo(() => [], [])
+
+  // ページごとのパスをメモ化（参照が変わらないように）
+  const drawingPathsA = useMemo(() => drawingPaths.get(pageA) ?? EMPTY_PATHS, [drawingPaths, pageA, EMPTY_PATHS])
+  const drawingPathsB = useMemo(() => drawingPaths.get(pageB) ?? EMPTY_PATHS, [drawingPaths, pageB, EMPTY_PATHS])
 
   // 描画パスの読み込み（PDF読み込み時）
   useEffect(() => {
@@ -1298,7 +1305,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                 color={penColor}
                 size={penSize}
                 eraserSize={eraserSize}
-                drawingPaths={drawingPaths.get(pageA) || []}
+                drawingPaths={drawingPathsA}
                 isCtrlPressed={isCtrlPressed}
                 splitMode={isSplitView}
                 onPageChange={handlePageAChange}
