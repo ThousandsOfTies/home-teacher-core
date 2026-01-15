@@ -565,7 +565,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                             }
                         }
                         // 長押し検出開始
-                        startLongPress(normalizedPoint)
+                        // FIXME: 誤発火が多いため一時的に無効化
+                        // startLongPress(normalizedPoint)
                         startDrawing(x, y)
                     } else if (tool === 'eraser') {
                         // 消しゴム時も選択を解除
@@ -640,7 +641,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                     if (tool === 'pen' && isDrawingInternal) {
                         // 長押しキャンセル判定（移動があれば）
-                        checkLongPressMove(normalizedPoint)
+                        // FIXME: 誤発火が多いため一時的に無効化
+                        // checkLongPressMove(normalizedPoint)
                         draw(x, y)
                     } else if (tool === 'eraser') {
                         if (ev.buttons === 1) {
