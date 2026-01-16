@@ -362,7 +362,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         isDrawing: isDrawingInternal,
         startDrawing,
         draw,
-        drawBatch,
         stopDrawing,
         cancelDrawing
     } = useDrawing(drawingCanvasRef, {
@@ -528,8 +527,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             }}
             onPointerDown={(e) => {
                 // タッチ操作はonTouchStartで処理（マルチタッチ対応のため）
-                // ただし、ペン入力(pen)はここで処理する（Coalesced Eventsを利用するため）
-                if (e.pointerType === 'touch') return
+                // Apple Pencil (pen) もonTouchStartで処理（二重発火防止）
+                if (e.pointerType === 'touch' || e.pointerType === 'pen') return
 
                 // Ignore events on pager bar (Do this BEFORE capture)
                 if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
@@ -591,33 +590,24 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     }
                 }
 
+                // Apple Pencil の描画はonTouchMoveで処理（二重発火防止）
+                if (e.pointerType === 'pen') return
+
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
                 // パン中またはCtrl押下中はパン処理
                 if (isPanning || isCtrlPressed) {
                     doPanning(e)
+                    // MouseUp判定はglobalで行うが、pointer captureしていればここで完了判定しても良いかも？
+                    // しかしMouseUpイベントで判定しているので、ここでは座標更新のみ
                     return
                 }
 
-                // Coalesced Events の取得（Apple Pencil の追従性向上）
-                let events: any[] = []
-                // @ts-ignore
-                if (typeof e.getCoalescedEvents === 'function') {
-                    // @ts-ignore
-                    events = e.getCoalescedEvents()
-                } else if (e.nativeEvent && typeof (e.nativeEvent as any).getCoalescedEvents === 'function') {
-                    events = (e.nativeEvent as any).getCoalescedEvents()
-                } else {
-                    events = [e]
-                }
+                const x = (e.clientX - rect.left - panOffset.x) / zoom
+                const y = (e.clientY - rect.top - panOffset.y) / zoom
 
-                if (events.length === 0) events.push(e)
-
-                // 正規化座標の計算（最後のイベントのみ、選択ドラッグ判定用）
-                const lastEvent = events[events.length - 1]
-                const x = (lastEvent.clientX - rect.left - panOffset.x) / zoom
-                const y = (lastEvent.clientY - rect.top - panOffset.y) / zoom
+                // 正規化座標に変換
                 const cw = canvasSize?.width || canvasRef.current?.width || 1
                 const ch = canvasSize?.height || canvasRef.current?.height || 1
                 const normalizedPoint = { x: x / cw, y: y / ch }
@@ -629,26 +619,23 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
 
                 if (tool === 'pen' && isDrawingInternal) {
-                    // Coalesced Events を一括処理
-                    const batchPoints = events.map(ev => ({
-                        x: (ev.clientX - rect.left - panOffset.x) / zoom,
-                        y: (ev.clientY - rect.top - panOffset.y) / zoom
-                    }))
-                    drawBatch(batchPoints)
+                    // 長押しキャンセル判定（移動があれば）
+                    checkLongPressMove(normalizedPoint)
+                    draw(x, y)
                 } else if (tool === 'eraser') {
-                    if (lastEvent.buttons === 1) {
+                    if (e.buttons === 1) {
                         handleErase(x, y)
                     }
                     // マウスの消しゴムカーソル更新
-                    setEraserCursorPos({ x: lastEvent.clientX - rect.left, y: lastEvent.clientY - rect.top })
-                } else if (tool === 'none' && lastEvent.buttons === 1) {
+                    setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+                } else if (tool === 'none' && e.buttons === 1) {
                     // 採点モードでドラッグ時もパン
                     doPanning(e)
                 }
             }}
             onPointerUp={(e) => {
-                // タッチはonTouchEndで処理
-                if (e.pointerType === 'touch') return
+                // タッチ・ペンはonTouchEndで処理（二重発火防止）
+                if (e.pointerType === 'touch' || e.pointerType === 'pen') return
 
                 // リリースキャプチャ
                 if ((e.currentTarget as Element).hasPointerCapture(e.pointerId)) {
@@ -681,13 +668,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
-                // Palm Rejection & Coalesced Events Support:
-                // ペン入力 (stylus) は Pointer Events で処理するため、ここでは無視する
-                const hasStylus = Array.from(e.touches).some(t => {
-                    // @ts-ignore
-                    return t.touchType === 'stylus'
-                })
-                if (hasStylus) return
+                // Palm Rejection: Find stylus touch if any
+                // @ts-ignore - touchType is available on iOS Safari
+                const stylusTouch = Array.from(e.touches).find(t => t.touchType === 'stylus')
 
                 // 最初のタッチの時間を記録
                 if (e.touches.length === 1) {
@@ -695,7 +678,18 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
 
                 if (e.touches.length === 2) {
-                    // --- 2-Finger Gesture (Pinch/Pan) ---
+                    // --- 2-Finger Gesture ---
+                    // If one is stylus (Apple Pencil) and one is direct (palm), use stylus for drawing
+                    if (stylusTouch && tool === 'pen') {
+                        const t = stylusTouch as Touch
+                        const x = (t.clientX - rect.left - panOffset.x) / zoom
+                        const y = (t.clientY - rect.top - panOffset.y) / zoom
+                        startDrawing(x, y)
+                        twoFingerTapRef.current = null
+                        return
+                    }
+
+                    // Both are direct touches -> Pinch/Pan gesture
                     const t1 = e.touches[0]
                     const t2 = e.touches[1]
 
@@ -796,14 +790,21 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
-                // Check for stylus and ignore if present (handled by Pointer Events)
-                const hasStylus = Array.from(e.touches).some(t => {
-                    // @ts-ignore
-                    return t.touchType === 'stylus'
-                })
-                if (hasStylus) return
+                // Palm Rejection: Find stylus touch if any
+                // @ts-ignore - touchType is available on iOS Safari
+                const stylusTouch = Array.from(e.touches).find(t => t.touchType === 'stylus')
 
                 if (e.touches.length === 2) {
+                    // If one is stylus and we're in drawing mode, continue drawing with stylus
+                    if (stylusTouch && isDrawingInternal && tool === 'pen') {
+                        const t = stylusTouch as Touch
+                        const x = (t.clientX - rect.left - panOffset.x) / zoom
+                        const y = (t.clientY - rect.top - panOffset.y) / zoom
+                        draw(x, y)
+                        return
+                    }
+
+                    // Handle Pinch / 2-Finger Pan (only if in pinch mode)
                     if (gestureRef.current?.type === 'pinch') {
                         const t1 = e.touches[0]
                         const t2 = e.touches[1]
