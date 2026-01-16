@@ -10,6 +10,10 @@ import { APP_NAME, APP_DESCRIPTION, THEME_COLOR } from './config/features'
 import eruda from 'eruda'
 eruda.init()
 
+// Eruda 動作確認用ログ
+console.log('🚀 App Started!', new Date().toISOString())
+console.log('✅ Eruda is working!')
+
 // アプリ名とテーマカラーを動的に設定
 document.title = APP_NAME
 const metaDescription = document.querySelector('meta[name="description"]')
