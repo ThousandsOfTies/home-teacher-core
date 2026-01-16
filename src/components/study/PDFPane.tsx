@@ -526,6 +526,14 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 cursor: isPanning ? 'grabbing' : (isCtrlPressed ? 'grab' : 'default')
             }}
             onPointerDown={(e) => {
+                console.log('[PointerDown]', {
+                    type: e.pointerType,
+                    x: e.clientX,
+                    y: e.clientY,
+                    buttons: e.buttons,
+                    time: Date.now()
+                })
+
                 // タッチ操作はonTouchStartで処理（マルチタッチ対応のため）
                 // Apple Pencil (pen) もonTouchStartで処理（二重発火防止）
                 if (e.pointerType === 'touch' || e.pointerType === 'pen') return
@@ -579,6 +587,13 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
             }}
             onPointerMove={(e) => {
+                console.log('[PointerMove]', {
+                    type: e.pointerType,
+                    x: e.clientX,
+                    y: e.clientY,
+                    time: Date.now()
+                })
+
                 // タッチ操作はonTouchMoveで処理
                 if (e.pointerType === 'touch') return
 
@@ -634,6 +649,11 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
             }}
             onPointerUp={(e) => {
+                console.log('[PointerUp]', {
+                    type: e.pointerType,
+                    time: Date.now()
+                })
+
                 // タッチ・ペンはonTouchEndで処理（二重発火防止）
                 if (e.pointerType === 'touch' || e.pointerType === 'pen') return
 
@@ -662,6 +682,18 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
             }}
             onTouchStart={(e) => {
+                const touches = Array.from(e.touches).map(t => ({
+                    // @ts-ignore
+                    touchType: t.touchType,
+                    x: t.clientX,
+                    y: t.clientY
+                }))
+                console.log('[TouchStart]', {
+                    count: e.touches.length,
+                    touches,
+                    time: Date.now()
+                })
+
                 // Ignore events on pager bar
                 if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
 
@@ -787,6 +819,11 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
             }}
             onTouchMove={(e) => {
+                console.log('[TouchMove]', {
+                    count: e.touches.length,
+                    time: Date.now()
+                })
+
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
@@ -929,6 +966,11 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
             }}
             onTouchEnd={(e) => {
+                console.log('[TouchEnd]', {
+                    remaining: e.touches.length,
+                    time: Date.now()
+                })
+
                 // 2本指タップでUndo判定
                 // FIXME: パームリジェクションとの兼ね合いで誤爆が多いため一時的に無効化
                 /*
