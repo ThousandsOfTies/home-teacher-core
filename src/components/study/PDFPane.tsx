@@ -529,9 +529,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             onPointerDown={(e) => {
                 log('[PointerDown]', `type=${e.pointerType} x=${e.clientX} y=${e.clientY}`)
 
-                // タッチ操作はonTouchStartで処理（マルチタッチ対応のため）
-                // Apple Pencil (pen) もonTouchStartで処理（二重発火防止）
-                if (e.pointerType === 'touch' || e.pointerType === 'pen') return
+                // タッチはonTouchStartで処理、ペンはここで処理
+                if (e.pointerType === 'touch') return
 
                 // Ignore events on pager bar (Do this BEFORE capture)
                 if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
@@ -641,8 +640,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             onPointerUp={(e) => {
                 log('[PointerUp]', `type=${e.pointerType}`)
 
-                // タッチ・ペンはonTouchEndで処理（二重発火防止）
-                if (e.pointerType === 'touch' || e.pointerType === 'pen') return
+                // タッチはonTouchEndで処理
+                if (e.pointerType === 'touch') return
 
                 // リリースキャプチャ
                 if ((e.currentTarget as Element).hasPointerCapture(e.pointerId)) {
