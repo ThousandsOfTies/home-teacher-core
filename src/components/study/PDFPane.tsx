@@ -363,6 +363,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         isDrawing: isDrawingInternal,
         startDrawing,
         draw,
+        drawBatch,
         stopDrawing,
         cancelDrawing
     } = useDrawing(drawingCanvasRef, {
@@ -626,7 +627,15 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     log('[PointerMove]', `Coalesced: ${events.length} events`)
                 }
 
-                // 最後のイベントのみ使用（既存の動作を維持）
+                // すべての Coalesced Events から座標を抽出
+                const batchPoints: Array<{ x: number, y: number }> = []
+                for (const ev of events) {
+                    const ex = (ev.clientX - rect.left - panOffset.x) / zoom
+                    const ey = (ev.clientY - rect.top - panOffset.y) / zoom
+                    batchPoints.push({ x: ex, y: ey })
+                }
+
+                // 最後のイベントを正規化座標に変換（lasso selection, eraser 用）
                 const lastEvent = events[events.length - 1]
                 const x = (lastEvent.clientX - rect.left - panOffset.x) / zoom
                 const y = (lastEvent.clientY - rect.top - panOffset.y) / zoom
@@ -645,7 +654,13 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 if (tool === 'pen' && isDrawingInternal) {
                     // 長押しキャンセル判定（移動があれば）
                     checkLongPressMove(normalizedPoint)
-                    draw(x, y)
+
+                    // Coalesced Events をバッチ処理
+                    if (batchPoints.length > 1) {
+                        drawBatch(batchPoints)
+                    } else {
+                        draw(x, y)
+                    }
                 } else if (tool === 'eraser') {
                     if (e.buttons === 1) {
                         handleErase(x, y)
