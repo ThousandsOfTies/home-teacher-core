@@ -676,20 +676,15 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // Ignore events on pager bar
                 if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
 
-                const rect = containerRef.current?.getBoundingClientRect()
-                if (!rect) return
-
                 // Palm Rejection & Coalesced Events Support:
                 // ペン入力 (stylus) は Pointer Events で処理するため、ここでは無視する
-                const hasStylus = Array.from(e.touches).some(t => {
-                    // @ts-ignore
-                    return t.touchType === 'stylus'
-                })
-
                 if (hasStylus) {
                     log('[TouchStart] Stylus detected, ignoring')
                     return
                 }
+
+                const rect = containerRef.current?.getBoundingClientRect()
+                if (!rect) return
 
                 // 最初のタッチの時間を記録
                 if (e.touches.length === 1) {
