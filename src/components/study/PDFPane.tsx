@@ -932,6 +932,18 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             onTouchEnd={(e) => {
                 log('[TouchEnd]', `remaining=${e.touches.length}`)
 
+                // Stylus チェック（念のため）
+                if (e.touches.length > 0) {
+                    const hasStylus = Array.from(e.touches).some(t => {
+                        // @ts-ignore
+                        return t.touchType === 'stylus'
+                    })
+                    if (hasStylus) {
+                        log('[TouchEnd] Stylus still present, ignoring')
+                        return
+                    }
+                }
+
                 // 2本指タップでUndo判定
                 // FIXME: パームリジェクションとの兼ね合いで誤爆が多いため一時的に無効化
                 /*
