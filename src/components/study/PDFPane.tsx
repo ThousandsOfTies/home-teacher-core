@@ -795,21 +795,17 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
-                // Palm Rejection: Find stylus touch if any
-                // @ts-ignore - touchType is available on iOS Safari
-                const stylusTouch = Array.from(e.touches).find(t => t.touchType === 'stylus')
+                // Check for stylus and ignore if present (handled by Pointer Events)
+                const hasStylus = Array.from(e.touches).some(t => {
+                    // @ts-ignore
+                    return t.touchType === 'stylus'
+                })
+                if (hasStylus) {
+                    log('[TouchMove] Stylus detected, ignoring')
+                    return
+                }
 
                 if (e.touches.length === 2) {
-                    // If one is stylus and we're in drawing mode, continue drawing with stylus
-                    if (stylusTouch && isDrawingInternal && tool === 'pen') {
-                        const t = stylusTouch as Touch
-                        const x = (t.clientX - rect.left - panOffset.x) / zoom
-                        const y = (t.clientY - rect.top - panOffset.y) / zoom
-                        draw(x, y)
-                        return
-                    }
-
-                    // Handle Pinch / 2-Finger Pan (only if in pinch mode)
                     if (gestureRef.current?.type === 'pinch') {
                         const t1 = e.touches[0]
                         const t2 = e.touches[1]
