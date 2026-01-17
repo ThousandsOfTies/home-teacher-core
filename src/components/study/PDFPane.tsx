@@ -608,8 +608,28 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     return
                 }
 
-                const x = (e.clientX - rect.left - panOffset.x) / zoom
-                const y = (e.clientY - rect.top - panOffset.y) / zoom
+                // Coalesced Events の取得（Apple Pencil の追従性向上）
+                let events: any[] = []
+                // @ts-ignore
+                if (typeof e.getCoalescedEvents === 'function') {
+                    // @ts-ignore
+                    events = e.getCoalescedEvents()
+                } else if (e.nativeEvent && typeof (e.nativeEvent as any).getCoalescedEvents === 'function') {
+                    events = (e.nativeEvent as any).getCoalescedEvents()
+                } else {
+                    events = [e]
+                }
+
+                if (events.length === 0) events.push(e)
+
+                if (events.length > 1) {
+                    log('[PointerMove]', `Coalesced: ${events.length} events`)
+                }
+
+                // 最後のイベントのみ使用（既存の動作を維持）
+                const lastEvent = events[events.length - 1]
+                const x = (lastEvent.clientX - rect.left - panOffset.x) / zoom
+                const y = (lastEvent.clientY - rect.top - panOffset.y) / zoom
 
                 // 正規化座標に変換
                 const cw = canvasSize?.width || canvasRef.current?.width || 1
