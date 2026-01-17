@@ -10,20 +10,20 @@ export function initDebugLogger() {
     debugDiv.id = 'debug-logger'
     debugDiv.style.cssText = `
     position: fixed;
-    bottom: 60px;
-    left: 10px;
-    right: 10px;
-    max-height: 300px;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 320px;
     overflow-y: auto;
-    background: rgba(0, 0, 0, 0.9);
+    background: rgba(0, 0, 0, 0.85);
     color: #0f0;
     font-family: monospace;
-    font-size: 11px;
-    padding: 8px;
-    border-radius: 5px;
+    font-size: 10px;
+    padding: 10px;
     z-index: 99999;
     pointer-events: none;
-    line-height: 1.4;
+    line-height: 1.3;
+    border-left: 2px solid #0f0;
   `
     document.body.appendChild(debugDiv)
 

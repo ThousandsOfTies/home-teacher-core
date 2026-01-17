@@ -369,20 +369,23 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         width: size, // Pen size always for useDrawing (since it's only for pen now)
         color: color,
         onPathComplete: (path) => {
-            // console.log('✍️ PDFPane: onPathComplete', { pathLength: path.points.length })
+            log('[PathComplete]', `points=${path.points.length}`)
+
             // Do not add the path if it was recognized as a scratch gesture
             if (isScratchPattern(path)) {
-                // console.log('🚫 PDFPane: Ignoring scratch path from permanent storage')
+                log('[PathComplete] Scratch pattern detected, ignoring')
                 return
             }
 
             // Ignore single-point paths (taps) to prevent accidental state updates/clears
             // Users usually drag slightly even for dots, so 2 points is a safe threshold
             if (path.points.length < 2) {
+                log('[PathComplete] Too few points, ignoring')
                 return
             }
 
             // 新しい方式：描画完了時にはnagewaチェックしない（長押しで発動）
+            log('[PathComplete] Saving path')
             onPathAdd(path)
         },
         onScratchComplete: (scratchPath) => {
