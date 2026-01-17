@@ -679,9 +679,17 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
-                // Palm Rejection: Find stylus touch if any
-                // @ts-ignore - touchType is available on iOS Safari
-                const stylusTouch = Array.from(e.touches).find(t => t.touchType === 'stylus')
+                // Palm Rejection & Coalesced Events Support:
+                // ペン入力 (stylus) は Pointer Events で処理するため、ここでは無視する
+                const hasStylus = Array.from(e.touches).some(t => {
+                    // @ts-ignore
+                    return t.touchType === 'stylus'
+                })
+
+                if (hasStylus) {
+                    log('[TouchStart] Stylus detected, ignoring')
+                    return
+                }
 
                 // 最初のタッチの時間を記録
                 if (e.touches.length === 1) {
@@ -689,18 +697,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
 
                 if (e.touches.length === 2) {
-                    // --- 2-Finger Gesture ---
-                    // If one is stylus (Apple Pencil) and one is direct (palm), use stylus for drawing
-                    if (stylusTouch && tool === 'pen') {
-                        const t = stylusTouch as Touch
-                        const x = (t.clientX - rect.left - panOffset.x) / zoom
-                        const y = (t.clientY - rect.top - panOffset.y) / zoom
-                        startDrawing(x, y)
-                        twoFingerTapRef.current = null
-                        return
-                    }
-
-                    // Both are direct touches -> Pinch/Pan gesture
+                    // --- 2-Finger Gesture (Pinch/Pan) ---
                     const t1 = e.touches[0]
                     const t2 = e.touches[1]
 
