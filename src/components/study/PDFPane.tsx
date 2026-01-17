@@ -594,9 +594,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     }
                 }
 
-                // Apple Pencil の描画はonTouchMoveで処理（二重発火防止）
-                if (e.pointerType === 'pen') return
-
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
