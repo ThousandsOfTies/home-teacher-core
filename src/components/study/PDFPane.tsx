@@ -372,11 +372,12 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         onPathComplete: (path) => {
             log('[PathComplete]', `points=${path.points.length}`)
 
-            // Do not add the path if it was recognized as a scratch gesture
-            if (isScratchPattern(path)) {
-                log('[PathComplete] Scratch pattern detected, ignoring')
-                return
-            }
+            // TEMPORARY: Disable scratch pattern check (also disabled in drawing-common)
+            // TODO: Fix scratch pattern detection logic for drawBatch-drawn paths
+            // if (isScratchPattern(path)) {
+            //     log('[PathComplete] Scratch pattern detected, ignoring')
+            //     return
+            // }
 
             // Ignore single-point paths (taps) to prevent accidental state updates/clears
             // Users usually drag slightly even for dots, so 2 points is a safe threshold
