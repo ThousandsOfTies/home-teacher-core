@@ -949,7 +949,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                             position: 'absolute',
                             top: 0,
                             left: 0,
-                            pointerEvents: 'none' // Interaction handled by parent (us)
+                            pointerEvents: 'auto' // Interaction handled by DrawingCanvas
                         }}
                         tool={tool === 'none' ? 'pen' : tool}
                         color={color}
