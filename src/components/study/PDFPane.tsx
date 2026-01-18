@@ -957,7 +957,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         eraserSize={eraserSize}
                         paths={drawingPaths}
                         isCtrlPressed={isCtrlPressed}
-                        stylusOnly={false}
+                        stylusOnly={true}
                         selectionState={selectionState}
                         onPathAdd={onPathAdd}
                         onPathsChange={onPathsChange}

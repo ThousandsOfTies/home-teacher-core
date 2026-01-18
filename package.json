@@ -1,6 +1,6 @@
 {
   "name": "tutotuto",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "private": true,
   "description": "AI-powered drill grading app with handwriting support",
   "type": "module",
