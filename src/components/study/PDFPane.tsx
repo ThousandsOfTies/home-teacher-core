@@ -532,7 +532,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 cursor: isPanning ? 'grabbing' : (isCtrlPressed ? 'grab' : 'default')
             }}
             onPointerDown={(e) => {
-                log('[PointerDown]', `type=${e.pointerType} x=${e.clientX} y=${e.clientY}`)
+
 
                 // タッチはonTouchStartで処理、ペンはここで処理
                 if (e.pointerType === 'touch') return
@@ -586,7 +586,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
             }}
             onPointerMove={(e) => {
-                log('[PointerMove]', `type=${e.pointerType}`)
+
 
                 // タッチ操作はonTouchMoveで処理
                 if (e.pointerType === 'touch') return
