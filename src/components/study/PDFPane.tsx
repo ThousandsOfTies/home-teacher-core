@@ -286,7 +286,69 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
     // Manual Eraser Logic - Segment-level erasing (carves through lines)
     // IMPORTANT: Path coordinates are stored as NORMALIZED values (0-1)
+    const handleErase = (x: number, y: number) => {
+        const currentPaths = drawingPathsRef.current
+        if (currentPaths.length === 0) return
 
+        // Get canvas dimensions for normalization
+        const cw = canvasSize?.width || canvasRef.current?.width || 1
+        const ch = canvasSize?.height || canvasRef.current?.height || 1
+
+        // Normalize eraser position to 0-1 range (same as path coordinates)
+        const normalizedEraserX = x / cw
+        const normalizedEraserY = y / ch
+
+        // Eraser size also needs to be normalized (relative to canvas width)
+        const normalizedEraserSize = eraserSize / cw
+
+        // Check if point is within eraser radius
+        const isPointErased = (point: { x: number; y: number }) => {
+            const dx = point.x - normalizedEraserX
+            const dy = point.y - normalizedEraserY
+            const dist = Math.sqrt(dx * dx + dy * dy)
+            return dist < normalizedEraserSize
+        }
+
+        let hasChanges = false
+        const newPaths: DrawingPath[] = []
+
+        currentPaths.forEach(path => {
+            // Split path into segments based on erased points
+            const segments: { x: number; y: number }[][] = []
+            let currentSegment: { x: number; y: number }[] = []
+
+            path.points.forEach(point => {
+                if (isPointErased(point)) {
+                    // Point is erased - end current segment if it has points
+                    if (currentSegment.length > 1) {
+                        segments.push(currentSegment)
+                    }
+                    currentSegment = []
+                    hasChanges = true
+                } else {
+                    // Point is kept - add to current segment
+                    currentSegment.push(point)
+                }
+            })
+
+            // Don't forget the last segment
+            if (currentSegment.length > 1) {
+                segments.push(currentSegment)
+            }
+
+            // Convert segments back to paths
+            segments.forEach(segment => {
+                newPaths.push({
+                    ...path,
+                    points: segment
+                })
+            })
+        })
+
+        if (hasChanges) {
+            onPathsChange(newPaths)
+        }
+    }
 
     // Ref for stable access to drawingPaths in callbacks
     const drawingPathsRef = useRef(drawingPaths)
@@ -295,8 +357,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     }, [drawingPaths])
 
 
-    // Drawing Hook REMOVED - Drawing is now fully handled by DrawingCanvas component
-    /*
+    // Drawing Hook (Interaction Only)
+    // IMPORTANT: Use drawingCanvasRef NOT canvasRef - we draw on DrawingCanvas, not PDF canvas
     const {
         isDrawing: isDrawingInternal,
         startDrawing,
@@ -339,8 +401,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             }
         }
     })
-    */
-
 
     // Lasso Selection Hook (長押しベース)
     const {
@@ -355,7 +415,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         endDrag,
         clearSelection
     } = useLassoSelection(drawingPaths, onPathsChange, {
-        onSelectionActivate: () => { }
+        onSelectionActivate: cancelDrawing
     })
 
     // Undo via Parent
@@ -472,7 +532,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 cursor: isPanning ? 'grabbing' : (isCtrlPressed ? 'grab' : 'default')
             }}
             onPointerDown={(e) => {
-
+                log('[PointerDown]', `type=${e.pointerType} x=${e.clientX} y=${e.clientY}`)
 
                 // タッチはonTouchStartで処理、ペンはここで処理
                 if (e.pointerType === 'touch') return
@@ -480,24 +540,53 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // Ignore events on pager bar (Do this BEFORE capture)
                 if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
 
+                // マウス/ペンの場合はポインタキャプチャ（ウィンドウ外操作のため）
+                (e.currentTarget as Element).setPointerCapture(e.pointerId)
+
                 // Ctrl+ドラッグでパン（どのモードでも有効）
                 if (isCtrlPressed) {
-                    (e.currentTarget as Element).setPointerCapture(e.pointerId)
                     startPanning(e)
                     return
                 }
 
-                if (tool === 'none') {
-                    // 選択/採点モード時もパン可能
-                    (e.currentTarget as Element).setPointerCapture(e.pointerId)
-                    startPanning(e)
+                const rect = containerRef.current?.getBoundingClientRect()
+                if (rect) {
+                    const x = (e.clientX - rect.left - panOffset.x) / zoom
+                    const y = (e.clientY - rect.top - panOffset.y) / zoom
+
+                    // 正規化座標に変換
+                    const cw = canvasSize?.width || canvasRef.current?.width || 1
+                    const ch = canvasSize?.height || canvasRef.current?.height || 1
+                    const normalizedPoint = { x: x / cw, y: y / ch }
+
+                    if (tool === 'pen') {
+                        // 選択中の場合
+                        if (hasSelection) {
+                            if (isPointInSelection(normalizedPoint)) {
+                                // バウンディングボックス内 → ドラッグ開始
+                                startDrag(normalizedPoint)
+                                return
+                            } else {
+                                // バウンディングボックス外 → 選択解除
+                                clearSelection()
+                            }
+                        }
+                        // 長押し検出開始
+                        startLongPress(normalizedPoint)
+                        startDrawing(x, y)
+                    } else if (tool === 'eraser') {
+                        // 消しゴム時も選択を解除
+                        if (hasSelection) clearSelection()
+                        // console.log('🧹 Eraser MouseDown:', { x, y, pathsCount: drawingPathsRef.current.length })
+                        handleErase(x, y)
+                    } else if (tool === 'none') {
+                        // 選択/採点モード時もパン可能
+                        startPanning(e)
+                    }
                 }
-                // Pen, Eraser などの描画ツールは DrawingCanvas 側で処理するため、
-                // ここではイベントをキャプチャせず、何もしない。
-                // (DrawingCanvas が stopPropagation しない限り、イベントはバブルするが無視する)
             }}
             onPointerMove={(e) => {
-
+                log('[PointerMove]', `type=${e.pointerType}`)
 
                 // タッチ操作はonTouchMoveで処理
                 if (e.pointerType === 'touch') return
@@ -521,18 +610,65 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     return
                 }
 
-                // Coalesced Events: DrawingCanvas handles this.
-
-                // Eraser Cursor Position Update (for overlay)
-                if (tool === 'eraser') {
-                    const rect = containerRef.current?.getBoundingClientRect()
-                    if (rect) {
-                        setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
-                    }
-                    // Erasing logic is now handled by DrawingCanvas
+                // Coalesced Events の取得（Apple Pencil の追従性向上）
+                let events: any[] = []
+                // @ts-ignore
+                if (typeof e.getCoalescedEvents === 'function') {
+                    // @ts-ignore
+                    events = e.getCoalescedEvents()
+                } else if (e.nativeEvent && typeof (e.nativeEvent as any).getCoalescedEvents === 'function') {
+                    events = (e.nativeEvent as any).getCoalescedEvents()
+                } else {
+                    events = [e]
                 }
 
-                if (tool === 'none' && e.buttons === 1) {
+                if (events.length === 0) events.push(e)
+
+                if (events.length > 1) {
+                    log('[PointerMove]', `Coalesced: ${events.length} events`)
+                }
+
+                // すべての Coalesced Events から座標を抽出
+                const batchPoints: Array<{ x: number, y: number }> = []
+                for (const ev of events) {
+                    const ex = (ev.clientX - rect.left - panOffset.x) / zoom
+                    const ey = (ev.clientY - rect.top - panOffset.y) / zoom
+                    batchPoints.push({ x: ex, y: ey })
+                }
+
+                // 最後のイベントを正規化座標に変換（lasso selection, eraser 用）
+                const lastEvent = events[events.length - 1]
+                const x = (lastEvent.clientX - rect.left - panOffset.x) / zoom
+                const y = (lastEvent.clientY - rect.top - panOffset.y) / zoom
+
+                // 正規化座標に変換
+                const cw = canvasSize?.width || canvasRef.current?.width || 1
+                const ch = canvasSize?.height || canvasRef.current?.height || 1
+                const normalizedPoint = { x: x / cw, y: y / ch }
+
+                // 選択ドラッグ中
+                if (selectionState?.isDragging) {
+                    drag(normalizedPoint)
+                    return
+                }
+
+                if (tool === 'pen' && isDrawingInternal) {
+                    // 長押しキャンセル判定（移動があれば）
+                    checkLongPressMove(normalizedPoint)
+
+                    // Coalesced Events をバッチ処理
+                    if (batchPoints.length > 1) {
+                        drawBatch(batchPoints)
+                    } else {
+                        draw(x, y)
+                    }
+                } else if (tool === 'eraser') {
+                    if (e.buttons === 1) {
+                        handleErase(x, y)
+                    }
+                    // マウスの消しゴムカーソル更新
+                    setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+                } else if (tool === 'none' && e.buttons === 1) {
                     // 採点モードでドラッグ時もパン
                     doPanning(e)
                 }
@@ -548,8 +684,17 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     (e.currentTarget as Element).releasePointerCapture(e.pointerId)
                 }
 
-                // Drawing/Selection cleanup is handled by DrawingCanvas.
+                // 選択ドラッグ終了
+                if (selectionState?.isDragging) {
+                    endDrag()
+                    return
+                }
+                // 長押しキャンセル
+                cancelLongPress()
+                stopDrawing()
                 stopPanning()
+                // ここで判定しても良いが、Global MouseUpが動いているならそちらに任せる？
+                // captureしていればGlobal MouseUpより確実にここで取れる。
                 checkAndFinishSwipe()
             }}
             onPointerLeave={(e) => {
@@ -669,13 +814,12 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                                 }
                             }
                             // 長押し検出開始
-                            // 長押し検出開始
                             startLongPress(normalizedPoint)
-                            // Drawing is handled by DrawingCanvas via Pointer Events
+                            startDrawing(x, y)
                         } else if (tool === 'eraser') {
                             // 消しゴム時も選択を解除
                             if (hasSelection) clearSelection()
-                            // Erasing is handled by DrawingCanvas
+                            handleErase(x, y)
                         }
                     }
                 }
@@ -753,8 +897,16 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     // --- Handle Single Touch ---
                     const t = e.touches[0]
 
-                    // Selection Dragging: handled by DrawingCanvas
-
+                    // 選択ドラッグ中の処理（Apple Pencil対応）
+                    if (selectionState?.isDragging) {
+                        const x = (t.clientX - rect.left - panOffset.x) / zoom
+                        const y = (t.clientY - rect.top - panOffset.y) / zoom
+                        const cw = canvasSize?.width || canvasRef.current?.width || 1
+                        const ch = canvasSize?.height || canvasRef.current?.height || 1
+                        const normalizedPoint = { x: x / cw, y: y / ch }
+                        drag(normalizedPoint)
+                        return
+                    }
 
                     if (gestureRef.current?.type === 'pan') {
                         // Pan Logic
@@ -796,9 +948,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         if (tool === 'pen') {
                             // 長押しキャンセル判定
                             checkLongPressMove(normalizedPoint)
-                            // Drawing is handled by DrawingCanvas
+                            draw(x, y)
                         } else if (tool === 'eraser') {
-                            // Erasing is handled by DrawingCanvas
+                            handleErase(x, y)
                             // Update eraser cursor position for touch/stylus
                             setEraserCursorPos({ x: t.clientX - rect.left, y: t.clientY - rect.top })
                         }
@@ -806,7 +958,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         // Eraser can move without 'isDrawingInternal' (it draws on move)
                         const x = (t.clientX - rect.left - panOffset.x) / zoom
                         const y = (t.clientY - rect.top - panOffset.y) / zoom
-                        // Erasing is handled by DrawingCanvas
+                        handleErase(x, y)
                         // Update eraser cursor position for touch/stylus
                         setEraserCursorPos({ x: t.clientX - rect.left, y: t.clientY - rect.top })
                     }
@@ -852,9 +1004,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
 
                 // 長押しキャンセル
-                // 長押しキャンセル
                 cancelLongPress()
-                // stopDrawing() // Removed - DrawingCanvas handles this
+                stopDrawing()
                 stopPanning()
                 checkAndFinishSwipe()
             }}
@@ -889,7 +1040,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                             position: 'absolute',
                             top: 0,
                             left: 0,
-                            pointerEvents: 'auto' // Interaction handled by DrawingCanvas
+                            pointerEvents: 'none' // Interaction handled by parent (us)
                         }}
                         tool={tool === 'none' ? 'pen' : tool}
                         color={color}
@@ -897,15 +1048,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         eraserSize={eraserSize}
                         paths={drawingPaths}
                         isCtrlPressed={isCtrlPressed}
-                        stylusOnly={true}
+                        stylusOnly={false}
                         selectionState={selectionState}
-                        onPathAdd={onPathAdd}
-                        onPathsChange={onPathsChange}
-                        // Selection Interaction Handlers (Delegated to useLassoSelection hook)
-                        onSelectionDragStart={startDrag}
-                        onSelectionDrag={drag}
-                        onSelectionDragEnd={endDrag}
-                        onSelectionClear={clearSelection}
+                        onPathAdd={() => { }} // Interaction handled by useDrawing hook in PDFPane
                     />
                 </div>
             </div>
