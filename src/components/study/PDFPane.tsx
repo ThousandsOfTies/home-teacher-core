@@ -543,11 +543,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     return
                 }
 
-                // If event is on DrawingCanvas, let it handle the event
-                if (isDrawingCanvasEvent) {
-                    return
-                }
-
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (rect) {
                     const x = (e.clientX - rect.left - panOffset.x) / zoom
@@ -572,7 +567,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         }
                         // 長押し検出開始
                         startLongPress(normalizedPoint)
-                        // startDrawing(x, y) // Disabled - DrawingCanvas handles this now
+                        startDrawing(x, y)
                     } else if (tool === 'eraser') {
                         // 消しゴム時も選択を解除
                         if (hasSelection) clearSelection()
