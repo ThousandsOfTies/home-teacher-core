@@ -533,12 +533,21 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // Ignore events on pager bar (Do this BEFORE capture)
                 if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
 
-                // マウス/ペンの場合はポインタキャプチャ（ウィンドウ外操作のため）
-                (e.currentTarget as Element).setPointerCapture(e.pointerId)
+                // Don't capture if event is on DrawingCanvas - let it handle its own events
+                const isDrawingCanvasEvent = (e.target as HTMLElement).closest('.drawing-canvas')
+                if (!isDrawingCanvasEvent) {
+                    // マウス/ペンの場合はポインタキャプチャ（ウィンドウ外操作のため）
+                    (e.currentTarget as Element).setPointerCapture(e.pointerId)
+                }
 
                 // Ctrl+ドラッグでパン（どのモードでも有効）
                 if (isCtrlPressed) {
                     startPanning(e)
+                    return
+                }
+
+                // If event is on DrawingCanvas, let it handle the event
+                if (isDrawingCanvasEvent) {
                     return
                 }
 
