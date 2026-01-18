@@ -358,7 +358,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
 
     // Drawing Hook (Interaction Only)
-    // IMPORTANT: Use drawingCanvasRef NOT canvasRef - we draw on DrawingCanvas, not PDF canvas
+    // DISABLED: This was causing double drawing because DrawingCanvas also has useDrawing
+    // Now DrawingCanvas handles all drawing events directly via its own useDrawing hook
+    /*
     const {
         isDrawing: isDrawingInternal,
         startDrawing,
@@ -367,26 +369,16 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         stopDrawing,
         cancelDrawing
     } = useDrawing(drawingCanvasRef, {
-        width: size, // Pen size always for useDrawing (since it's only for pen now)
+        width: size,
         color: color,
         onPathComplete: (path) => {
             log('[PathComplete]', `points=${path.points.length}`)
 
-            // TEMPORARY: Disable scratch pattern check (also disabled in drawing-common)
-            // TODO: Fix scratch pattern detection logic for drawBatch-drawn paths
-            // if (isScratchPattern(path)) {
-            //     log('[PathComplete] Scratch pattern detected, ignoring')
-            //     return
-            // }
-
-            // Ignore single-point paths (taps) to prevent accidental state updates/clears
-            // Users usually drag slightly even for dots, so 2 points is a safe threshold
             if (path.points.length < 2) {
                 log('[PathComplete] Too few points, ignoring')
                 return
             }
 
-            // 新しい方式：描画完了時にはnagewaチェックしない（長押しで発動）
             log('[PathComplete] Saving path')
             onPathAdd(path)
         },
@@ -401,6 +393,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             }
         }
     })
+    */
 
     // Lasso Selection Hook (長押しベース)
     const {
@@ -415,7 +408,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         endDrag,
         clearSelection
     } = useLassoSelection(drawingPaths, onPathsChange, {
-        onSelectionActivate: cancelDrawing
+        onSelectionActivate: () => { } // cancelDrawing disabled
     })
 
     // Undo via Parent
@@ -573,7 +566,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         }
                         // 長押し検出開始
                         startLongPress(normalizedPoint)
-                        startDrawing(x, y)
+                        // startDrawing(x, y) // Disabled - DrawingCanvas handles this now
                     } else if (tool === 'eraser') {
                         // 消しゴム時も選択を解除
                         if (hasSelection) clearSelection()
@@ -652,16 +645,17 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     return
                 }
 
-                if (tool === 'pen' && isDrawingInternal) {
+                // Drawing is now handled by DrawingCanvas - no need to call draw functions here
+                if (tool === 'pen') {
                     // 長押しキャンセル判定（移動があれば）
                     checkLongPressMove(normalizedPoint)
 
-                    // Coalesced Events をバッチ処理
-                    if (batchPoints.length > 1) {
-                        drawBatch(batchPoints)
-                    } else {
-                        draw(x, y)
-                    }
+                    // Drawing handled by DrawingCanvas
+                    // if (batchPoints.length > 1) {
+                    //     drawBatch(batchPoints)
+                    // } else {
+                    //     draw(x, y)
+                    // }
                 } else if (tool === 'eraser') {
                     if (e.buttons === 1) {
                         handleErase(x, y)
@@ -691,7 +685,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
                 // 長押しキャンセル
                 cancelLongPress()
-                stopDrawing()
+                // stopDrawing() // Disabled - DrawingCanvas handles this now
                 stopPanning()
                 // ここで判定しても良いが、Global MouseUpが動いているならそちらに任せる？
                 // captureしていればGlobal MouseUpより確実にここで取れる。
@@ -769,7 +763,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     // --- Single Touch ---
                     const t = e.touches[0]
 
-                    if (isCtrlPressed || (tool === 'none' && !isDrawingInternal)) {
+                    if (isCtrlPressed || tool === 'none') {
                         // Pan Mode
                         gestureRef.current = {
                             type: 'pan',
@@ -815,7 +809,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                             }
                             // 長押し検出開始
                             startLongPress(normalizedPoint)
-                            startDrawing(x, y)
+                            // startDrawing(x, y) // Disabled - DrawingCanvas handles this now
                         } else if (tool === 'eraser') {
                             // 消しゴム時も選択を解除
                             if (hasSelection) clearSelection()
@@ -932,7 +926,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                         setPanOffset(limitedOffset)
 
-                    } else if (isDrawingInternal) { // Only force drawing if already drawing
+                    } else {
+                        // Drawing handled by DrawingCanvas now
                         // Palm Rejection check
                         // @ts-ignore
                         if (tool === 'pen' && t.touchType === 'direct') return
@@ -948,20 +943,21 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         if (tool === 'pen') {
                             // 長押しキャンセル判定
                             checkLongPressMove(normalizedPoint)
-                            draw(x, y)
+                            // draw(x, y) // Disabled - DrawingCanvas handles this now
                         } else if (tool === 'eraser') {
                             handleErase(x, y)
                             // Update eraser cursor position for touch/stylus
                             setEraserCursorPos({ x: t.clientX - rect.left, y: t.clientY - rect.top })
                         }
-                    } else if (tool === 'eraser') {
-                        // Eraser can move without 'isDrawingInternal' (it draws on move)
-                        const x = (t.clientX - rect.left - panOffset.x) / zoom
-                        const y = (t.clientY - rect.top - panOffset.y) / zoom
-                        handleErase(x, y)
-                        // Update eraser cursor position for touch/stylus
-                        setEraserCursorPos({ x: t.clientX - rect.left, y: t.clientY - rect.top })
                     }
+                } else if (tool === 'eraser') {
+                    // Eraser can move without drawing state (it draws on move)
+                    const t = e.touches[0]
+                    const x = (t.clientX - rect.left - panOffset.x) / zoom
+                    const y = (t.clientY - rect.top - panOffset.y) / zoom
+                    handleErase(x, y)
+                    // Update eraser cursor position for touch/stylus
+                    setEraserCursorPos({ x: t.clientX - rect.left, y: t.clientY - rect.top })
                 }
             }}
             onTouchEnd={(e) => {
@@ -1005,7 +1001,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                 // 長押しキャンセル
                 cancelLongPress()
-                stopDrawing()
+                // stopDrawing() // Disabled - DrawingCanvas handles this now
                 stopPanning()
                 checkAndFinishSwipe()
             }}
@@ -1039,8 +1035,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         style={{
                             position: 'absolute',
                             top: 0,
-                            left: 0,
-                            pointerEvents: 'none' // Interaction handled by parent (us)
+                            left: 0
+                            // pointerEvents removed - DrawingCanvas now handles events directly
                         }}
                         tool={tool === 'none' ? 'pen' : tool}
                         color={color}
@@ -1056,167 +1052,173 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             </div>
 
             {/* Overscroll Indicators */}
-            {Math.abs(overscroll.y) > 5 && (
-                <>
-                    {/* Top Indicator (Prev Page) */}
-                    {pageNum > 1 && overscroll.y > 0 && (
-                        <div style={{
-                            position: 'absolute',
-                            top: 20,
-                            left: '50%',
-                            transform: 'translateX(-50%)',
-                            opacity: Math.min(overscroll.y / 50, 1),
-                            pointerEvents: 'none',
-                            transition: 'opacity 0.2s, color 0.2s',
-                            color: overscroll.y > SWIPE_THRESHOLD ? '#007AFF' : '#888',
-                            fontWeight: 'bold',
-                            background: 'rgba(255,255,255,0.9)',
-                            padding: '8px 16px',
-                            borderRadius: '20px',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                            zIndex: 10000,
-                            userSelect: 'none'
-                        }}>
-                            {overscroll.y > SWIPE_THRESHOLD ? '↑ 離して前のページへ' : '↓ 引っ張って前のページ'}
-                        </div>
-                    )}
+            {
+                Math.abs(overscroll.y) > 5 && (
+                    <>
+                        {/* Top Indicator (Prev Page) */}
+                        {pageNum > 1 && overscroll.y > 0 && (
+                            <div style={{
+                                position: 'absolute',
+                                top: 20,
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                opacity: Math.min(overscroll.y / 50, 1),
+                                pointerEvents: 'none',
+                                transition: 'opacity 0.2s, color 0.2s',
+                                color: overscroll.y > SWIPE_THRESHOLD ? '#007AFF' : '#888',
+                                fontWeight: 'bold',
+                                background: 'rgba(255,255,255,0.9)',
+                                padding: '8px 16px',
+                                borderRadius: '20px',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                zIndex: 10000,
+                                userSelect: 'none'
+                            }}>
+                                {overscroll.y > SWIPE_THRESHOLD ? '↑ 離して前のページへ' : '↓ 引っ張って前のページ'}
+                            </div>
+                        )}
 
-                    {/* Bottom Indicator (Next Page) */}
-                    {pageNum < numPages && overscroll.y < 0 && (
-                        <div style={{
-                            position: 'absolute',
-                            bottom: 20,
-                            left: '50%',
-                            transform: 'translateX(-50%)',
-                            opacity: Math.min(-overscroll.y / 50, 1),
-                            pointerEvents: 'none',
-                            transition: 'opacity 0.2s, color 0.2s',
-                            color: overscroll.y < -SWIPE_THRESHOLD ? '#007AFF' : '#888',
-                            fontWeight: 'bold',
-                            background: 'rgba(255,255,255,0.9)',
-                            padding: '8px 16px',
-                            borderRadius: '20px',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                            zIndex: 10000,
-                            userSelect: 'none'
-                        }}>
-                            {overscroll.y < -SWIPE_THRESHOLD ? '↓ 離して次のページへ' : '↑ 引っ張って次のページ'}
-                        </div>
-                    )}
-                </>
-            )}
+                        {/* Bottom Indicator (Next Page) */}
+                        {pageNum < numPages && overscroll.y < 0 && (
+                            <div style={{
+                                position: 'absolute',
+                                bottom: 20,
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                opacity: Math.min(-overscroll.y / 50, 1),
+                                pointerEvents: 'none',
+                                transition: 'opacity 0.2s, color 0.2s',
+                                color: overscroll.y < -SWIPE_THRESHOLD ? '#007AFF' : '#888',
+                                fontWeight: 'bold',
+                                background: 'rgba(255,255,255,0.9)',
+                                padding: '8px 16px',
+                                borderRadius: '20px',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                zIndex: 10000,
+                                userSelect: 'none'
+                            }}>
+                                {overscroll.y < -SWIPE_THRESHOLD ? '↓ 離して次のページへ' : '↑ 引っ張って次のページ'}
+                            </div>
+                        )}
+                    </>
+                )
+            }
 
             {/* Eraser Cursor */}
-            {tool === 'eraser' && eraserCursorPos && (
-                <div
-                    style={{
-                        position: 'absolute',
-                        left: `${eraserCursorPos.x}px`,
-                        top: `${eraserCursorPos.y}px`,
-                        width: `${eraserSize * 2 * zoom}px`,
-                        height: `${eraserSize * 2 * zoom}px`,
-                        borderRadius: '50%',
-                        backgroundColor: 'rgba(255, 100, 100, 0.2)',
-                        border: '2px solid rgba(255, 100, 100, 0.6)',
-                        pointerEvents: 'none',
-                        transform: 'translate(-50%, -50%)',
-                        zIndex: 9999
-                    }}
-                />
-            )}
+            {
+                tool === 'eraser' && eraserCursorPos && (
+                    <div
+                        style={{
+                            position: 'absolute',
+                            left: `${eraserCursorPos.x}px`,
+                            top: `${eraserCursorPos.y}px`,
+                            width: `${eraserSize * 2 * zoom}px`,
+                            height: `${eraserSize * 2 * zoom}px`,
+                            borderRadius: '50%',
+                            backgroundColor: 'rgba(255, 100, 100, 0.2)',
+                            border: '2px solid rgba(255, 100, 100, 0.6)',
+                            pointerEvents: 'none',
+                            transform: 'translate(-50%, -50%)',
+                            zIndex: 9999
+                        }}
+                    />
+                )
+            }
 
             {/* Page Navigation (Right Side) */}
-            {numPages > 1 && (
-                <div className="page-scrollbar-container">
-                    {/* Fit Screen */}
-                    <button
-                        className="page-nav-button"
-                        onClick={() => {
-                            if (canvasRef.current && containerRef.current) {
-                                const containerH = containerRef.current.clientHeight
-                                const maxH = window.innerHeight - 120
-                                const effectiveH = (containerH > window.innerHeight) ? maxH : containerH
-                                fitToScreen(
-                                    canvasRef.current.width,
-                                    canvasRef.current.height,
-                                    effectiveH,
-                                    splitMode ? { fitToHeight: true, alignLeft: true } : undefined
-                                )
-                            }
-                        }}
-                        title="画面に合わせる"
-                        style={{ marginBottom: '8px' }}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-                        </svg>
-                    </button>
+            {
+                numPages > 1 && (
+                    <div className="page-scrollbar-container">
+                        {/* Fit Screen */}
+                        <button
+                            className="page-nav-button"
+                            onClick={() => {
+                                if (canvasRef.current && containerRef.current) {
+                                    const containerH = containerRef.current.clientHeight
+                                    const maxH = window.innerHeight - 120
+                                    const effectiveH = (containerH > window.innerHeight) ? maxH : containerH
+                                    fitToScreen(
+                                        canvasRef.current.width,
+                                        canvasRef.current.height,
+                                        effectiveH,
+                                        splitMode ? { fitToHeight: true, alignLeft: true } : undefined
+                                    )
+                                }
+                            }}
+                            title="画面に合わせる"
+                            style={{ marginBottom: '8px' }}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                            </svg>
+                        </button>
 
-                    {/* Prev 10 */}
-                    <button
-                        className="page-nav-button"
-                        onClick={goToPrev10Pages}
-                        disabled={pageNum <= 1}
-                        title="前の10ページ"
-                    >
-                        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '0.6' }}>
+                        {/* Prev 10 */}
+                        <button
+                            className="page-nav-button"
+                            onClick={goToPrev10Pages}
+                            disabled={pageNum <= 1}
+                            title="前の10ページ"
+                        >
+                            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '0.6' }}>
+                                <span>▲</span>
+                                <span>▲</span>
+                            </div>
+                        </button>
+
+                        {/* Prev 1 */}
+                        <button
+                            className="page-nav-button"
+                            onClick={goToPrevPage}
+                            disabled={pageNum <= 1}
+                            title="前のページ"
+                        >
                             <span>▲</span>
-                            <span>▲</span>
+                        </button>
+
+                        {/* Slider */}
+                        <div className="page-slider-wrapper">
+                            <input
+                                type="range"
+                                min="1"
+                                max={numPages}
+                                value={pageNum}
+                                onChange={(e) => onPageChange(Number(e.target.value))}
+                                className="page-slider"
+                                title="ページ移動"
+                            />
                         </div>
-                    </button>
 
-                    {/* Prev 1 */}
-                    <button
-                        className="page-nav-button"
-                        onClick={goToPrevPage}
-                        disabled={pageNum <= 1}
-                        title="前のページ"
-                    >
-                        <span>▲</span>
-                    </button>
-
-                    {/* Slider */}
-                    <div className="page-slider-wrapper">
-                        <input
-                            type="range"
-                            min="1"
-                            max={numPages}
-                            value={pageNum}
-                            onChange={(e) => onPageChange(Number(e.target.value))}
-                            className="page-slider"
-                            title="ページ移動"
-                        />
-                    </div>
-
-                    {/* Next 1 */}
-                    <button
-                        className="page-nav-button"
-                        onClick={goToNextPage}
-                        disabled={pageNum >= numPages}
-                        title="次のページ"
-                    >
-                        <span>▼</span>
-                    </button>
-
-                    {/* Next 10 */}
-                    <button
-                        className="page-nav-button"
-                        onClick={goToNext10Pages}
-                        disabled={pageNum >= numPages}
-                        title="次の10ページ"
-                    >
-                        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '0.6' }}>
+                        {/* Next 1 */}
+                        <button
+                            className="page-nav-button"
+                            onClick={goToNextPage}
+                            disabled={pageNum >= numPages}
+                            title="次のページ"
+                        >
                             <span>▼</span>
-                            <span>▼</span>
+                        </button>
+
+                        {/* Next 10 */}
+                        <button
+                            className="page-nav-button"
+                            onClick={goToNext10Pages}
+                            disabled={pageNum >= numPages}
+                            title="次の10ページ"
+                        >
+                            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '0.6' }}>
+                                <span>▼</span>
+                                <span>▼</span>
+                            </div>
+                        </button>
+
+                        {/* Indicator */}
+                        <div className="page-indicator">
+                            {pageNum}/{numPages}
                         </div>
-                    </button>
-
-                    {/* Indicator */}
-                    <div className="page-indicator">
-                        {pageNum}/{numPages}
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     )
 })
