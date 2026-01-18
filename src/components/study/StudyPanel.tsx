@@ -463,7 +463,10 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   const drawingPathsB = useMemo(() => drawingPaths.get(pageB) ?? EMPTY_PATHS, [drawingPaths, pageB, EMPTY_PATHS])
 
   // 描画パスの読み込み（PDF読み込み時）
+  // 描画パスの読み込み（PDF読み込み時）
   useEffect(() => {
+    // ユーザー要望によりIndexedDBからの書き戻しを停止中 (Double Line調査のため)
+    /*
     const loadDrawings = async () => {
       try {
         const record = await getPDFRecord(pdfId)
@@ -487,6 +490,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
       }
     }
     loadDrawings()
+    */
   }, [pdfId])
 
   // テキストアノテーションの読み込み（PDF読み込み時）
