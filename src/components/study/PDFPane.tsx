@@ -610,17 +610,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     (e.currentTarget as Element).releasePointerCapture(e.pointerId)
                 }
 
-                // 選択ドラッグ終了
-                if (selectionState?.isDragging) {
-                    endDrag()
-                    return
-                }
-                // 長押しキャンセル
-                cancelLongPress()
-                stopDrawing()
+                // Drawing/Selection cleanup is handled by DrawingCanvas.
                 stopPanning()
-                // ここで判定しても良いが、Global MouseUpが動いているならそちらに任せる？
-                // captureしていればGlobal MouseUpより確実にここで取れる。
                 checkAndFinishSwipe()
             }}
             onPointerLeave={(e) => {
@@ -823,16 +814,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     // --- Handle Single Touch ---
                     const t = e.touches[0]
 
-                    // 選択ドラッグ中の処理（Apple Pencil対応）
-                    if (selectionState?.isDragging) {
-                        const x = (t.clientX - rect.left - panOffset.x) / zoom
-                        const y = (t.clientY - rect.top - panOffset.y) / zoom
-                        const cw = canvasSize?.width || canvasRef.current?.width || 1
-                        const ch = canvasSize?.height || canvasRef.current?.height || 1
-                        const normalizedPoint = { x: x / cw, y: y / ch }
-                        drag(normalizedPoint)
-                        return
-                    }
+                    // Selection Dragging: handled by DrawingCanvas
+
 
                     if (gestureRef.current?.type === 'pan') {
                         // Pan Logic
