@@ -357,10 +357,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     }, [drawingPaths])
 
 
-    // Drawing Hook (Interaction Only)
-    // DISABLED: This was causing double drawing because DrawingCanvas also has useDrawing
-    // Now DrawingCanvas handles all drawing events directly via its own useDrawing hook
-    /*
+    // Drawing Hook (Interaction Only) - RE-ENABLED
+    // DrawingCanvas is now display-only (pointerEvents: none)
     const {
         isDrawing: isDrawingInternal,
         startDrawing,
@@ -393,7 +391,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             }
         }
     })
-    */
 
     // Lasso Selection Hook (長押しベース)
     const {
@@ -654,17 +651,16 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     return
                 }
 
-                // Drawing is now handled by DrawingCanvas - no need to call draw functions here
-                if (tool === 'pen') {
+                if (tool === 'pen' && isDrawingInternal) {
                     // 長押しキャンセル判定（移動があれば）
                     checkLongPressMove(normalizedPoint)
 
-                    // Drawing handled by DrawingCanvas
-                    // if (batchPoints.length > 1) {
-                    //     drawBatch(batchPoints)
-                    // } else {
-                    //     draw(x, y)
-                    // }
+                    // Coalesced Events をバッチ処理
+                    if (batchPoints.length > 1) {
+                        drawBatch(batchPoints)
+                    } else {
+                        draw(x, y)
+                    }
                 } else if (tool === 'eraser') {
                     if (e.buttons === 1) {
                         handleErase(x, y)
@@ -772,7 +768,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     // --- Single Touch ---
                     const t = e.touches[0]
 
-                    if (isCtrlPressed || tool === 'none') {
+                    if (isCtrlPressed || (tool === 'none' && !isDrawingInternal)) {
                         // Pan Mode
                         gestureRef.current = {
                             type: 'pan',
@@ -818,7 +814,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                             }
                             // 長押し検出開始
                             startLongPress(normalizedPoint)
-                            // startDrawing(x, y) // Disabled - DrawingCanvas handles this now
+                            startDrawing(x, y)
                         } else if (tool === 'eraser') {
                             // 消しゴム時も選択を解除
                             if (hasSelection) clearSelection()
@@ -936,7 +932,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         setPanOffset(limitedOffset)
 
                     } else {
-                        // Drawing handled by DrawingCanvas now
                         // Palm Rejection check
                         // @ts-ignore
                         if (tool === 'pen' && t.touchType === 'direct') return
@@ -952,7 +947,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         if (tool === 'pen') {
                             // 長押しキャンセル判定
                             checkLongPressMove(normalizedPoint)
-                            // draw(x, y) // Disabled - DrawingCanvas handles this now
+                            draw(x, y)
                         } else if (tool === 'eraser') {
                             handleErase(x, y)
                             // Update eraser cursor position for touch/stylus
@@ -1045,8 +1040,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                             position: 'absolute',
                             top: 0,
                             left: 0,
-                            touchAction: 'none'
-                            // pointerEvents removed - DrawingCanvas now handles events directly
+                            pointerEvents: 'none'
                         }}
                         tool={tool === 'none' ? 'pen' : tool}
                         color={color}
@@ -1056,8 +1050,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         isCtrlPressed={isCtrlPressed}
                         stylusOnly={false}
                         selectionState={selectionState}
-                        onPathAdd={onPathAdd}
-                        onPathsChange={onPathsChange}
+                        onPathAdd={() => { }} // Display only - PDFPane handles path saving
                     />
                 </div>
             </div>
