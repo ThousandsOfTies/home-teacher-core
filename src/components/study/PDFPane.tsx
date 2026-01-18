@@ -540,50 +540,21 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // Ignore events on pager bar (Do this BEFORE capture)
                 if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
 
-                // マウス/ペンの場合はポインタキャプチャ（ウィンドウ外操作のため）
-                (e.currentTarget as Element).setPointerCapture(e.pointerId)
-
                 // Ctrl+ドラッグでパン（どのモードでも有効）
                 if (isCtrlPressed) {
+                    (e.currentTarget as Element).setPointerCapture(e.pointerId)
                     startPanning(e)
                     return
                 }
 
-                const rect = containerRef.current?.getBoundingClientRect()
-                if (rect) {
-                    const x = (e.clientX - rect.left - panOffset.x) / zoom
-                    const y = (e.clientY - rect.top - panOffset.y) / zoom
-
-                    // 正規化座標に変換
-                    const cw = canvasSize?.width || canvasRef.current?.width || 1
-                    const ch = canvasSize?.height || canvasRef.current?.height || 1
-                    const normalizedPoint = { x: x / cw, y: y / ch }
-
-                    if (tool === 'pen') {
-                        // 選択中の場合
-                        if (hasSelection) {
-                            if (isPointInSelection(normalizedPoint)) {
-                                // バウンディングボックス内 → ドラッグ開始
-                                startDrag(normalizedPoint)
-                                return
-                            } else {
-                                // バウンディングボックス外 → 選択解除
-                                clearSelection()
-                            }
-                        }
-                        // 長押し検出開始
-                        startLongPress(normalizedPoint)
-                        startDrawing(x, y)
-                    } else if (tool === 'eraser') {
-                        // 消しゴム時も選択を解除
-                        if (hasSelection) clearSelection()
-                        // console.log('🧹 Eraser MouseDown:', { x, y, pathsCount: drawingPathsRef.current.length })
-                        handleErase(x, y)
-                    } else if (tool === 'none') {
-                        // 選択/採点モード時もパン可能
-                        startPanning(e)
-                    }
+                if (tool === 'none') {
+                    // 選択/採点モード時もパン可能
+                    (e.currentTarget as Element).setPointerCapture(e.pointerId)
+                    startPanning(e)
                 }
+                // Pen, Eraser などの描画ツールは DrawingCanvas 側で処理するため、
+                // ここではイベントをキャプチャせず、何もしない。
+                // (DrawingCanvas が stopPropagation しない限り、イベントはバブルするが無視する)
             }}
             onPointerMove={(e) => {
 
