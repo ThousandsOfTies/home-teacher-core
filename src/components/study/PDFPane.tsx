@@ -966,6 +966,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         onSelectionDrag={drag}
                         onSelectionDragEnd={endDrag}
                         onSelectionClear={clearSelection}
+                    />
                 </div>
             </div>
 
