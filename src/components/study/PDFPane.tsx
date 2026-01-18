@@ -357,8 +357,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     }, [drawingPaths])
 
 
-    // Drawing Hook (Interaction Only)
-    // IMPORTANT: Use drawingCanvasRef NOT canvasRef - we draw on DrawingCanvas, not PDF canvas
+    // Drawing Hook REMOVED - Drawing is now fully handled by DrawingCanvas component
+    /*
     const {
         isDrawing: isDrawingInternal,
         startDrawing,
@@ -401,6 +401,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             }
         }
     })
+    */
+    // Define cancelDrawing dummy for useLassoSelection if needed, or remove it from there too
+    const cancelDrawing = React.useCallback(() => { }, [])
 
     // Lasso Selection Hook (長押しベース)
     const {
@@ -589,9 +592,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     if (rect) {
                         setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
                     }
-                    if (e.buttons === 1) {
-                        // DrawingCanvas handles erasing
-                    }
+                    // Erasing logic is now handled by DrawingCanvas
                 }
 
                 if (tool === 'none' && e.buttons === 1) {
