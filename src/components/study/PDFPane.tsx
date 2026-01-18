@@ -286,69 +286,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
     // Manual Eraser Logic - Segment-level erasing (carves through lines)
     // IMPORTANT: Path coordinates are stored as NORMALIZED values (0-1)
-    const handleErase = (x: number, y: number) => {
-        const currentPaths = drawingPathsRef.current
-        if (currentPaths.length === 0) return
 
-        // Get canvas dimensions for normalization
-        const cw = canvasSize?.width || canvasRef.current?.width || 1
-        const ch = canvasSize?.height || canvasRef.current?.height || 1
-
-        // Normalize eraser position to 0-1 range (same as path coordinates)
-        const normalizedEraserX = x / cw
-        const normalizedEraserY = y / ch
-
-        // Eraser size also needs to be normalized (relative to canvas width)
-        const normalizedEraserSize = eraserSize / cw
-
-        // Check if point is within eraser radius
-        const isPointErased = (point: { x: number; y: number }) => {
-            const dx = point.x - normalizedEraserX
-            const dy = point.y - normalizedEraserY
-            const dist = Math.sqrt(dx * dx + dy * dy)
-            return dist < normalizedEraserSize
-        }
-
-        let hasChanges = false
-        const newPaths: DrawingPath[] = []
-
-        currentPaths.forEach(path => {
-            // Split path into segments based on erased points
-            const segments: { x: number; y: number }[][] = []
-            let currentSegment: { x: number; y: number }[] = []
-
-            path.points.forEach(point => {
-                if (isPointErased(point)) {
-                    // Point is erased - end current segment if it has points
-                    if (currentSegment.length > 1) {
-                        segments.push(currentSegment)
-                    }
-                    currentSegment = []
-                    hasChanges = true
-                } else {
-                    // Point is kept - add to current segment
-                    currentSegment.push(point)
-                }
-            })
-
-            // Don't forget the last segment
-            if (currentSegment.length > 1) {
-                segments.push(currentSegment)
-            }
-
-            // Convert segments back to paths
-            segments.forEach(segment => {
-                newPaths.push({
-                    ...path,
-                    points: segment
-                })
-            })
-        })
-
-        if (hasChanges) {
-            onPathsChange(newPaths)
-        }
-    }
 
     // Ref for stable access to drawingPaths in callbacks
     const drawingPathsRef = useRef(drawingPaths)
@@ -402,8 +340,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         }
     })
     */
-    // Define cancelDrawing dummy for useLassoSelection if needed, or remove it from there too
-    const cancelDrawing = React.useCallback(() => { }, [])
+
 
     // Lasso Selection Hook (長押しベース)
     const {
@@ -418,7 +355,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         endDrag,
         clearSelection
     } = useLassoSelection(drawingPaths, onPathsChange, {
-        onSelectionActivate: cancelDrawing
+        onSelectionActivate: () => { }
     })
 
     // Undo via Parent
@@ -732,12 +669,13 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                                 }
                             }
                             // 長押し検出開始
+                            // 長押し検出開始
                             startLongPress(normalizedPoint)
-                            startDrawing(x, y)
+                            // Drawing is handled by DrawingCanvas via Pointer Events
                         } else if (tool === 'eraser') {
                             // 消しゴム時も選択を解除
                             if (hasSelection) clearSelection()
-                            handleErase(x, y)
+                            // Erasing is handled by DrawingCanvas
                         }
                     }
                 }
@@ -858,9 +796,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         if (tool === 'pen') {
                             // 長押しキャンセル判定
                             checkLongPressMove(normalizedPoint)
-                            draw(x, y)
+                            // Drawing is handled by DrawingCanvas
                         } else if (tool === 'eraser') {
-                            handleErase(x, y)
+                            // Erasing is handled by DrawingCanvas
                             // Update eraser cursor position for touch/stylus
                             setEraserCursorPos({ x: t.clientX - rect.left, y: t.clientY - rect.top })
                         }
@@ -868,7 +806,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         // Eraser can move without 'isDrawingInternal' (it draws on move)
                         const x = (t.clientX - rect.left - panOffset.x) / zoom
                         const y = (t.clientY - rect.top - panOffset.y) / zoom
-                        handleErase(x, y)
+                        // Erasing is handled by DrawingCanvas
                         // Update eraser cursor position for touch/stylus
                         setEraserCursorPos({ x: t.clientX - rect.left, y: t.clientY - rect.top })
                     }
@@ -914,8 +852,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
 
                 // 長押しキャンセル
+                // 長押しキャンセル
                 cancelLongPress()
-                stopDrawing()
+                // stopDrawing() // Removed - DrawingCanvas handles this
                 stopPanning()
                 checkAndFinishSwipe()
             }}
