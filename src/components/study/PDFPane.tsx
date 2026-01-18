@@ -1044,7 +1044,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         style={{
                             position: 'absolute',
                             top: 0,
-                            left: 0
+                            left: 0,
+                            touchAction: 'none'
                             // pointerEvents removed - DrawingCanvas now handles events directly
                         }}
                         tool={tool === 'none' ? 'pen' : tool}
