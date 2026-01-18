@@ -646,7 +646,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     return
                 }
 
-                if (tool === 'pen' && isDrawingInternal) {
+                if (tool === 'pen' && isDrawingInternal && e.buttons !== 0) {
                     // 長押しキャンセル判定（移動があれば）
                     checkLongPressMove(normalizedPoint)
 
