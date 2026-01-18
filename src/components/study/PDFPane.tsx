@@ -824,12 +824,13 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
-                // Pointer Eventsが処理中の場合は無視（二重描画防止）
-                // Apple Pencilの場合、Pointer EventsとTouch Eventsが両方発火するため
-                // touchType チェックが信頼できないため、PointerDownのフラグで判定
-                const isPointerActive = isDrawingInternal // PointerDownで既に描画開始している
-                if (isPointerActive) {
-                    log('[TouchMove] Pointer Events active, ignoring Touch Event to prevent double drawing')
+                // Check for stylus and ignore if present (handled by Pointer Events)
+                const hasStylus = Array.from(e.touches).some(t => {
+                    // @ts-ignore
+                    return t.touchType === 'stylus'
+                })
+                if (hasStylus) {
+                    log('[TouchMove] Stylus detected, ignoring')
                     return
                 }
 
