@@ -581,65 +581,20 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     return
                 }
 
-                // Coalesced Events の取得（Apple Pencil の追従性向上）
-                let events: any[] = []
-                // @ts-ignore
-                if (typeof e.getCoalescedEvents === 'function') {
-                    // @ts-ignore
-                    events = e.getCoalescedEvents()
-                } else if (e.nativeEvent && typeof (e.nativeEvent as any).getCoalescedEvents === 'function') {
-                    events = (e.nativeEvent as any).getCoalescedEvents()
-                } else {
-                    events = [e]
-                }
+                // Coalesced Events: DrawingCanvas handles this.
 
-                if (events.length === 0) events.push(e)
-
-                if (events.length > 1) {
-                    log('[PointerMove]', `Coalesced: ${events.length} events`)
-                }
-
-                // すべての Coalesced Events から座標を抽出
-                const batchPoints: Array<{ x: number, y: number }> = []
-                for (const ev of events) {
-                    const ex = (ev.clientX - rect.left - panOffset.x) / zoom
-                    const ey = (ev.clientY - rect.top - panOffset.y) / zoom
-                    batchPoints.push({ x: ex, y: ey })
-                }
-
-                // 最後のイベントを正規化座標に変換（lasso selection, eraser 用）
-                const lastEvent = events[events.length - 1]
-                const x = (lastEvent.clientX - rect.left - panOffset.x) / zoom
-                const y = (lastEvent.clientY - rect.top - panOffset.y) / zoom
-
-                // 正規化座標に変換
-                const cw = canvasSize?.width || canvasRef.current?.width || 1
-                const ch = canvasSize?.height || canvasRef.current?.height || 1
-                const normalizedPoint = { x: x / cw, y: y / ch }
-
-                // 選択ドラッグ中
-                if (selectionState?.isDragging) {
-                    drag(normalizedPoint)
-                    return
-                }
-
-                if (tool === 'pen' && isDrawingInternal) {
-                    // 長押しキャンセル判定（移動があれば）
-                    checkLongPressMove(normalizedPoint)
-
-                    // Coalesced Events をバッチ処理
-                    if (batchPoints.length > 1) {
-                        drawBatch(batchPoints)
-                    } else {
-                        draw(x, y)
+                // Eraser Cursor Position Update (for overlay)
+                if (tool === 'eraser') {
+                    const rect = containerRef.current?.getBoundingClientRect()
+                    if (rect) {
+                        setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
                     }
-                } else if (tool === 'eraser') {
                     if (e.buttons === 1) {
-                        handleErase(x, y)
+                        // DrawingCanvas handles erasing
                     }
-                    // マウスの消しゴムカーソル更新
-                    setEraserCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
-                } else if (tool === 'none' && e.buttons === 1) {
+                }
+
+                if (tool === 'none' && e.buttons === 1) {
                     // 採点モードでドラッグ時もパン
                     doPanning(e)
                 }
