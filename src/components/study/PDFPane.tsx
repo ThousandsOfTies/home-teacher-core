@@ -1045,6 +1045,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         isCtrlPressed={isCtrlPressed}
                         stylusOnly={false}
                         selectionState={selectionState}
+                        interactionMode='display-only'
                         onPathAdd={() => { }} // Display only - PDFPane handles path saving
                     />
                 </div>
