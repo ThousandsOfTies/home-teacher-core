@@ -611,8 +611,12 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 if (typeof e.getCoalescedEvents === 'function') {
                     // @ts-ignore
                     events = e.getCoalescedEvents()
+                    // タイムスタンプ順にソート（順序が保証されない場合への対策）
+                    events.sort((a: any, b: any) => a.timeStamp - b.timeStamp)
                 } else if (e.nativeEvent && typeof (e.nativeEvent as any).getCoalescedEvents === 'function') {
                     events = (e.nativeEvent as any).getCoalescedEvents()
+                    // タイムスタンプ順にソート
+                    events.sort((a: any, b: any) => a.timeStamp - b.timeStamp)
                 } else {
                     events = [e]
                 }
