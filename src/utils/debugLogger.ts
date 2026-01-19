@@ -18,11 +18,11 @@ export function initDebugLogger() {
     background: rgba(0, 0, 0, 0.85);
     color: #0f0;
     font-family: monospace;
-    font-size: 9px;
+    font-size: 7px;
     padding: 5px;
     z-index: 99999;
     pointer-events: none;
-    line-height: 1.2;
+    line-height: 1.0;
     border-left: 2px solid #0f0;
     display: flex;
     flex-direction: column;

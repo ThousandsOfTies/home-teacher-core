@@ -655,12 +655,16 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                     // Coalesced Events をバッチ処理
                     if (batchPoints.length > 1) {
-                        const firstPt = batchPoints[0]
-                        const lastPt = batchPoints[batchPoints.length - 1]
-                        log('[PointerMove] drawBatch', `pts=${batchPoints.length} (${firstPt.x.toFixed(0)},${firstPt.y.toFixed(0)})->(${lastPt.x.toFixed(0)},${lastPt.y.toFixed(0)})`)
+                        // 全点の座標を文字列化
+                        const coords = batchPoints.map((p, i) => `${i}:(${p.x.toFixed(1)},${p.y.toFixed(1)})`).join(' ')
+                        // タイムスタンプも確認したいが長くなるのでまずは座標のみ
+                        // eventsはsort済みなのでタイムスタンプ順のはず
+
+                        log('[PM]Batch', `pts=${batchPoints.length} ${coords}`)
+
                         drawBatch(batchPoints)
                     } else {
-                        log('[PointerMove] draw', `x=${x.toFixed(0)} y=${y.toFixed(0)} id=${e.pointerId}`)
+                        log('[PM]Draw', `x=${x.toFixed(1)} y=${y.toFixed(1)}`)
                         draw(x, y)
                     }
                 } else if (tool === 'eraser') {
