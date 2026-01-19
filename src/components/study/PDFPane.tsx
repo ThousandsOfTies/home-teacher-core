@@ -567,6 +567,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         }
                         // 長押し検出開始
                         startLongPress(normalizedPoint)
+                        log('[PointerDown] STARTING DRAWING', `x=${x.toFixed(0)} y=${y.toFixed(0)} pointerType=${e.pointerType}`)
                         startDrawing(x, y)
                     } else if (tool === 'eraser') {
                         // 消しゴム時も選択を解除
