@@ -820,10 +820,12 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 if (!rect) return
 
                 // Check for stylus and ignore if present (handled by Pointer Events)
-                const hasStylus = Array.from(e.touches).some(t => {
+                const touchTypes = Array.from(e.touches).map(t => {
                     // @ts-ignore
-                    return t.touchType === 'stylus'
+                    return t.touchType || 'unknown'
                 })
+                log('[TouchMove] touchTypes', touchTypes.join(','))
+                const hasStylus = touchTypes.includes('stylus')
                 if (hasStylus) {
                     log('[TouchMove] Stylus detected, ignoring')
                     return
