@@ -607,6 +607,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                 // Coalesced Events の取得（Apple Pencil の追従性向上）
                 let events: any[] = []
+                // DEBUG: 二重線問題切り分けのため、Coalesced Eventsを一時的に無効化
+                /*
                 // @ts-ignore
                 if (typeof e.getCoalescedEvents === 'function') {
                     // @ts-ignore
@@ -616,6 +618,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 } else {
                     events = [e]
                 }
+                */
+                events = [e]
 
                 if (events.length === 0) events.push(e)
 
