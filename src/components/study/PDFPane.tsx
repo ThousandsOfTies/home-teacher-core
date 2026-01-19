@@ -652,7 +652,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                     // Coalesced Events をバッチ処理
                     if (batchPoints.length > 1) {
-                        log('[PointerMove] drawBatch', `pts=${batchPoints.length} id=${e.pointerId}`)
+                        const firstPt = batchPoints[0]
+                        log('[PointerMove] drawBatch', `pts=${batchPoints.length} x=${firstPt.x.toFixed(0)} y=${firstPt.y.toFixed(0)} id=${e.pointerId}`)
                         drawBatch(batchPoints)
                     } else {
                         log('[PointerMove] draw', `x=${x.toFixed(0)} y=${y.toFixed(0)} id=${e.pointerId}`)
@@ -1042,6 +1043,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         stylusOnly={false}
                         selectionState={selectionState}
                         interactionMode='display-only'
+                        isDrawingExternal={isDrawingInternal}
                         onPathAdd={() => { }} // Display only - PDFPane handles path saving
                     />
                 </div>
