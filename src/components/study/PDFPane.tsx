@@ -1035,7 +1035,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                             position: 'absolute',
                             top: 0,
                             left: 0,
-                            pointerEvents: 'none'
+                            pointerEvents: 'none',
+                            visibility: 'hidden' // DEBUG: Test if DrawingCanvas is causing double lines
                         }}
                         tool={tool === 'none' ? 'pen' : tool}
                         color={color}
