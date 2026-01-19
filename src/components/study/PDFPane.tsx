@@ -775,6 +775,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         }
                     } else {
                         // Drawing/Erasing Mode
+                        // NOTE: Pen drawing is now handled ONLY by Pointer Events to prevent
+                        // duplicate drawing (Pointer Events + Touch Events firing together)
 
                         // Palm Rejection - ignore direct touch when pen tool is active
                         // @ts-ignore
@@ -785,6 +787,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         // @ts-ignore
                         if (t.touchType === 'stylus') {
                             gestureRef.current = null
+                            // Stylus drawing is handled by Pointer Events - do not call startDrawing here
+                            return
                         }
 
                         const x = (t.clientX - rect.left - panOffset.x) / zoom
@@ -795,26 +799,13 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         const ch = canvasSize?.height || canvasRef.current?.height || 1
                         const normalizedPoint = { x: x / cw, y: y / ch }
 
-                        if (tool === 'pen') {
-                            // 選択モード中の場合
-                            if (hasSelection) {
-                                if (isPointInSelection(normalizedPoint)) {
-                                    // ラッソ上 → ドラッグ開始
-                                    startDrag(normalizedPoint)
-                                    return
-                                } else {
-                                    // ラッソ外 → 選択解除
-                                    clearSelection()
-                                }
-                            }
-                            // 長押し検出開始
-                            startLongPress(normalizedPoint)
-                            startDrawing(x, y)
-                        } else if (tool === 'eraser') {
+                        // Eraser mode needs Touch Events for immediate feedback
+                        if (tool === 'eraser') {
                             // 消しゴム時も選択を解除
                             if (hasSelection) clearSelection()
                             handleErase(x, y)
                         }
+                        // Pen tool: handled by Pointer Events only (no startDrawing here)
                     }
                 }
             }}
@@ -927,7 +918,12 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         setPanOffset(limitedOffset)
 
                     } else {
-                        // Palm Rejection check
+                        // Pen drawing is handled by Pointer Events only
+                        // Skip Touch Events for stylus to prevent duplicate drawing
+                        // @ts-ignore
+                        if (t.touchType === 'stylus') return
+
+                        // Palm Rejection check - ignore direct finger touch for pen mode
                         // @ts-ignore
                         if (tool === 'pen' && t.touchType === 'direct') return
 
@@ -939,15 +935,13 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         const ch = canvasSize?.height || canvasRef.current?.height || 1
                         const normalizedPoint = { x: x / cw, y: y / ch }
 
-                        if (tool === 'pen') {
-                            // 長押しキャンセル判定
-                            checkLongPressMove(normalizedPoint)
-                            draw(x, y)
-                        } else if (tool === 'eraser') {
+                        // Eraser needs Touch Events for immediate feedback
+                        if (tool === 'eraser') {
                             handleErase(x, y)
                             // Update eraser cursor position for touch/stylus
                             setEraserCursorPos({ x: t.clientX - rect.left, y: t.clientY - rect.top })
                         }
+                        // Pen tool: draw() is now called only from Pointer Events
                     }
                 } else if (tool === 'eraser') {
                     // Eraser can move without drawing state (it draws on move)
