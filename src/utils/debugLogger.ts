@@ -3,7 +3,7 @@
 
 let debugDiv: HTMLDivElement | null = null
 const logs: string[] = []
-const MAX_LOGS = 30
+const MAX_LOGS = 100
 
 export function initDebugLogger() {
     debugDiv = document.createElement('div')
@@ -18,12 +18,15 @@ export function initDebugLogger() {
     background: rgba(0, 0, 0, 0.85);
     color: #0f0;
     font-family: monospace;
-    font-size: 10px;
-    padding: 10px;
+    font-size: 9px;
+    padding: 5px;
     z-index: 99999;
     pointer-events: none;
-    line-height: 1.3;
+    line-height: 1.2;
     border-left: 2px solid #0f0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
   `
     document.body.appendChild(debugDiv)
 
