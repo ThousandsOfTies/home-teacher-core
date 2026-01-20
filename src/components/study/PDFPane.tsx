@@ -369,6 +369,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     } = useDrawing(drawingCanvasRef, {
         width: size,
         color: color,
+        onLog: log,  // iPad可視ログ用
         onPathComplete: (path) => {
             log('[PathComplete]', `points=${path.points.length}`)
 
@@ -652,6 +653,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 if (tool === 'pen' && isDrawingInternal && e.buttons !== 0) {
                     // 長押しキャンセル判定（移動があれば）
                     checkLongPressMove(normalizedPoint)
+
 
                     // Coalesced Events を常にバッチ処理（1点でも）
                     log('[PM]Batch', `pts=${batchPoints.length}`)
