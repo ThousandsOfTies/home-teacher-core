@@ -70,6 +70,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     const wrapperRef = useRef<HTMLDivElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const drawingCanvasRef = useRef<HTMLCanvasElement>(null)
+    // バッチ間の接続のため、前のバッチの最後の点を保持
+    const lastDrawnPointRef = useRef<{ x: number, y: number } | null>(null)
 
     // ズーム/パン
     const {
@@ -628,10 +630,21 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                 // すべての Coalesced Events から座標を抽出
                 const batchPoints: Array<{ x: number, y: number }> = []
+
+                // 前のバッチの最後の点を最初に追加（連続性確保）
+                if (lastDrawnPointRef.current) {
+                    batchPoints.push(lastDrawnPointRef.current)
+                }
+
                 for (const ev of events) {
                     const ex = (ev.clientX - rect.left - panOffset.x) / zoom
                     const ey = (ev.clientY - rect.top - panOffset.y) / zoom
                     batchPoints.push({ x: ex, y: ey })
+                }
+
+                // 最後の点を保存
+                if (batchPoints.length > 0) {
+                    lastDrawnPointRef.current = batchPoints[batchPoints.length - 1]
                 }
 
                 // 最後のイベントを正規化座標に変換（lasso selection, eraser 用）
