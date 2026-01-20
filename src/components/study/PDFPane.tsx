@@ -653,20 +653,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     // 長押しキャンセル判定（移動があれば）
                     checkLongPressMove(normalizedPoint)
 
-                    // Coalesced Events をバッチ処理
-                    if (batchPoints.length > 1) {
-                        // 全点の座標を文字列化
-                        const coords = batchPoints.map((p, i) => `${i}:(${p.x.toFixed(1)},${p.y.toFixed(1)})`).join(' ')
-                        // タイムスタンプも確認したいが長くなるのでまずは座標のみ
-                        // eventsはsort済みなのでタイムスタンプ順のはず
-
-                        log('[PM]Batch', `pts=${batchPoints.length} ${coords}`)
-
-                        drawBatch(batchPoints)
-                    } else {
-                        log('[PM]Draw', `x=${x.toFixed(1)} y=${y.toFixed(1)}`)
-                        draw(x, y)
-                    }
+                    // Coalesced Events を常にバッチ処理（1点でも）
+                    log('[PM]Batch', `pts=${batchPoints.length}`)
+                    drawBatch(batchPoints)
                 } else if (tool === 'eraser') {
                     if (e.buttons === 1) {
                         handleErase(x, y)
