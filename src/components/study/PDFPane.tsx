@@ -628,6 +628,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     log('[PointerMove]', `Coalesced: ${events.length} events`)
                 }
 
+                log('[PointerMove]', `pointerId=${e.pointerId} pointerType=${e.pointerType}`)
+
                 // すべての Coalesced Events から座標を抽出
                 const batchPoints: Array<{ x: number, y: number }> = []
 
