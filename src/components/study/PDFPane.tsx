@@ -630,6 +630,10 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                 log('[PointerMove]', `pointerId=${e.pointerId} pointerType=${e.pointerType}`)
 
+                // デバッグ: イベント重複検出用のハッシュ
+                const eventHash = `${e.timeStamp.toFixed(0)}_${events.length}_${events[0]?.clientX?.toFixed(0)}_${events[events.length - 1]?.clientX?.toFixed(0)}`
+                log('[PM]EventHash', eventHash)
+
                 // すべての Coalesced Events から座標を抽出
                 const batchPoints: Array<{ x: number, y: number }> = []
 
@@ -666,7 +670,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
 
                     // Coalesced Events を常にバッチ処理（1点でも）
-                    log('[PM]Batch', `pts=${batchPoints.length}`)
+                    log('[PM]Batch', `pts=${batchPoints.length} hash=${eventHash}`)
                     drawBatch(batchPoints)
 
                     // CRITICAL: Update lastDrawnPointRef AFTER drawBatch completes
