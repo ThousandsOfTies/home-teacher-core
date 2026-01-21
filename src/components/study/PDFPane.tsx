@@ -644,11 +644,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     batchPoints.push({ x: ex, y: ey })
                 }
 
-                // 最後の点を保存
-                if (batchPoints.length > 0) {
-                    lastDrawnPointRef.current = batchPoints[batchPoints.length - 1]
-                }
-
                 // 最後のイベントを正規化座標に変換（lasso selection, eraser 用）
                 const lastEvent = events[events.length - 1]
                 const x = (lastEvent.clientX - rect.left - panOffset.x) / zoom
@@ -673,6 +668,12 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     // Coalesced Events を常にバッチ処理（1点でも）
                     log('[PM]Batch', `pts=${batchPoints.length}`)
                     drawBatch(batchPoints)
+
+                    // CRITICAL: Update lastDrawnPointRef AFTER drawBatch completes
+                    // to avoid ref changing while drawBatch is processing
+                    if (batchPoints.length > 0) {
+                        lastDrawnPointRef.current = batchPoints[batchPoints.length - 1]
+                    }
                 } else if (tool === 'eraser') {
                     if (e.buttons === 1) {
                         handleErase(x, y)
