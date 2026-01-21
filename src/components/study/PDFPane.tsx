@@ -736,6 +736,13 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     return
                 }
 
+                // CRITICAL: In pen mode, ignore finger touches to allow pen pointer events
+                // (Finger touches can block pen onPointerDown on iPad)
+                if (tool === 'pen') {
+                    log('[TouchStart] Pen mode - ignoring finger touch')
+                    return
+                }
+
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
