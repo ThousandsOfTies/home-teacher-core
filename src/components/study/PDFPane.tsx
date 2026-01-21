@@ -706,8 +706,10 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     return
                 }
                 // 長押しキャンセル
+                // 長押しキャンセル
                 cancelLongPress()
-                // stopDrawing() // Disabled - DrawingCanvas handles this now
+                stopDrawing() // Re-enabled: Essential for resetting stroke state
+                lastDrawnPointRef.current = null // CRITICAL: Reset batch connection point
                 stopPanning()
                 // ここで判定しても良いが、Global MouseUpが動いているならそちらに任せる？
                 // captureしていればGlobal MouseUpより確実にここで取れる。
