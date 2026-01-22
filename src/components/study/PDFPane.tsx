@@ -1057,7 +1057,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                             position: 'absolute',
                             top: 0,
                             left: 0,
-                            pointerEvents: 'auto'
+                            pointerEvents: 'none'
                         }}
                         tool={tool === 'none' ? 'pen' : tool}
                         color={color}
@@ -1065,11 +1065,11 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         eraserSize={eraserSize}
                         paths={drawingPaths}
                         isCtrlPressed={isCtrlPressed}
-                        stylusOnly={true}
+                        stylusOnly={false}
                         selectionState={selectionState}
-                        interactionMode='full'
+                        interactionMode='display-only'
                         isDrawingExternal={isDrawingInternal}
-                        onPathAdd={onPathAdd}
+                        onPathAdd={() => { }} // Display only - PDFPane handles path saving
                     />
                 </div>
             </div>
