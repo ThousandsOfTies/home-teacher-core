@@ -736,14 +736,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     return
                 }
 
-                // CRITICAL: In pen mode, ignore SINGLE finger touches to allow pen pointer events
-                // (Single finger touch can block pen onPointerDown on iPad)
-                // But allow 2+ finger touches for pinch/pan gestures
-                if (tool === 'pen' && e.touches.length === 1) {
-                    log('[TouchStart] Pen mode - ignoring single finger touch')
-                    return
-                }
-
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
@@ -1065,7 +1057,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                             position: 'absolute',
                             top: 0,
                             left: 0,
-                            pointerEvents: 'none'
+                            pointerEvents: 'auto'
                         }}
                         tool={tool === 'none' ? 'pen' : tool}
                         color={color}
@@ -1073,11 +1065,11 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         eraserSize={eraserSize}
                         paths={drawingPaths}
                         isCtrlPressed={isCtrlPressed}
-                        stylusOnly={false}
+                        stylusOnly={true}
                         selectionState={selectionState}
-                        interactionMode='display-only'
+                        interactionMode='full'
                         isDrawingExternal={isDrawingInternal}
-                        onPathAdd={() => { }} // Display only - PDFPane handles path saving
+                        onPathAdd={onPathAdd}
                     />
                 </div>
             </div>
