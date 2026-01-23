@@ -754,6 +754,14 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // 最初のタッチの時間を記録
                 if (e.touches.length === 1) {
                     firstTouchTimeRef.current = Date.now()
+
+                    // ペンモード時：単一指タッチはPointer Eventsをブロックするため、preventDefault()で無効化
+                    // これにより、指を置いた状態でもペンのPointer Eventsが届くようになる
+                    if (tool === 'pen') {
+                        log('[TouchStart] Pen mode: preventing single finger touch to allow Pointer Events')
+                        e.preventDefault()
+                        return
+                    }
                 }
 
                 if (e.touches.length === 2) {
