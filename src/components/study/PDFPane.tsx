@@ -528,10 +528,16 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 log('[PointerDown]', `type=${e.pointerType} x=${e.clientX} y=${e.clientY}`)
 
                 // タッチはonTouchStartで処理、ペンはここで処理
-                if (e.pointerType === 'touch') return
+                if (e.pointerType === 'touch') {
+                    log('[PointerDown] RETURN: pointerType is touch, ignoring')
+                    return
+                }
 
                 // Ignore events on pager bar (Do this BEFORE capture)
-                if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
+                if ((e.target as HTMLElement).closest('.page-scrollbar-container')) {
+                    log('[PointerDown] RETURN: event on pager bar')
+                    return
+                }
 
                 // Don't capture if event is on DrawingCanvas - let it handle its own events
                 const isDrawingCanvasEvent = (e.target as HTMLElement).closest('.drawing-canvas')
@@ -542,6 +548,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                 // Ctrl+ドラッグでパン（どのモードでも有効）
                 if (isCtrlPressed) {
+                    log('[PointerDown] RETURN: Ctrl pressed, starting pan')
                     startPanning(e)
                     return
                 }
@@ -557,21 +564,26 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     const normalizedPoint = { x: x / cw, y: y / ch }
 
                     if (tool === 'pen') {
+                        log('[PointerDown] Tool is pen, checking selection state', `hasSelection=${hasSelection}`)
                         // 選択中の場合
                         if (hasSelection) {
                             if (isPointInSelection(normalizedPoint)) {
                                 // バウンディングボックス内 → ドラッグ開始
+                                log('[PointerDown] RETURN: starting drag (point in selection)')
                                 startDrag(normalizedPoint)
                                 return
                             } else {
                                 // バウンディングボックス外 → 選択解除
+                                log('[PointerDown] Clearing selection (point outside selection)')
                                 clearSelection()
                             }
                         }
                         // 長押し検出開始
+                        log('[PointerDown] Starting long press detection')
                         startLongPress(normalizedPoint)
-                        log('[PointerDown] STARTING DRAWING', `x=${x.toFixed(0)} y=${y.toFixed(0)} pointerType=${e.pointerType}`)
+                        log('[PointerDown] CALLING startDrawing()', `x=${x.toFixed(0)} y=${y.toFixed(0)} pointerType=${e.pointerType}`)
                         startDrawing(x, y)
+                        log('[PointerDown] startDrawing() completed')
                     } else if (tool === 'eraser') {
                         // 消しゴム時も選択を解除
                         if (hasSelection) clearSelection()
