@@ -6,17 +6,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --mode kids",
-    "dev:discuss": "vite --mode discuss",
     "dev:server": "tsx watch server/index.ts",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
-    "build:kids": "vite build --mode kids",
-    "build:discuss": "vite build --mode discuss",
-    "build": "npm run build:kids",
-    "build:all": "npm run build:kids && npm run build:discuss",
+    "build": "vite build --mode kids",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "preview:kids": "vite preview --mode kids",
-    "preview:discuss": "vite preview --mode discuss",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
