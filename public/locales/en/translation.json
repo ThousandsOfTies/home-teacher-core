@@ -105,7 +105,7 @@
         "defaultModel": "Default",
         "usingDefault": "✨ Using {{modelName}}",
         "cancel": "Cancel",
-        "retry": "Retry",
+        "retry": "Cancel",
         "grading": "⏳ Grading...",
         "grade": "Grade",
         "errorTitle": "❌ Error",

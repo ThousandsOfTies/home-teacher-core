@@ -1,6 +1,6 @@
 ﻿
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import { FaCheck, FaRedo } from 'react-icons/fa'
+import { FaCheck, FaTimes } from 'react-icons/fa'
 import { useTranslation } from 'react-i18next'
 import { GradingResult as GradingResultType, GradingResponseResult, getAvailableModels, ModelInfo } from '../../services/api'
 import GradingResult from './GradingResult'
@@ -192,6 +192,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   // Grading Hook
   const {
     isGrading,
+    setIsGrading,
     gradingResult,
     setGradingResult,
     selectionPreview,
@@ -1339,7 +1340,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
                     className="cancel-button"
                     disabled={isGrading}
                   >
-                    <FaRedo size={18} />
+                    <FaTimes size={18} />
                     {isGrading ? t('gradingConfirmation.cancel') : t('gradingConfirmation.retry')}
                   </button>
                   <button

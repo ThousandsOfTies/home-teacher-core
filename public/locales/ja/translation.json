@@ -105,7 +105,7 @@
         "defaultModel": "デフォルト",
         "usingDefault": "✨ {{modelName}} を使用",
         "cancel": "キャンセル",
-        "retry": "やり直す",
+        "retry": "キャンセル",
         "grading": "⏳ 採点中...",
         "grade": "採点する",
         "errorTitle": "❌ エラー",
