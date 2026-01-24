@@ -389,7 +389,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     getAvailableModels()
       .then(response => {
         if (response.models) {
-          setAvailableModels(response.models.filter(m => m.id !== 'default'))
+          setAvailableModels(response.models.filter(m => m.id !== 'default' && m.id !== response.default))
         }
         if (response.default) {
           setDefaultModelName(response.default)
