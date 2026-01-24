@@ -8,6 +8,7 @@ import { ICON_SVG } from '../../constants/icons'
 import { DrawingPath } from '@thousands-of-ties/drawing-common'
 import PDFCanvas from './components/PDFCanvas'
 import { PDFPane, PDFPaneHandle } from './PDFPane'
+import { StudyToolbar } from './StudyToolbar'
 import { usePDFRenderer } from '../../hooks/pdf/usePDFRenderer'
 import './StudyPanel.css'
 
@@ -669,43 +670,31 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     }
   }
 
+  // プレビューのキャンセル
   const cancelPreview = () => {
     setSelectionPreview(null)
-    // Do not clear Rect so user can adjust? 
-    // Actually PDFPane handles selection clearing usually.
-    // But we can reset here.
   }
 
   // 描画モードの切り替え
   const toggleDrawingMode = () => {
-    if (isDrawingMode) {
-      setShowPenPopup(!showPenPopup)
-    } else {
+    if (!isDrawingMode) {
       setIsDrawingMode(true)
       setIsEraserMode(false)
       setIsTextMode(false)
       setIsSelectionMode(false)
       setSelectionRect(null)
-      setShowPenPopup(false)
-      setShowEraserPopup(false)
-      setShowTextPopup(false)
       addStatusMessage('✏️ ペンモード')
     }
   }
 
   // 消しゴムモードの切り替え
   const toggleEraserMode = () => {
-    if (isEraserMode) {
-      setShowEraserPopup(!showEraserPopup)
-    } else {
+    if (!isEraserMode) {
       setIsEraserMode(true)
       setIsDrawingMode(false)
       setIsTextMode(false)
       setIsSelectionMode(false)
       setSelectionRect(null)
-      setShowEraserPopup(false)
-      setShowPenPopup(false)
-      setShowTextPopup(false)
       addStatusMessage('🧹 消しゴムモード')
     }
   }
@@ -749,29 +738,17 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     setIsDrawingMode(false)
     setIsEraserMode(false)
     setIsTextMode(false)
-    setShowPenPopup(false)
-    setShowEraserPopup(false)
-    setShowTextPopup(false)
     setSelectionRect(null)
     addStatusMessage('📐 採点範囲を選択してください')
   }
 
   // テキストモードのトグル
-  // 1回目クリック: モード切替のみ
-  // 2回目クリック（既にテキストモード中）: 詳細設定ポップアップ表示
   const toggleTextMode = () => {
-    if (isTextMode) {
-      // 既にテキストモードなら詳細設定ポップアップをトグル
-      setShowTextPopup(prev => !prev)
-    } else {
-      // モードをオンにする
+    if (!isTextMode) {
       setIsTextMode(true)
       setIsDrawingMode(false)
       setIsEraserMode(false)
       setIsSelectionMode(false)
-      setShowPenPopup(false)
-      setShowEraserPopup(false)
-      setShowTextPopup(false) // 最初はポップアップを表示しない
     }
   }
 
@@ -1008,233 +985,42 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   return (
     <div className="pdf-viewer-container">
       <div className="pdf-viewer">
-        <div className="toolbar">
-          {/* 戻るボタン */}
-          {onBack && (
-            <>
-              <button onClick={onBack} title="ホームに戻る">
-                🏠
-              </button>
-
-              <div className="divider"></div>
-
-              {/* Split View Toggle */}
-              <button
-                onClick={toggleSplitView}
-                title={isSplitView ? 'シングルビューに戻す' : '2画面表示 (Split View)'}
-                className={isSplitView ? 'active' : ''}
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="2" y="4" width="9" height="16" rx="1" stroke="currentColor" strokeWidth="1" fill={isSplitView ? "white" : "none"} />
-                  <rect x="13" y="4" width="9" height="16" rx="1" stroke="currentColor" strokeWidth="1" fill={isSplitView ? "white" : "none"} />
-                </svg>
-              </button>
-
-              {/* Tab Switcher Button */}
-              <button
-                className={`tab-switcher-btn ${!isSplitView ? 'active' : ''}`}
-                onClick={() => {
-                  if (isSplitView) {
-                    setIsSplitView(false)
-                  } else {
-                    setActiveTab(prev => prev === 'A' ? 'B' : 'A')
-                  }
-                }}
-                title={isSplitView ? "シングルビューへ切替" : "A/B 切替"}
-                style={{
-                  padding: '12px 8px', // Increased vertical padding to match height of buttons with larger text
-                  minWidth: 'auto',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                {/* A Indicator */}
-                <span
-                  style={{
-                    fontWeight: activeTab === 'A' ? 'bold' : 'normal',
-                    textDecoration: activeTab === 'A' ? 'underline' : 'none',
-                    color: activeTab === 'A' ? '#4CAF50' : 'inherit',
-                    fontSize: '0.85rem' // Reduced from 1rem
-                  }}
-                >
-                  A
-                </span>
-
-                <span style={{ margin: '0 2px', color: '#ccc', fontSize: '0.85rem' }}>/</span>
-
-                {/* B Indicator */}
-                <span
-                  style={{
-                    fontWeight: activeTab === 'B' ? 'bold' : 'normal',
-                    textDecoration: activeTab === 'B' ? 'underline' : 'none',
-                    color: activeTab === 'B' ? '#4CAF50' : 'inherit',
-                    fontSize: '0.85rem' // Reduced from 1rem
-                  }}
-                >
-                  B
-                </span>
-              </button>
-
-              <div className="divider"></div>
-            </>
-          )}
-
-          {/* 右寄せコンテナ */}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <>
-              <div className="divider"></div>
-
-              {/* 採点ボタン */}
-              <button
-                onClick={isSelectionMode ? handleCancelSelection : startGrading}
-                className={isSelectionMode ? 'active' : ''}
-                disabled={isGrading}
-                title={isSelectionMode ? t('gradingConfirmation.cancel') : t('gradingConfirmation.gradeBySelection')}
-              >
-                {isGrading ? '⏳' : '✅'}
-              </button>
-
-              {/* テキスト入力ツール */}
-              <div style={{ position: 'relative' }}>
-                <button
-                  onClick={toggleTextMode}
-                  className={isTextMode ? 'active' : ''}
-                  title={isTextMode ? 'テキストモード ON' : 'テキストモード OFF'}
-                  style={{ fontFamily: 'Times New Roman, serif', fontSize: '1.4rem' }}
-                >
-                  T
-                </button>
-
-                {/* テキスト設定ポップアップ */}
-                {showTextPopup && (
-                  <div className="tool-popup" style={{ minWidth: '180px' }}>
-                    <div className="popup-row">
-                      <label>サイズ:</label>
-                      <input
-                        type="range"
-                        min="10"
-                        max="32"
-                        value={textFontSize}
-                        onChange={(e) => setTextFontSize(Number(e.target.value))}
-                        style={{ width: '80px' }}
-                      />
-                      <span>{textFontSize}px</span>
-                    </div>
-                    <div className="popup-row">
-                      <label>方向:</label>
-                      <select
-                        value={textDirection}
-                        onChange={(e) => setTextDirection(e.target.value as TextDirection)}
-                        style={{ padding: '4px', borderRadius: '4px' }}
-                      >
-                        <option value="horizontal">横書き (Z型)</option>
-                        <option value="vertical-rl">縦書き右始 (N型)</option>
-                        <option value="vertical-lr">縦書き左始</option>
-                      </select>
-                    </div>
-                    <div className="popup-row">
-                      <label>色:</label>
-                      <input
-                        type="color"
-                        value={penColor}
-                        onChange={(e) => setPenColor(e.target.value)}
-                        style={{ width: '40px', height: '30px', border: '1px solid #ccc', cursor: 'pointer' }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 描画ツール */}
-              <div style={{ position: 'relative' }}>
-                <button
-                  onClick={toggleDrawingMode}
-                  className={isDrawingMode ? 'active' : ''}
-                  title={isDrawingMode ? 'ペンモード ON' : 'ペンモード OFF'}
-                >
-                  {ICON_SVG.pen(isDrawingMode, penColor)}
-                </button>
-
-                {/* ペン設定ポップアップ */}
-                {showPenPopup && (
-                  <div className="tool-popup">
-                    <div className="popup-row">
-                      <label>色:</label>
-                      <input
-                        type="color"
-                        value={penColor}
-                        onChange={(e) => setPenColor(e.target.value)}
-                        style={{ width: '40px', height: '30px', border: '1px solid #ccc', cursor: 'pointer' }}
-                      />
-                    </div>
-                    <div className="popup-row">
-                      <label>太さ:</label>
-                      <input
-                        type="range"
-                        min="1"
-                        max="10"
-                        value={penSize}
-                        onChange={(e) => setPenSize(Number(e.target.value))}
-                        style={{ width: '100px' }}
-                      />
-                      <span>{penSize}px</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* ... (rest of the tools) */}
-              <div style={{ position: 'relative' }}>
-                <button
-                  onClick={toggleEraserMode}
-                  className={isEraserMode ? 'active' : ''}
-                  title={isEraserMode ? '消しゴムモード ON' : '消しゴムモード OFF'}
-                >
-                  {ICON_SVG.eraser(isEraserMode)}
-                </button>
-
-                {/* 消しゴム設定ポップアップ */}
-                {showEraserPopup && (
-                  <div className="tool-popup">
-                    <div className="popup-row">
-                      <label>サイズ:</label>
-                      <input
-                        type="range"
-                        min="10"
-                        max="100"
-                        value={eraserSize}
-                        onChange={(e) => setEraserSize(Number(e.target.value))}
-                        style={{ width: '100px' }}
-                      />
-                      <span>{eraserSize}px</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="divider"></div>
-
-              <button
-                onClick={handleUndo}
-                title="元に戻す (Ctrl+Z)"
-              >
-                ↩️
-              </button>
-              <button
-                onClick={clearDrawing}
-                onDoubleClick={clearAllDrawings}
-                title="クリア（ダブルクリックで全ページクリア）"
-              >
-                <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="1" y="1" width="18" height="22" rx="2" fill="white" stroke="#999" strokeWidth="0.8" />
-                  <path d="M16 3 L12 7 L16 11 L20 7 Z" fill="yellow" stroke="orange" strokeWidth="0.8" transform="translate(-2, -1)" />
-                </svg>
-              </button>
-
-            </>
-          </div>
-
-        </div>
+        <StudyToolbar
+          onBack={onBack}
+          isSplitView={isSplitView}
+          toggleSplitView={toggleSplitView}
+          activeTab={activeTab}
+          toggleActiveTab={() => {
+            if (isSplitView) {
+              setIsSplitView(false)
+            } else {
+              setActiveTab(prev => prev === 'A' ? 'B' : 'A')
+            }
+          }}
+          isSelectionMode={isSelectionMode}
+          isGrading={isGrading}
+          startGrading={startGrading}
+          cancelSelection={handleCancelSelection}
+          isTextMode={isTextMode}
+          toggleTextMode={toggleTextMode}
+          textFontSize={textFontSize}
+          setTextFontSize={setTextFontSize}
+          textDirection={textDirection}
+          setTextDirection={setTextDirection}
+          isDrawingMode={isDrawingMode}
+          toggleDrawingMode={toggleDrawingMode}
+          penColor={penColor}
+          setPenColor={setPenColor}
+          penSize={penSize}
+          setPenSize={setPenSize}
+          isEraserMode={isEraserMode}
+          toggleEraserMode={toggleEraserMode}
+          eraserSize={eraserSize}
+          setEraserSize={setEraserSize}
+          onUndo={handleUndo}
+          onClear={clearDrawing}
+          onClearAll={clearAllDrawings}
+        />
 
         <div
           className="canvas-container"
