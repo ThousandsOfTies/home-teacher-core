@@ -5,12 +5,6 @@ import './index.css'
 import './i18n' // i18nの初期化
 import { APP_NAME, APP_DESCRIPTION, THEME_COLOR } from './config/features'
 
-// モバイルデバッグ用 DevTools (iPad/iPhone でコンソールを確認可能)
-// NOTE: 本番環境でも有効だが、画面右下のボタンを押さない限り表示されない
-import eruda from 'eruda'
-
-eruda.init()
-
 // アプリ名とテーマカラーを動的に設定
 
 // アプリ名とテーマカラーを動的に設定
