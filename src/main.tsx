@@ -7,18 +7,11 @@ import { APP_NAME, APP_DESCRIPTION, THEME_COLOR } from './config/features'
 
 // モバイルデバッグ用 DevTools (iPad/iPhone でコンソールを確認可能)
 // NOTE: 本番環境でも有効だが、画面右下のボタンを押さない限り表示されない
-import { initDebugLogger, log } from './utils/debugLogger'
 import eruda from 'eruda'
 
-// 最初に Debug Logger を初期化
-initDebugLogger()
-log('📱 App initializing...')
-
 eruda.init()
-log('✅ Eruda initialized')
 
-// 起動完了ログ
-log('🚀 App Started!', new Date().toISOString())
+// アプリ名とテーマカラーを動的に設定
 
 // アプリ名とテーマカラーを動的に設定
 document.title = APP_NAME

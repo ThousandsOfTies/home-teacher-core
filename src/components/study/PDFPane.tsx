@@ -525,19 +525,11 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 cursor: isPanning ? 'grabbing' : (isCtrlPressed ? 'grab' : 'default')
             }}
             onPointerDown={(e) => {
-                log('[PointerDown]', `type=${e.pointerType} x=${e.clientX} y=${e.clientY}`)
-
                 // タッチはonTouchStartで処理、ペンはここで処理
-                if (e.pointerType === 'touch') {
-                    log('[PointerDown] RETURN: pointerType is touch, ignoring')
-                    return
-                }
+                if (e.pointerType === 'touch') return
 
                 // Ignore events on pager bar (Do this BEFORE capture)
-                if ((e.target as HTMLElement).closest('.page-scrollbar-container')) {
-                    log('[PointerDown] RETURN: event on pager bar')
-                    return
-                }
+                if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
 
                 // Don't capture if event is on DrawingCanvas - let it handle its own events
                 const isDrawingCanvasEvent = (e.target as HTMLElement).closest('.drawing-canvas')
@@ -548,7 +540,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                 // Ctrl+ドラッグでパン（どのモードでも有効）
                 if (isCtrlPressed) {
-                    log('[PointerDown] RETURN: Ctrl pressed, starting pan')
                     startPanning(e)
                     return
                 }
@@ -564,26 +555,20 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     const normalizedPoint = { x: x / cw, y: y / ch }
 
                     if (tool === 'pen') {
-                        log('[PointerDown] Tool is pen, checking selection state', `hasSelection=${hasSelection}`)
                         // 選択中の場合
                         if (hasSelection) {
                             if (isPointInSelection(normalizedPoint)) {
                                 // バウンディングボックス内 → ドラッグ開始
-                                log('[PointerDown] RETURN: starting drag (point in selection)')
                                 startDrag(normalizedPoint)
                                 return
                             } else {
                                 // バウンディングボックス外 → 選択解除
-                                log('[PointerDown] Clearing selection (point outside selection)')
                                 clearSelection()
                             }
                         }
                         // 長押し検出開始
-                        log('[PointerDown] Starting long press detection')
                         startLongPress(normalizedPoint)
-                        log('[PointerDown] CALLING startDrawing()', `x=${x.toFixed(0)} y=${y.toFixed(0)} pointerType=${e.pointerType}`)
                         startDrawing(x, y)
-                        log('[PointerDown] startDrawing() completed')
                     } else if (tool === 'eraser') {
                         // 消しゴム時も選択を解除
                         if (hasSelection) clearSelection()
@@ -596,8 +581,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
             }}
             onPointerMove={(e) => {
-                log('[PointerMove]', `type=${e.pointerType}`)
-
                 // タッチ操作はonTouchMoveで処理
                 if (e.pointerType === 'touch') return
 
@@ -636,16 +619,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     events = [e]
                 }
 
-                if (events.length > 1) {
-                    log('[PointerMove]', `Coalesced: ${events.length} events`)
-                }
-
-                log('[PointerMove]', `pointerId=${e.pointerId} pointerType=${e.pointerType}`)
-
-                // デバッグ: イベント重複検出用のハッシュ
-                const eventHash = `${e.timeStamp.toFixed(0)}_${events.length}_${events[0]?.clientX?.toFixed(0)}_${events[events.length - 1]?.clientX?.toFixed(0)}`
-                log('[PM]EventHash', eventHash)
-
                 // すべての Coalesced Events から座標を抽出
                 const batchPoints: Array<{ x: number, y: number }> = []
 
@@ -682,7 +655,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
 
                     // Coalesced Events を常にバッチ処理（1点でも）
-                    log('[PM]Batch', `pts=${batchPoints.length} hash=${eventHash}`)
                     drawBatch(batchPoints)
 
                     // CRITICAL: Update lastDrawnPointRef AFTER drawBatch completes
@@ -702,8 +674,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
             }}
             onPointerUp={(e) => {
-                log('[PointerUp]', `type=${e.pointerType}`)
-
                 // タッチはonTouchEndで処理
                 if (e.pointerType === 'touch') return
 
@@ -736,17 +706,13 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
             onTouchStart={(e) => {
                 // @ts-ignore
                 const hasStylus = Array.from(e.touches).some(t => t.touchType === 'stylus')
-                log('[TouchStart]', `count=${e.touches.length} stylus=${hasStylus}`)
 
                 // Ignore events on pager bar
                 if ((e.target as HTMLElement).closest('.page-scrollbar-container')) return
 
                 // Palm Rejection & Coalesced Events Support:
                 // ペン入力 (stylus) は Pointer Events で処理するため、ここでは無視する
-                if (hasStylus) {
-                    log('[TouchStart] Stylus detected, ignoring')
-                    return
-                }
+                if (hasStylus) return
 
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
@@ -754,14 +720,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // 最初のタッチの時間を記録
                 if (e.touches.length === 1) {
                     firstTouchTimeRef.current = Date.now()
-
-                    // ペンモード時：単一指タッチはPointer Eventsをブロックするため、preventDefault()で無効化
-                    // これにより、指を置いた状態でもペンのPointer Eventsが届くようになる
-                    if (tool === 'pen') {
-                        log('[TouchStart] Pen mode: preventing single finger touch to allow Pointer Events')
-                        e.preventDefault()
-                        return
-                    }
                 }
 
                 if (e.touches.length === 2) {
@@ -854,8 +812,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
             }}
             onTouchMove={(e) => {
-                log('[TouchMove]', `count=${e.touches.length}`)
-
                 const rect = containerRef.current?.getBoundingClientRect()
                 if (!rect) return
 
@@ -864,12 +820,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     // @ts-ignore
                     return t.touchType || 'unknown'
                 })
-                log('[TouchMove] touchTypes', touchTypes.join(','))
                 const hasStylus = touchTypes.includes('stylus')
-                if (hasStylus) {
-                    log('[TouchMove] Stylus detected, ignoring')
-                    return
-                }
+                if (hasStylus) return
 
                 if (e.touches.length === 2) {
                     if (gestureRef.current?.type === 'pinch') {
