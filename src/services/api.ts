@@ -90,6 +90,7 @@ export interface GradingResult {
   gradingSource?: string
   dbMatchedAnswer?: any
   matchingMetadata?: any
+  explanationSvg?: string
 }
 
 export interface GradingResponseResult {
