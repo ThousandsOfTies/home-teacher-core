@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react'
 import { PDFFileRecord } from '../../utils/indexedDB'
 import PDFCanvas, { PDFCanvasHandle } from './components/PDFCanvas'
-import { DrawingPath, DrawingCanvas, useDrawing, useZoomPan, doPathsIntersect, isScratchPattern, useLassoSelection } from '@thousands-of-ties/drawing-common'
+import { DrawingPath, DrawingCanvas, useDrawing, useZoomPan, doPathsIntersect, isScratchPattern, useLassoSelection, DrawingCanvasHandle } from '@thousands-of-ties/drawing-common'
 import { RENDER_SCALE } from '../../constants/pdf'
 import { log } from '../../utils/debugLogger'
 import './StudyPanel.css'
@@ -69,7 +69,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     const containerRef = useRef<HTMLDivElement>(null)
     const wrapperRef = useRef<HTMLDivElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
-    const drawingCanvasRef = useRef<HTMLCanvasElement>(null)
+    const drawingCanvasRef = useRef<DrawingCanvasHandle>(null)
     // バッチ間の接続のため、前のバッチの最後の点を保持
     const lastDrawnPointRef = useRef<{ x: number, y: number } | null>(null)
 
