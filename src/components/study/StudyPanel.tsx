@@ -1,4 +1,5 @@
-﻿import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+﻿
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { FaCheck, FaRedo } from 'react-icons/fa'
 import { useTranslation } from 'react-i18next'
 import { GradingResult as GradingResultType, GradingResponseResult, getAvailableModels, ModelInfo } from '../../services/api'
@@ -11,6 +12,8 @@ import { PDFPane, PDFPaneHandle } from './PDFPane'
 import { StudyToolbar } from './StudyToolbar'
 import { usePDFRenderer } from '../../hooks/pdf/usePDFRenderer'
 import './StudyPanel.css'
+import { useGrading } from '../../hooks/study/useGrading'
+import { compressImage } from '../../utils/image'
 
 // テキストアノテーションの型定義
 export type TextDirection = 'horizontal' | 'vertical-rl' | 'vertical-lr'
@@ -22,25 +25,6 @@ export interface TextAnnotation {
   fontSize: number // ピクセル
   color: string
   direction: TextDirection
-}
-
-const compressImage = (canvas: HTMLCanvasElement, maxSize: number = 1024): string => {
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-  if (canvas.width <= maxSize && canvas.height <= maxSize) {
-    return canvas.toDataURL('image/jpeg', isIOS ? 0.7 : 0.8)
-  }
-  const scale = Math.min(maxSize / canvas.width, maxSize / canvas.height)
-  const targetWidth = Math.floor(canvas.width * scale)
-  const targetHeight = Math.floor(canvas.height * scale)
-  const tempCanvas = document.createElement('canvas')
-  tempCanvas.width = targetWidth
-  tempCanvas.height = targetHeight
-  const tempCtx = tempCanvas.getContext('2d')
-  if (!tempCtx) {
-    throw new Error('Canvas context creation failed')
-  }
-  tempCtx.drawImage(canvas, 0, 0, targetWidth, targetHeight)
-  return tempCanvas.toDataURL('image/jpeg', isIOS ? 0.7 : 0.8)
 }
 
 interface StudyPanelProps {
@@ -56,10 +40,170 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   const paneBRef = useRef<PDFPaneHandle>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Global Selection State
+  // --- Consolidated State & Logic ---
+
+  // Status Handling
+  const [statusMessage, setStatusMessage] = useState('')
+
+  // Helper Methods (Hoisted)
+  const addStatusMessage = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString('ja-JP')
+    const fullMessage = `[${timestamp}] ${message}`
+    // console.log(fullMessage)
+    setStatusMessage(message)
+  }
+
+  // Layout State
+  const [isSplitView, setIsSplitView] = useState(false)
+  const [activeTab, setActiveTab] = useState<'A' | 'B'>('A')
+
+  // Split Ratio
+  const [splitRatio, setSplitRatio] = useState(() => {
+    const saved = localStorage.getItem('splitRatio')
+    return saved ? parseFloat(saved) : 0.5
+  })
+  const [isResizing, setIsResizing] = useState(false)
+  const splitContainerRef = useRef<HTMLDivElement>(null)
+
+  // Page State
+  const [pageA, setPageA] = useState(pdfRecord.lastPageNumberA || 1)
+  const [pageB, setPageB] = useState(pdfRecord.lastPageNumberB || 1)
+
+  // PDF Document Loading
+  const { pdfDoc, numPages, isLoading, error: pdfError } = usePDFRenderer(pdfRecord, {
+    onLoadSuccess: (pages) => {
+      // PDF Loaded
+    },
+    onLoadError: (err) => {
+      console.error(err)
+    }
+  })
+
+  // Grading State (Additional)
+  const [gradingError, setGradingError] = useState<string | null>(null)
+  const [gradingModelName, setGradingModelName] = useState<string | null>(null)
+  const [gradingResponseTime, setGradingResponseTime] = useState<number | null>(null)
+
+  // AI Model State
+  const [selectedModel, setSelectedModel] = useState<string>('default')
+  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
+  const [defaultModelName, setDefaultModelName] = useState<string>('Gemini 2.0 Flash')
+
+  useEffect(() => {
+    getAvailableModels()
+      .then(response => {
+        if (response.models) {
+          setAvailableModels(response.models.filter(m => m.id !== 'default' && m.id !== response.default))
+        }
+        if (response.default) {
+          setDefaultModelName(response.default)
+        }
+      })
+      .catch(err => console.error('Failed to load models:', err))
+  }, [])
+
+  // Selection State
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectionRect, setSelectionRect] = useState<{ x: number, y: number, width: number, height: number } | null>(null)
   const isSelectingRef = useRef(false)
   const selectionStartRef = useRef<{ x: number, y: number } | null>(null)
+  // selectionPreview via hook
+
+  // Tool State
+  const [isDrawingMode, setIsDrawingMode] = useState(true)
+  const [isEraserMode, setIsEraserMode] = useState(false)
+  const [isTextMode, setIsTextMode] = useState(false)
+  const [penColor, setPenColor] = useState('#FF0000') // Updated to match bottom block default
+  const [penSize, setPenSize] = useState(3)
+  const [eraserSize, setEraserSize] = useState(50)
+  // Popups
+  const [showPenPopup, setShowPenPopup] = useState(false)
+  const [showEraserPopup, setShowEraserPopup] = useState(false)
+
+  // Text State
+  const [textFontSize, setTextFontSize] = useState(16)
+  const [textDirection, setTextDirection] = useState<TextDirection>('horizontal')
+  const [showTextPopup, setShowTextPopup] = useState(false)
+  const [editingText, setEditingText] = useState<{
+    pageNum: number
+    x: number
+    y: number
+    screenX: number
+    screenY: number
+    existingId?: string
+    initialText?: string
+  } | null>(null)
+  const [textAnnotations, setTextAnnotations] = useState<Map<number, TextAnnotation[]>>(new Map())
+
+  // SNS State
+  const [snsLinks, setSnsLinks] = useState<SNSLinkRecord[]>([])
+  const [snsTimeLimit, setSnsTimeLimit] = useState<number>(30)
+
+  useEffect(() => {
+    const loadSNSData = async () => {
+      try {
+        const links = await getAllSNSLinks()
+        setSnsLinks(links)
+        const settings = await getAppSettings()
+        if (settings?.snsTimeLimitMinutes) {
+          setSnsTimeLimit(settings.snsTimeLimitMinutes)
+        }
+      } catch (error) {
+        console.error('Failed to load SNS data:', error)
+      }
+    }
+    loadSNSData()
+  }, [])
+
+  // Drawing State
+  const [drawingPaths, setDrawingPaths] = useState<Map<number, DrawingPath[]>>(new Map())
+  const EMPTY_PATHS: DrawingPath[] = useMemo(() => [], [])
+  const drawingPathsA = useMemo(() => drawingPaths.get(pageA) ?? EMPTY_PATHS, [drawingPaths, pageA, EMPTY_PATHS])
+  const drawingPathsB = useMemo(() => drawingPaths.get(pageB) ?? EMPTY_PATHS, [drawingPaths, pageB, EMPTY_PATHS])
+
+  // Load Drawings Effect
+  useEffect(() => {
+    // loadDrawings logic (commented out)
+  }, [pdfId])
+
+  // Load Text Annotations Effect
+  useEffect(() => {
+    const loadTextAnnotations = async () => {
+      try {
+        const record = await getPDFRecord(pdfId)
+        if (!record?.textAnnotations) return
+        const newMap = new Map<number, TextAnnotation[]>()
+        for (const [pageStr, annotationsJson] of Object.entries(record.textAnnotations)) {
+          const page = parseInt(pageStr, 10)
+          const annotations = JSON.parse(annotationsJson as string) as TextAnnotation[]
+          if (annotations.length > 0) {
+            newMap.set(page, annotations)
+          }
+        }
+        if (newMap.size === 0) return
+        setTextAnnotations(newMap)
+      } catch (e) {
+      }
+    }
+    loadTextAnnotations()
+  }, [pdfId])
+
+
+  // Grading Hook
+  const {
+    isGrading,
+    gradingResult,
+    setGradingResult,
+    selectionPreview,
+    setSelectionPreview,
+    executeGrading,
+    clearGradingResult
+  } = useGrading(
+    pdfId,
+    (msg) => addStatusMessage(msg),
+    activeTab === 'A' ? pageA : pageB,
+    pdfRecord?.fileName || 'Unknown'
+  )
 
   const handleSelectionStart = (e: React.MouseEvent) => {
     // Only left click
@@ -343,183 +487,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     return tempCanvas.toDataURL('image/png')
   }
 
-  // レイアウト状態
-  const [isSplitView, setIsSplitView] = useState(false)
-  const [activeTab, setActiveTab] = useState<'A' | 'B'>('A')
 
-  // スプリット比率（0.2 ~ 0.8、デフォルト0.5）
-  const [splitRatio, setSplitRatio] = useState(() => {
-    const saved = localStorage.getItem('splitRatio')
-    return saved ? parseFloat(saved) : 0.5
-  })
-  const [isResizing, setIsResizing] = useState(false)
-  const splitContainerRef = useRef<HTMLDivElement>(null)
-
-  // ページ状態
-  // 保存されたレコードから初期化
-  const [pageA, setPageA] = useState(pdfRecord.lastPageNumberA || 1)
-  const [pageB, setPageB] = useState(pdfRecord.lastPageNumberB || 1)
-
-  // PDF Document Loading
-  const { pdfDoc, numPages, isLoading, error: pdfError } = usePDFRenderer(pdfRecord, {
-    onLoadSuccess: (pages) => {
-      // console.log(`✅ PDF loaded in StudyPanel: ${pages} pages`)
-    },
-    onLoadError: (err) => {
-      // Error handling if needed specifically here, though hook returns error
-    }
-  })
-
-  // Status Handling
-  const [statusMessage, setStatusMessage] = useState('')
-
-  // Grading State
-  const [isGrading, setIsGrading] = useState(false)
-  const [gradingResult, setGradingResult] = useState<GradingResponseResult | null>(null)
-  const [gradingError, setGradingError] = useState<string | null>(null)
-  const [gradingModelName, setGradingModelName] = useState<string | null>(null)
-  const [gradingResponseTime, setGradingResponseTime] = useState<number | null>(null)
-
-  // AI Model State
-  const [selectedModel, setSelectedModel] = useState<string>('default')
-  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
-  const [defaultModelName, setDefaultModelName] = useState<string>('Gemini 2.0 Flash')
-
-  // Load available models from server
-  useEffect(() => {
-    getAvailableModels()
-      .then(response => {
-        if (response.models) {
-          setAvailableModels(response.models.filter(m => m.id !== 'default' && m.id !== response.default))
-        }
-        if (response.default) {
-          setDefaultModelName(response.default)
-        }
-      })
-      .catch(err => console.error('Failed to load models:', err))
-  }, [])
-
-  // Selection State
-  const [isSelectionMode, setIsSelectionMode] = useState(false)
-  // selectionRect is already defined at the top
-  const [selectionPreview, setSelectionPreview] = useState<string | null>(null)
-
-  // Tool State
-  const [isDrawingMode, setIsDrawingMode] = useState(true)
-  const [isEraserMode, setIsEraserMode] = useState(false)
-  const [isTextMode, setIsTextMode] = useState(false)
-  const [penColor, setPenColor] = useState('#FF0000')
-  const [penSize, setPenSize] = useState(3)
-  const [showPenPopup, setShowPenPopup] = useState(false)
-  const [eraserSize, setEraserSize] = useState(50)
-  const [showEraserPopup, setShowEraserPopup] = useState(false)
-
-  // テキスト入力の状態
-  const [textFontSize, setTextFontSize] = useState(16)
-  const [textDirection, setTextDirection] = useState<TextDirection>('horizontal')
-  const [showTextPopup, setShowTextPopup] = useState(false)
-  const [editingText, setEditingText] = useState<{
-    pageNum: number
-    x: number // 正規化座標
-    y: number // 正規化座標
-    screenX: number // スクリーン座標（入力ボックス位置用）
-    screenY: number
-    existingId?: string // 既存テキストの編集時のID
-    initialText?: string // 既存テキストの初期値
-  } | null>(null)
-  const [textAnnotations, setTextAnnotations] = useState<Map<number, TextAnnotation[]>>(new Map())
-
-  // SNS State
-  const [snsLinks, setSnsLinks] = useState<SNSLinkRecord[]>([])
-  const [snsTimeLimit, setSnsTimeLimit] = useState<number>(30)
-
-  // SNSリンクとアプリ設定の読み込み
-  useEffect(() => {
-    const loadSNSData = async () => {
-      try {
-        // SNSリンクを読み込み
-        const links = await getAllSNSLinks()
-        setSnsLinks(links)
-
-        // アプリ設定を読み込み（SNS利用時間制限など）
-        const settings = await getAppSettings()
-        if (settings?.snsTimeLimitMinutes) {
-          setSnsTimeLimit(settings.snsTimeLimitMinutes)
-        }
-      } catch (error) {
-        console.error('Failed to load SNS data:', error)
-      }
-    }
-    loadSNSData()
-  }, [])
-
-  // 描画パスの状態
-  const [drawingPaths, setDrawingPaths] = useState<Map<number, DrawingPath[]>>(new Map())
-
-  // 安定した参照のための空配列定数（|| [] が毎回新しい配列を作らないように）
-  const EMPTY_PATHS: DrawingPath[] = useMemo(() => [], [])
-
-  // ページごとのパスをメモ化（参照が変わらないように）
-  const drawingPathsA = useMemo(() => drawingPaths.get(pageA) ?? EMPTY_PATHS, [drawingPaths, pageA, EMPTY_PATHS])
-  const drawingPathsB = useMemo(() => drawingPaths.get(pageB) ?? EMPTY_PATHS, [drawingPaths, pageB, EMPTY_PATHS])
-
-  // 描画パスの読み込み（PDF読み込み時）
-  // 描画パスの読み込み（PDF読み込み時）
-  useEffect(() => {
-    // ユーザー要望によりIndexedDBからの書き戻しを停止中 (Double Line調査のため)
-    /*
-    const loadDrawings = async () => {
-      try {
-        const record = await getPDFRecord(pdfId)
-        if (!record?.drawings) return
-
-        const newMap = new Map<number, DrawingPath[]>()
-        for (const [pageStr, pathsJson] of Object.entries(record.drawings)) {
-          const page = parseInt(pageStr, 10)
-          const paths = JSON.parse(pathsJson as string) as DrawingPath[]
-          if (paths.length > 0) {
-            newMap.set(page, paths)
-          }
-        }
-
-        if (newMap.size === 0) return
-
-        // console.log(`📝 描画を復元: ${newMap.size}ページ`)
-        setDrawingPaths(newMap)
-      } catch (e) {
-        // console.error('描画の読み込みに失敗:', e)
-      }
-    }
-    loadDrawings()
-    */
-  }, [pdfId])
-
-  // テキストアノテーションの読み込み（PDF読み込み時）
-  useEffect(() => {
-    const loadTextAnnotations = async () => {
-      try {
-        const record = await getPDFRecord(pdfId)
-        if (!record?.textAnnotations) return
-
-        const newMap = new Map<number, TextAnnotation[]>()
-        for (const [pageStr, annotationsJson] of Object.entries(record.textAnnotations)) {
-          const page = parseInt(pageStr, 10)
-          const annotations = JSON.parse(annotationsJson as string) as TextAnnotation[]
-          if (annotations.length > 0) {
-            newMap.set(page, annotations)
-          }
-        }
-
-        if (newMap.size === 0) return
-
-        // console.log(`📝 テキストを復元: ${newMap.size}ページ`)
-        setTextAnnotations(newMap)
-      } catch (e) {
-        // console.error('テキストの読み込みに失敗:', e)
-      }
-    }
-    loadTextAnnotations()
-  }, [pdfId])
 
   // パス追加ハンドラ
   const handlePathAdd = (page: number, newPath: DrawingPath) => {
@@ -636,7 +604,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
       }
 
       setGradingResult({ ...response.result, problems })
-      addStatusMessage(`✅ 採点完了 (${problems.length}問)`)
+      addStatusMessage(`✅ 採点完了(${problems.length}問)`)
 
       // 採点履歴を保存
       if (response.result.problems?.length) {
@@ -808,7 +776,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
     // 4. 新規テキストの追加
     const newAnnotation: TextAnnotation = {
-      id: `text-${Date.now()}`,
+      id: `text - ${Date.now()} `,
       x: editingText.x,
       y: editingText.y,
       text: trimmedText,
@@ -853,12 +821,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   }
 
   // ステータスメッセージ
-  const addStatusMessage = (message: string) => {
-    const timestamp = new Date().toLocaleTimeString('ja-JP')
-    const fullMessage = `[${timestamp}] ${message}`
-    // console.log(fullMessage)
-    setStatusMessage(message)
-  }
+
 
   // 分割表示の切り替え / A面B面の入れ替え
   const toggleSplitView = () => {
@@ -896,9 +859,7 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
       }
 
       if (Object.keys(updates).length > 0) {
-        // console.log('💾 ページ番号を保存:', updates)
         updatePDFRecord(pdfRecord.id, updates).catch(err => {
-          // console.error('ページ保存に失敗:', err)
         })
       }
     }, 500)
