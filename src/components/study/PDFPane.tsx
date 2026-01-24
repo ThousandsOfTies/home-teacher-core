@@ -3,7 +3,6 @@ import { PDFFileRecord } from '../../utils/indexedDB'
 import PDFCanvas, { PDFCanvasHandle } from './components/PDFCanvas'
 import { DrawingPath, DrawingCanvas, useDrawing, useZoomPan, doPathsIntersect, isScratchPattern, useLassoSelection, DrawingCanvasHandle } from '@thousands-of-ties/drawing-common'
 import { RENDER_SCALE } from '../../constants/pdf'
-import { log } from '../../utils/debugLogger'
 import './StudyPanel.css'
 
 interface PDFPaneProps {
@@ -371,16 +370,11 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     } = useDrawing(drawingCanvasRef, {
         width: size,
         color: color,
-        onLog: log,  // iPad可視ログ用
         onPathComplete: (path) => {
-            log('[PathComplete]', `points=${path.points.length}`)
-
             if (path.points.length < 2) {
-                log('[PathComplete] Too few points, ignoring')
                 return
             }
 
-            log('[PathComplete] Saving path')
             onPathAdd(path)
         },
         onScratchComplete: (scratchPath) => {
@@ -952,8 +946,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 }
             }}
             onTouchEnd={(e) => {
-                log('[TouchEnd]', `remaining=${e.touches.length}`)
-
                 // Stylus チェック（念のため）
                 if (e.touches.length > 0) {
                     const hasStylus = Array.from(e.touches).some(t => {
@@ -961,7 +953,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         return t.touchType === 'stylus'
                     })
                     if (hasStylus) {
-                        log('[TouchEnd] Stylus still present, ignoring')
                         return
                     }
                 }
