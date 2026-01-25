@@ -77,15 +77,16 @@ export const usePDFRenderer = (
           optionsRef.current?.onLoadStart?.()
         }
 
-        let pdfData: ArrayBuffer | Uint8Array
+        if (isActive) {
+          optionsRef.current?.onLoadStart?.()
+        }
 
-        // BlobをArrayBufferに変換（v6から）
+        let objectUrl: string | null = null
+
+        // Blobを作成（v6から）
+        let pdfBlob: Blob
         if (record.fileData instanceof Blob) {
-          console.log('📄 Blob → ArrayBuffer変換開始', {
-            size: record.fileData.size,
-            type: record.fileData.type
-          })
-          pdfData = await record.fileData.arrayBuffer()
+          pdfBlob = record.fileData
         } else {
           // 後方互換性: 文字列（Base64）の場合
           const binaryString = atob(record.fileData as string)
@@ -93,19 +94,23 @@ export const usePDFRenderer = (
           for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i)
           }
-          pdfData = bytes
+          pdfBlob = new Blob([bytes], { type: 'application/pdf' })
         }
 
         if (!isActive) return
 
+        // ObjectURLを作成（メモリ効率向上とWebKit安定化のため）
+        objectUrl = URL.createObjectURL(pdfBlob)
+
         console.log('PDFを読み込み中...', {
-          dataSize: pdfData.byteLength,
-          userAgent: navigator.userAgent
+          blobSize: pdfBlob.size,
+          userAgent: navigator.userAgent,
+          objectUrl
         })
 
         // Safari対応: タイムアウトとキャンセル可能な読み込み
         loadingTask = pdfjsLib.getDocument({
-          data: pdfData,
+          url: objectUrl, // URLを使用
           // Safari/iOSでのメモリ問題を回避
           useWorkerFetch: false,
           isEvalSupported: false,
@@ -130,10 +135,26 @@ export const usePDFRenderer = (
           setNumPages(pdf.numPages)
           setIsLoading(false)
           optionsRef.current?.onLoadSuccess?.(pdf.numPages)
+
+          // 読み込み完了後にURLを解放（PDF.jsがデータを保持していれば不要だが、念のため保持期間を考慮）
+          // 注: PDF.jsは非同期でrange requestをする可能性があるため、destroy時まで保持するのが安全
         } else {
           // すでにアンマウントされている場合は破棄
           pdf.destroy()
+          if (objectUrl) URL.revokeObjectURL(objectUrl)
         }
+
+        // Cleanup function for this specific load attempt (if needed)
+        // But main cleanup is in useEffect return
+
+        // Store objectUrl for cleanup
+        const currentObjectUrl = objectUrl
+        const originalDestroy = loadingTask.destroy
+        loadingTask.destroy = async () => {
+          if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl)
+          if (originalDestroy) await originalDestroy.call(loadingTask!)
+        }
+
       } catch (error) {
         if (isActive) {
           const errorMsg = error instanceof Error ? error.message : String(error)
