@@ -163,6 +163,9 @@ export const usePDFRenderer = (
           setError(fullErrorMsg)
           optionsRef.current?.onLoadError?.(fullErrorMsg)
           setIsLoading(false)
+
+          // Debugging for iPad: Show alert
+          window.alert(fullErrorMsg)
         }
       }
     }
