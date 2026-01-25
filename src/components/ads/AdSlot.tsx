@@ -61,7 +61,9 @@ const AdSlot: React.FC<AdSlotProps> = ({ slot, className = '' }) => {
   const config = getSlotConfig()
 
   if (!isAdEnabled) {
-    // AdSense未設定時: プレースホルダーを表示
+    // AdSense未設定時: プレースホルダーを非表示にする（審査対策）
+    return null
+    /*
     return (
       <div className={`ad-slot ad-placeholder ${className}`} style={config.style}>
         <div className="ad-placeholder-content">
@@ -71,6 +73,7 @@ const AdSlot: React.FC<AdSlotProps> = ({ slot, className = '' }) => {
         </div>
       </div>
     )
+    */
   }
 
   // AdSense設定済み: 実際の広告を表示
