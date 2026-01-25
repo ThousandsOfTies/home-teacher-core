@@ -83,32 +83,43 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
   }, [])
 
   // ドラッグ開始
-  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+  const handleDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
     // イベントの伝播を即座に停止（PDFのパン操作を防ぐ）
     e.stopPropagation()
     e.preventDefault()
 
+    // マルチタッチなどは無視（プライマリポインタのみ）
+    if (!e.isPrimary) return
+
     setIsDragging(true)
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+
+    // PointerEvent has clientX/Y directly
+    const clientX = e.clientX
+    const clientY = e.clientY
 
     dragStartPos.current = {
       x: clientX - position.x,
       y: clientY - position.y
     }
+
+    // ポインターキャプチャを設定（ドラッグ中のイベントを確実に受け取る）
+    /* e.currentTarget.setPointerCapture(e.pointerId) */
+    // Note: React's event pooling or synthetic event might make setPointerCapture tricky here without e.persist() or accessing the native target correctly.
+    // Instead we rely on document listeners which is robust for dragging.
   }
 
   // ドラッグ中
   useEffect(() => {
-    const handleDragMove = (e: MouseEvent | TouchEvent) => {
+    const handleDragMove = (e: PointerEvent) => {
       if (!isDragging) return
+      if (!e.isPrimary) return
 
-      // イベントの伝播を停止（PDFのパン操作を防ぐ）
+      // イベントの伝播を停止
       e.stopPropagation()
       e.preventDefault()
 
-      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+      const clientX = e.clientX
+      const clientY = e.clientY
 
       setPosition({
         x: clientX - dragStartPos.current.x,
@@ -116,26 +127,24 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
       })
     }
 
-    const handleDragEnd = (e: MouseEvent | TouchEvent) => {
-      // ドラッグ終了時もイベント伝播を停止
+    const handleDragEnd = (e: PointerEvent) => {
+      if (!e.isPrimary) return
       e.stopPropagation()
       e.preventDefault()
       setIsDragging(false)
     }
 
     if (isDragging) {
-      // キャプチャフェーズでイベントを捕捉（より早い段階でイベントをキャッチ）
-      document.addEventListener('mousemove', handleDragMove, { passive: false, capture: true })
-      document.addEventListener('mouseup', handleDragEnd, { capture: true })
-      document.addEventListener('touchmove', handleDragMove, { passive: false, capture: true })
-      document.addEventListener('touchend', handleDragEnd, { capture: true })
+      // キャプチャフェーズでイベントを捕捉
+      document.addEventListener('pointermove', handleDragMove, { passive: false, capture: true })
+      document.addEventListener('pointerup', handleDragEnd, { capture: true })
+      document.addEventListener('pointercancel', handleDragEnd, { capture: true })
     }
 
     return () => {
-      document.removeEventListener('mousemove', handleDragMove, true)
-      document.removeEventListener('mouseup', handleDragEnd, true)
-      document.removeEventListener('touchmove', handleDragMove, true)
-      document.removeEventListener('touchend', handleDragEnd, true)
+      document.removeEventListener('pointermove', handleDragMove, true)
+      document.removeEventListener('pointerup', handleDragEnd, true)
+      document.removeEventListener('pointercancel', handleDragEnd, true)
     }
   }, [isDragging])
 
@@ -178,21 +187,6 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
           onClose()
         }
       }}
-      onTouchStart={(e) => {
-        e.stopPropagation()
-        e.preventDefault() // Block touch from reaching PDF
-      }}
-      onTouchMove={(e) => {
-        e.stopPropagation()
-        e.preventDefault() // Block touch from reaching PDF
-      }}
-      onTouchEnd={(e) => {
-        e.stopPropagation()
-        e.preventDefault()
-      }}
-      onPointerDown={(e) => { e.stopPropagation(); e.preventDefault() }}
-      onPointerMove={(e) => { e.stopPropagation(); e.preventDefault() }}
-      onPointerUp={(e) => { e.stopPropagation(); e.preventDefault() }}
     >
       <div
         ref={panelRef}
@@ -205,46 +199,15 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
         onWheel={(e) => {
           e.stopPropagation()
         }}
-        onMouseMove={(e) => {
-          e.stopPropagation()
-        }}
-        onMouseDown={(e) => {
-          e.stopPropagation()
-        }}
-        onTouchStart={(e) => {
-          e.stopPropagation()
-          // Block multi-touch gestures (2+ fingers) from propagating
-          if (e.touches.length >= 2) {
-            e.preventDefault()
-          }
-        }}
-        onTouchMove={(e) => {
-          e.stopPropagation()
-          // Block multi-touch gestures (2+ fingers)
-          if (e.touches.length >= 2) {
-            e.preventDefault()
-          }
-        }}
-        onTouchEnd={(e) => {
-          e.stopPropagation()
-        }}
         onPointerDown={(e) => {
+          // パネル自体のクリックでの伝播停止（ドラッグ以外）
           e.stopPropagation()
-          e.preventDefault()
         }}
-        onPointerMove={(e) => {
-          e.stopPropagation()
-          e.preventDefault()
-        }}
-        onPointerUp={(e) => {
-          e.stopPropagation()
-          e.preventDefault()
-        }}
+      // 他のイベントハンドラはuseEffectのブロックロジックでカバーされるため削除
       >
         <div
           className="result-header"
-          onMouseDown={handleDragStart}
-          onTouchStart={handleDragStart}
+          onPointerDown={handleDragStart}
           style={{
             cursor: isDragging ? 'grabbing' : 'grab',
             touchAction: 'none' // タッチアクションを無効化

@@ -67,8 +67,9 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 // Google GenAI クライアント初期化
-// gemini-2.0-flash-exp を使用（高速でコスト効率が良い）
-const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp'
+// Google GenAI クライアント初期化
+// gemini-2.5-flash を使用（推奨）
+const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
 console.log(`Using Gemini Model: ${MODEL_NAME}`)
 
 // Initialize the Google Generative AI client
@@ -76,14 +77,13 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
 const model = genAI.getGenerativeModel({ model: MODEL_NAME })
 
 // デフォルトモデルID
-const DEFAULT_MODEL_ID = 'gemini-2.0-flash-exp'
+const DEFAULT_MODEL_ID = 'gemini-2.5-flash'
 
 // 利用可能なモデル一覧
 const AVAILABLE_MODELS = [
-  { id: DEFAULT_MODEL_ID, name: 'Gemini 2.0 Flash Exp', description: '高速でバランスの良いモデル（推奨）' },
-  { id: 'gemini-3.0-flash', name: 'Gemini 3.0 Flash', description: '最新の高速・高性能モデル' },
-  { id: 'gemini-3.0-pro', name: 'Gemini 3.0 Pro', description: '最新の高精度モデル' },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: '高速で軽量なモデル' },
+  { id: DEFAULT_MODEL_ID, name: 'Gemini 2.5 Flash', description: '高速でバランスの良いモデル（推奨）' },
+  { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', description: '非常に高速でコスト効率の良いモデル' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: '安定した高速モデル' },
   { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: '高精度で複雑な推論が可能' },
 ]
 
