@@ -163,7 +163,28 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
   // Load Drawings Effect
   useEffect(() => {
-    // loadDrawings logic (commented out)
+    const loadDrawings = async () => {
+      try {
+        const record = await getPDFRecord(pdfId)
+        if (!record?.drawings) return
+
+        const newMap = new Map<number, DrawingPath[]>()
+        for (const [pageStr, pathsJson] of Object.entries(record.drawings)) {
+          const page = parseInt(pageStr, 10)
+          const paths = JSON.parse(pathsJson) as DrawingPath[]
+          if (paths.length > 0) {
+            newMap.set(page, paths)
+          }
+        }
+
+        if (newMap.size > 0) {
+          setDrawingPaths(newMap)
+        }
+      } catch (e) {
+        console.error('Failed to load drawings:', e)
+      }
+    }
+    loadDrawings()
   }, [pdfId])
 
   // Load Text Annotations Effect
