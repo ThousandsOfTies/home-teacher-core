@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
-import { PDFFileRecord } from '../../utils/indexedDB'
+import { PDFFileRecord, fetchPDFData } from '../../utils/indexedDB'
 
 // PDF.jsのworkerを設定（ローカルファイルを使用、Safari/Edge対応）
 // PDF.jsのworkerを設定
