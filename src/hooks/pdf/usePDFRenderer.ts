@@ -64,116 +64,91 @@ export const usePDFRenderer = (
 
         // Early return: PDFデータがない場合
         if (!record.fileData) {
-          const errorMsg = 'PDFデータが見つかりません。'
-          if (isActive) {
-            setError(errorMsg)
-            optionsRef.current?.onLoadError?.(errorMsg)
-            setIsLoading(false)
+          if (!pdfData) {
+            const errorMsg = 'PDFデータが見つかりません。'
+            if (isActive) {
+              setError(errorMsg)
+              optionsRef.current?.onLoadError?.(errorMsg)
+              setIsLoading(false)
+            }
+            return
           }
-          return
-        }
 
-        if (isActive) {
-          optionsRef.current?.onLoadStart?.()
-        }
+          if (!isActive) return
 
-        let pdfData: ArrayBuffer | Uint8Array
-
-        // BlobをArrayBufferに変換（v6から）
-        if (record.fileData instanceof Blob) {
-          if (record.fileData.size === 0) {
-            throw new Error('PDFファイルのサイズが0バイトです。')
-          }
-          console.log('📄 Blob → ArrayBuffer変換開始', {
-            size: record.fileData.size,
-            type: record.fileData.type
+          console.log('PDFを読み込み中...', {
+            dataSize: pdfData.byteLength,
+            userAgent: navigator.userAgent
           })
-          pdfData = await record.fileData.arrayBuffer()
-        } else {
-          // 後方互換性: 文字列（Base64）の場合
-          const binaryString = atob(record.fileData as string)
-          const bytes = new Uint8Array(binaryString.length)
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i)
+
+          // Safari対応: タイムアウトとキャンセル可能な読み込み
+          loadingTask = pdfjsLib.getDocument({
+            data: pdfData,
+            // Safari/iOSでのメモリ問題を回避
+            useWorkerFetch: false,
+            isEvalSupported: false,
+            // タイムアウトを設定
+            stopAtErrors: true
+          })
+
+          // タイムアウト処理（iPad/iPhoneでは60秒、それ以外は30秒）
+          const timeoutMs = isIOS ? 60000 : 30000
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(`PDF読み込みがタイムアウトしました（${timeoutMs / 1000}秒）`)), timeoutMs)
+          })
+
+          const pdf = await Promise.race([
+            loadingTask.promise,
+            timeoutPromise
+          ]) as pdfjsLib.PDFDocumentProxy
+
+          if (isActive) {
+            loadedPdf = pdf
+            setPdfDoc(pdf)
+            setNumPages(pdf.numPages)
+            setIsLoading(false)
+            optionsRef.current?.onLoadSuccess?.(pdf.numPages)
+          } else {
+            // すでにアンマウントされている場合は破棄
+            pdf.destroy()
           }
-          pdfData = bytes
-        }
 
-        if (!isActive) return
+          // Cleanup function for this specific load attempt (if needed)
+          // But main cleanup is in useEffect return
 
-        console.log('PDFを読み込み中...', {
-          dataSize: pdfData.byteLength,
-          userAgent: navigator.userAgent
-        })
+          // Store loadingTask for cleanup
+          const originalDestroy = loadingTask.destroy
+          loadingTask.destroy = async () => {
+            if (originalDestroy) await originalDestroy.call(loadingTask!)
+          }
 
-        // Safari対応: タイムアウトとキャンセル可能な読み込み
-        loadingTask = pdfjsLib.getDocument({
-          data: pdfData,
-          // Safari/iOSでのメモリ問題を回避
-          useWorkerFetch: false,
-          isEvalSupported: false,
-          // タイムアウトを設定
-          stopAtErrors: true
-        })
+        } catch (error) {
+          if (isActive) {
+            const errorMsg = error instanceof Error ? error.message : String(error)
+            console.error('PDF読み込みエラー:', errorMsg)
+            const fullErrorMsg = 'PDFの読み込みに失敗しました: ' + errorMsg
+            setError(fullErrorMsg)
+            optionsRef.current?.onLoadError?.(fullErrorMsg)
+            setIsLoading(false)
 
-        // タイムアウト処理（iPad/iPhoneでは60秒、それ以外は30秒）
-        const timeoutMs = isIOS ? 60000 : 30000
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error(`PDF読み込みがタイムアウトしました（${timeoutMs / 1000}秒）`)), timeoutMs)
-        })
-
-        const pdf = await Promise.race([
-          loadingTask.promise,
-          timeoutPromise
-        ]) as pdfjsLib.PDFDocumentProxy
-
-        if (isActive) {
-          loadedPdf = pdf
-          setPdfDoc(pdf)
-          setNumPages(pdf.numPages)
-          setIsLoading(false)
-          optionsRef.current?.onLoadSuccess?.(pdf.numPages)
-        } else {
-          // すでにアンマウントされている場合は破棄
-          pdf.destroy()
-        }
-
-        // Cleanup function for this specific load attempt (if needed)
-        // But main cleanup is in useEffect return
-
-        // Store loadingTask for cleanup
-        const originalDestroy = loadingTask.destroy
-        loadingTask.destroy = async () => {
-          if (originalDestroy) await originalDestroy.call(loadingTask!)
-        }
-
-      } catch (error) {
-        if (isActive) {
-          const errorMsg = error instanceof Error ? error.message : String(error)
-          console.error('PDF読み込みエラー:', errorMsg)
-          const fullErrorMsg = 'PDFの読み込みに失敗しました: ' + errorMsg
-          setError(fullErrorMsg)
-          optionsRef.current?.onLoadError?.(fullErrorMsg)
-          setIsLoading(false)
-
-          // Debugging for iPad: Show alert
-          window.alert(fullErrorMsg)
+            // Debugging for iPad: Show alert
+            window.alert(fullErrorMsg)
+          }
         }
       }
-    }
 
     loadPDF()
 
-    return () => {
-      isActive = false
-      if (loadingTask) {
-        loadingTask.destroy().catch(() => { })
+      return () => {
+        isActive = false
+        if (loadingTask) {
+          loadingTask.destroy().catch(() => { })
+        }
+        if (loadedPdf) {
+          loadedPdf.destroy().catch(() => { })
+        }
       }
-      if (loadedPdf) {
-        loadedPdf.destroy().catch(() => { })
-      }
-    }
-  }, [pdfRecord.id]) // Only reload if ID changes
+    }, [pdfRecord.id]) // Only reload if ID changes
 
   return {
     pdfDoc,

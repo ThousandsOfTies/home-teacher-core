@@ -640,3 +640,50 @@ export async function getSNSUsageHistory(): Promise<SNSUsageHistoryRecord[]> {
     }).catch(reject);
   });
 }
+
+// PDFデータを直接ArrayBufferとして取得（iPadのStale Blob対策）
+export async function fetchPDFData(id: string): Promise<ArrayBuffer> {
+  const db = await openDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readonly');
+    const objectStore = transaction.objectStore(STORE_NAME);
+    const request = objectStore.get(id);
+
+    request.onsuccess = async () => {
+      const record = request.result as PDFFileRecord | undefined;
+      if (!record || !record.fileData) {
+        reject(new Error('PDFデータが見つかりません'));
+        return;
+      }
+
+      try {
+        let buffer: ArrayBuffer;
+        if (record.fileData instanceof Blob) {
+          if (record.fileData.size === 0) {
+            reject(new Error('PDFファイルのサイズが0バイトです'));
+            return;
+          }
+          // Blobを即座にbufferに読み込むことで、transaction終了後の無効化を防ぐ
+          buffer = await record.fileData.arrayBuffer();
+        } else {
+          // Base64 -> ArrayBuffer
+          const binaryString = atob(record.fileData as unknown as string);
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          buffer = bytes.buffer;
+        }
+        resolve(buffer);
+      } catch (e) {
+        reject(new Error('PDFデータの読み込みに失敗しました: ' + (e instanceof Error ? e.message : String(e))));
+      }
+    };
+
+    request.onerror = () => {
+      reject(new Error('PDFデータの取得に失敗しました'));
+    };
+  });
+}
