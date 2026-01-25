@@ -62,93 +62,87 @@ export const usePDFRenderer = (
 
         if (!isActive) return
 
-        // Early return: PDFデータがない場合
-        if (!record.fileData) {
-          if (!pdfData) {
-            const errorMsg = 'PDFデータが見つかりません。'
-            if (isActive) {
-              setError(errorMsg)
-              optionsRef.current?.onLoadError?.(errorMsg)
-              setIsLoading(false)
-            }
-            return
-          }
+        if (isActive) {
+          optionsRef.current?.onLoadStart?.()
+        }
 
-          if (!isActive) return
+        // DBから最新のデータをArrayBufferとして取得（iPad対策）
+        // Propsで渡されたrecord.fileDataはStale（古い/無効）になっている可能性があるため使用しない
+        console.log('📥 PDFデータをDBから再取得中...', record.id)
+        const pdfData = await fetchPDFData(record.id)
 
-          console.log('PDFを読み込み中...', {
-            dataSize: pdfData.byteLength,
-            userAgent: navigator.userAgent
-          })
+        if (!isActive) return
 
-          // Safari対応: タイムアウトとキャンセル可能な読み込み
-          loadingTask = pdfjsLib.getDocument({
-            data: pdfData,
-            // Safari/iOSでのメモリ問題を回避
-            useWorkerFetch: false,
-            isEvalSupported: false,
-            // タイムアウトを設定
-            stopAtErrors: true
-          })
+        console.log('PDFを読み込み中...', {
+          dataSize: pdfData.byteLength,
+          userAgent: navigator.userAgent
+        })
 
-          // タイムアウト処理（iPad/iPhoneでは60秒、それ以外は30秒）
-          const timeoutMs = isIOS ? 60000 : 30000
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error(`PDF読み込みがタイムアウトしました（${timeoutMs / 1000}秒）`)), timeoutMs)
-          })
+        // Safari対応: タイムアウトとキャンセル可能な読み込み
+        loadingTask = pdfjsLib.getDocument({
+          data: pdfData,
+          // Safari/iOSでのメモリ問題を回避
+          useWorkerFetch: false,
+          isEvalSupported: false,
+          // タイムアウトを設定
+          stopAtErrors: true
+        })
 
-          const pdf = await Promise.race([
-            loadingTask.promise,
-            timeoutPromise
-          ]) as pdfjsLib.PDFDocumentProxy
+        // タイムアウト処理（iPad/iPhoneでは60秒、それ以外は30秒）
+        const timeoutMs = isIOS ? 60000 : 30000
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error(`PDF読み込みがタイムアウトしました（${timeoutMs / 1000}秒）`)), timeoutMs)
+        })
 
-          if (isActive) {
-            loadedPdf = pdf
-            setPdfDoc(pdf)
-            setNumPages(pdf.numPages)
-            setIsLoading(false)
-            optionsRef.current?.onLoadSuccess?.(pdf.numPages)
-          } else {
-            // すでにアンマウントされている場合は破棄
-            pdf.destroy()
-          }
+        const pdf = await Promise.race([
+          loadingTask.promise,
+          timeoutPromise
+        ]) as pdfjsLib.PDFDocumentProxy
 
-          // Cleanup function for this specific load attempt (if needed)
-          // But main cleanup is in useEffect return
+        if (isActive) {
+          loadedPdf = pdf
+          setPdfDoc(pdf)
+          setNumPages(pdf.numPages)
+          setIsLoading(false)
+          optionsRef.current?.onLoadSuccess?.(pdf.numPages)
+        } else {
+          // すでにアンマウントされている場合は破棄
+          pdf.destroy()
+        }
 
-          // Store loadingTask for cleanup
-          const originalDestroy = loadingTask.destroy
-          loadingTask.destroy = async () => {
-            if (originalDestroy) await originalDestroy.call(loadingTask!)
-          }
+        // Store loadingTask for cleanup
+        const originalDestroy = loadingTask.destroy
+        loadingTask.destroy = async () => {
+          if (originalDestroy) await originalDestroy.call(loadingTask!)
+        }
 
-        } catch (error) {
-          if (isActive) {
-            const errorMsg = error instanceof Error ? error.message : String(error)
-            console.error('PDF読み込みエラー:', errorMsg)
-            const fullErrorMsg = 'PDFの読み込みに失敗しました: ' + errorMsg
-            setError(fullErrorMsg)
-            optionsRef.current?.onLoadError?.(fullErrorMsg)
-            setIsLoading(false)
+      } catch (error) {
+        if (isActive) {
+          const errorMsg = error instanceof Error ? error.message : String(error)
+          console.error('PDF読み込みエラー:', errorMsg)
+          const fullErrorMsg = 'PDFの読み込みに失敗しました: ' + errorMsg
+          setError(fullErrorMsg)
+          optionsRef.current?.onLoadError?.(fullErrorMsg)
+          setIsLoading(false)
 
-            // Debugging for iPad: Show alert
-            window.alert(fullErrorMsg)
-          }
+          // Debugging for iPad: Show alert
+          window.alert(fullErrorMsg)
         }
       }
+    }
 
     loadPDF()
 
-      return () => {
-        isActive = false
-        if (loadingTask) {
-          loadingTask.destroy().catch(() => { })
-        }
-        if (loadedPdf) {
-          loadedPdf.destroy().catch(() => { })
-        }
+    return () => {
+      isActive = false
+      if (loadingTask) {
+        loadingTask.destroy().catch(() => { })
       }
-    }, [pdfRecord.id]) // Only reload if ID changes
+      if (loadedPdf) {
+        loadedPdf.destroy().catch(() => { })
+      }
+    }
+  }, [pdfRecord.id]) // Only reload if ID changes
 
   return {
     pdfDoc,
