@@ -9,9 +9,9 @@ export default defineConfig(({ mode }) => {
   // 環境変数を読み込む
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const isDiscuss = mode === 'discuss'
-  const basePath = process.env.NODE_ENV === 'production'
+  const basePath = env.VITE_APP_BASE || (process.env.NODE_ENV === 'production'
     ? (isDiscuss ? '/HomeTeacher/discuss/' : '/HomeTeacher/')
-    : '/'
+    : '/')
   const appName = env.VITE_APP_NAME || 'TutoTuto'
   const themeColor = env.VITE_THEME_COLOR || '#3498db'
 
