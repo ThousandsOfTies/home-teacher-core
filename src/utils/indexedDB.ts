@@ -56,6 +56,7 @@ export interface AppSettings {
   snsTimeLimitMinutes: number; // SNS利用制限時間（分）
   notificationEnabled: boolean; // 通知の有効/無効
   defaultGradingModel?: string; // 採点時のデフォルトAIモデル
+  isPremium?: boolean; // 有料プラン（ファミリー解除）フラグ
 }
 
 export interface SNSUsageHistoryRecord {

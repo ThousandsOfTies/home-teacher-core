@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import AdminPanel from './components/admin/AdminPanel'
 import StudyPanel from './components/study/StudyPanel'
-import { PDFFileRecord, getPDFRecord } from './utils/indexedDB'
+import { PDFFileRecord, getPDFRecord, getAppSettings, saveAppSettings } from './utils/indexedDB'
 
 type AppView = 'admin' | 'viewer'
 
@@ -23,12 +23,34 @@ function App() {
     },
   })
 
-  // PWA起動時: URLパラメータでpdfIdがあればドリルを再開、なければHome画面
+  // PWA起動時: URLパラメータチェック（復元 & プレミアム解除）
   useEffect(() => {
-    const restoreSession = async () => {
+    const checkUrlParams = async () => {
       const urlParams = new URLSearchParams(window.location.search)
-      const pdfId = urlParams.get('pdfId')
 
+      // 1. プレミアム解除チェック (?premium=true)
+      const isPremiumUnlock = urlParams.get('premium') === 'true'
+      if (isPremiumUnlock) {
+        try {
+          // 設定を読み込んで更新
+          const settings = await getAppSettings()
+          await saveAppSettings({
+            ...settings,
+            isPremium: true
+          })
+          alert('🎉 プレミアム機能が解除されました！\nSNS時間制限を自由に設定できます。')
+
+          // URLからパラメータを削除
+          urlParams.delete('premium')
+          const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '')
+          window.history.replaceState({}, '', newUrl)
+        } catch (error) {
+          console.error('プレミアム解除に失敗:', error)
+        }
+      }
+
+      // 2. ドリル再開チェック (?pdfId=...)
+      const pdfId = urlParams.get('pdfId')
       if (pdfId) {
         try {
           const record = await getPDFRecord(pdfId)
@@ -45,13 +67,15 @@ function App() {
         }
       }
 
-      // pdfIdがないか、復元に失敗した場合はHome画面
-      setCurrentView('admin')
-      setSelectedPDF(null)
-      console.log('🏠 PWA起動: Home画面を表示')
+      // 3. 通常起動 (Home画面)
+      if (!pdfId) {
+        setCurrentView('admin')
+        setSelectedPDF(null)
+        console.log('🏠 PWA起動: Home画面を表示')
+      }
     }
 
-    restoreSession()
+    checkUrlParams()
   }, [])
 
 

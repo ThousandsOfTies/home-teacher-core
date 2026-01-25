@@ -74,9 +74,10 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [showStorageInfo, setShowStorageInfo] = useState(false);
-  const [snsTimeLimit, setSnsTimeLimit] = useState<number>(30); // デフォルト30分
-  const [snsTimeLimitInput, setSnsTimeLimitInput] = useState<string>('30'); // 入力フィールド用
+  const [snsTimeLimit, setSnsTimeLimit] = useState<number>(60); // デフォルト60分
+  const [snsTimeLimitInput, setSnsTimeLimitInput] = useState<string>('60'); // 入力フィールド用
   const [notificationEnabled, setNotificationEnabled] = useState<boolean>(false); // 通知の有効/無効
+  const [isPremium, setIsPremium] = useState<boolean>(false); // プレミアム権限
 
   // Load data on mount
   useEffect(() => {
@@ -94,14 +95,27 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
   const loadSettings = async () => {
     try {
       const settings = await getAppSettings();
-      setSnsTimeLimit(settings.snsTimeLimitMinutes);
-      setSnsTimeLimitInput(String(settings.snsTimeLimitMinutes));
+      // プレミアム権限チェック
+      const premium = settings.isPremium || false;
+      setIsPremium(premium);
+
+      // 時間制限: プレミアムでない場合は強制的に60分、プレミアムなら保存された値（なければデフォルト60分）
+      // ただし、すでに保存されている値が30分で、今回プレミアム制限が入った場合でも、ユーザー体験としては「60分に戻る」べき。
+      // なので !premium なら 60 固定表示に近い挙動にするが、DB値を勝手に書き換えるかは別。
+      // ここでは表示の初期値を決定する。
+
+      const savedTime = settings.snsTimeLimitMinutes || 60;
+      // プレミアムでなければ60分固定
+      const effectiveTime = premium ? savedTime : 60;
+
+      setSnsTimeLimit(effectiveTime);
+      setSnsTimeLimitInput(String(effectiveTime));
       setNotificationEnabled(settings.notificationEnabled);
     } catch (error) {
       console.error('Failed to load settings:', error);
       // エラーの場合はデフォルト値を使用
-      setSnsTimeLimit(30);
-      setSnsTimeLimitInput('30');
+      setSnsTimeLimit(60);
+      setSnsTimeLimitInput('60');
       setNotificationEnabled(false);
       // データベースを再作成する必要がある場合
       if (error instanceof Error && error.message.includes('object stores was not found')) {
@@ -363,36 +377,47 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                     <span>⏱️</span>
                     <span>{t('snsSettings.timeLimit')}</span>
                   </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      type="number"
-                      min="1"
-                      max="120"
-                      value={snsTimeLimitInput}
-                      onChange={(e) => setSnsTimeLimitInput(e.target.value)}
-                      onBlur={(e) => {
-                        const value = parseInt(e.target.value);
-                        if (isNaN(value) || value < 1) {
-                          setSnsTimeLimit(1);
-                          setSnsTimeLimitInput('1');
-                        } else if (value > 120) {
-                          setSnsTimeLimit(120);
-                          setSnsTimeLimitInput('120');
-                        } else {
-                          setSnsTimeLimit(value);
-                          setSnsTimeLimitInput(String(value));
-                        }
-                      }}
-                      style={{
-                        width: '60px',
-                        padding: '6px',
-                        fontSize: '16px',
-                        border: '2px solid #bdc3c7',
-                        borderRadius: '6px',
-                        textAlign: 'center'
-                      }}
-                    />
-                    <span style={{ fontSize: '14px', color: '#7f8c8d' }}>{t('snsSettings.minutes')}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="number"
+                        min="1"
+                        max="120"
+                        value={snsTimeLimitInput}
+                        disabled={!isPremium}
+                        onChange={(e) => setSnsTimeLimitInput(e.target.value)}
+                        onBlur={(e) => {
+                          const value = parseInt(e.target.value);
+                          if (isNaN(value) || value < 1) {
+                            setSnsTimeLimit(1);
+                            setSnsTimeLimitInput('1');
+                          } else if (value > 120) {
+                            setSnsTimeLimit(120);
+                            setSnsTimeLimitInput('120');
+                          } else {
+                            setSnsTimeLimit(value);
+                            setSnsTimeLimitInput(String(value));
+                          }
+                        }}
+                        style={{
+                          width: '60px',
+                          padding: '6px',
+                          fontSize: '16px',
+                          border: '2px solid #bdc3c7',
+                          borderRadius: '6px',
+                          textAlign: 'center',
+                          backgroundColor: !isPremium ? '#ecf0f1' : 'white',
+                          color: !isPremium ? '#95a5a6' : 'black',
+                          cursor: !isPremium ? 'not-allowed' : 'text'
+                        }}
+                      />
+                      <span style={{ fontSize: '14px', color: '#7f8c8d' }}>{t('snsSettings.minutes')}</span>
+                    </div>
+                    {!isPremium && (
+                      <div style={{ fontSize: '10px', color: '#e74c3c' }}>
+                        🔒 Default: 60 min. Unlock to change.
+                      </div>
+                    )}
                   </div>
                 </div>
 
