@@ -29,7 +29,7 @@ gcloud run deploy $SERVICE_NAME \
   --memory 512Mi \
   --cpu 1 \
   --timeout 60s \
-  --set-env-vars "NODE_ENV=staging,GEMINI_MODEL=gemini-2.5-flash" \
+  --set-env-vars "NODE_ENV=staging,GEMINI_MODEL=gemini-2.5-flash-lite" \
   --update-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest"
 
 if [ $? -eq 0 ]; then
