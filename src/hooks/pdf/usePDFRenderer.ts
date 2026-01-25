@@ -114,6 +114,11 @@ export const usePDFRenderer = (
           // Safari/iOSでのメモリ問題を回避
           useWorkerFetch: false,
           isEvalSupported: false,
+          // Range Request (部分読み込み) を無効化
+          // Blob URLに対してRange Requestを行うと、ブラウザによっては（特にSafari/iPad）
+          // "Unexpected server response (0)" エラーが発生するため
+          disableRange: true,
+          disableStream: true,
           // タイムアウトを設定
           stopAtErrors: true
         })
