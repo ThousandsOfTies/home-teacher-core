@@ -174,37 +174,44 @@ export async function getAllPDFRecords(): Promise<PDFFileRecord[]> {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([STORE_NAME], 'readonly');
-    const objectStore = transaction.objectStore(STORE_NAME);
-    const index = objectStore.index('lastOpened');
-    const request = index.openCursor(null, 'prev'); // 最近開いた順
+    try {
+      const transaction = db.transaction([STORE_NAME], 'readonly');
+      const objectStore = transaction.objectStore(STORE_NAME);
+      const index = objectStore.index('lastOpened');
+      const request = index.openCursor(null, 'prev'); // 最近開いた順
 
-    const records: PDFFileRecord[] = [];
+      const records: PDFFileRecord[] = [];
 
-    request.onsuccess = (event) => {
-      const cursor = (event.target as IDBRequest).result;
-      if (!cursor) {
-        console.log(`✅ 全PDFレコード取得完了: ${records.length}件`);
-        resolve(records);
-        return;
-      }
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result;
+        if (!cursor) {
+          console.log(`✅ 全PDFレコード取得完了: ${records.length}件`);
+          db.close();
+          resolve(records);
+          return;
+        }
 
-      const record = cursor.value;
-      console.log('📄 PDFレコード取得:', {
-        id: record.id,
-        fileName: record.fileName,
-        hasFileData: !!record.fileData,
-        fileDataType: record.fileData ? (record.fileData instanceof Blob ? 'Blob' : typeof record.fileData) : 'null',
-        fileDataSize: record.fileData instanceof Blob ? record.fileData.size : 'N/A'
-      });
-      records.push(record);
-      cursor.continue();
-    };
+        const record = cursor.value;
+        console.log('📄 PDFレコード取得:', {
+          id: record.id,
+          fileName: record.fileName,
+          hasFileData: !!record.fileData,
+          fileDataType: record.fileData ? (record.fileData instanceof Blob ? 'Blob' : typeof record.fileData) : 'null',
+          fileDataSize: record.fileData instanceof Blob ? record.fileData.size : 'N/A'
+        });
+        records.push(record);
+        cursor.continue();
+      };
 
-    request.onerror = () => {
-      console.error('❌ PDFレコード取得エラー:', request.error);
-      reject(new Error('レコードの取得に失敗しました'));
-    };
+      request.onerror = () => {
+        console.error('❌ PDFレコード取得エラー:', request.error);
+        db.close();
+        reject(new Error('レコードの取得に失敗しました'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
   });
 }
 
@@ -213,17 +220,24 @@ export async function savePDFRecord(record: PDFFileRecord): Promise<void> {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([STORE_NAME], 'readwrite');
-    const objectStore = transaction.objectStore(STORE_NAME);
-    const request = objectStore.put(record);
+    try {
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
+      const objectStore = transaction.objectStore(STORE_NAME);
+      const request = objectStore.put(record);
 
-    request.onsuccess = () => {
-      resolve();
-    };
+      request.onsuccess = () => {
+        db.close();
+        resolve();
+      };
 
-    request.onerror = () => {
-      reject(new Error('レコードの保存に失敗しました'));
-    };
+      request.onerror = () => {
+        db.close();
+        reject(new Error('レコードの保存に失敗しました'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
   });
 }
 
@@ -242,17 +256,24 @@ export async function getPDFRecord(id: string): Promise<PDFFileRecord | null> {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([STORE_NAME], 'readonly');
-    const objectStore = transaction.objectStore(STORE_NAME);
-    const request = objectStore.get(id);
+    try {
+      const transaction = db.transaction([STORE_NAME], 'readonly');
+      const objectStore = transaction.objectStore(STORE_NAME);
+      const request = objectStore.get(id);
 
-    request.onsuccess = () => {
-      resolve(request.result || null);
-    };
+      request.onsuccess = () => {
+        db.close();
+        resolve(request.result || null);
+      };
 
-    request.onerror = () => {
-      reject(new Error('レコードの取得に失敗しました'));
-    };
+      request.onerror = () => {
+        db.close();
+        reject(new Error('レコードの取得に失敗しました'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
   });
 }
 
@@ -261,17 +282,24 @@ export async function deletePDFRecord(id: string): Promise<void> {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([STORE_NAME], 'readwrite');
-    const objectStore = transaction.objectStore(STORE_NAME);
-    const request = objectStore.delete(id);
+    try {
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
+      const objectStore = transaction.objectStore(STORE_NAME);
+      const request = objectStore.delete(id);
 
-    request.onsuccess = () => {
-      resolve();
-    };
+      request.onsuccess = () => {
+        db.close();
+        resolve();
+      };
 
-    request.onerror = () => {
-      reject(new Error('レコードの削除に失敗しました'));
-    };
+      request.onerror = () => {
+        db.close();
+        reject(new Error('レコードの削除に失敗しました'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
   });
 }
 
@@ -335,26 +363,33 @@ export async function getAllSNSLinks(): Promise<SNSLinkRecord[]> {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([SNS_STORE_NAME], 'readonly');
-    const objectStore = transaction.objectStore(SNS_STORE_NAME);
-    const index = objectStore.index('createdAt');
-    const request = index.openCursor(null, 'next'); // 作成日時順
+    try {
+      const transaction = db.transaction([SNS_STORE_NAME], 'readonly');
+      const objectStore = transaction.objectStore(SNS_STORE_NAME);
+      const index = objectStore.index('createdAt');
+      const request = index.openCursor(null, 'next'); // 作成日時順
 
-    const records: SNSLinkRecord[] = [];
+      const records: SNSLinkRecord[] = [];
 
-    request.onsuccess = (event) => {
-      const cursor = (event.target as IDBRequest).result;
-      if (cursor) {
-        records.push(cursor.value);
-        cursor.continue();
-      } else {
-        resolve(records);
-      }
-    };
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result;
+        if (cursor) {
+          records.push(cursor.value);
+          cursor.continue();
+        } else {
+          db.close();
+          resolve(records);
+        }
+      };
 
-    request.onerror = () => {
-      reject(new Error('SNSリンクの取得に失敗しました'));
-    };
+      request.onerror = () => {
+        db.close();
+        reject(new Error('SNSリンクの取得に失敗しました'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
   });
 }
 
@@ -363,17 +398,24 @@ export async function saveSNSLink(record: SNSLinkRecord): Promise<void> {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([SNS_STORE_NAME], 'readwrite');
-    const objectStore = transaction.objectStore(SNS_STORE_NAME);
-    const request = objectStore.put(record);
+    try {
+      const transaction = db.transaction([SNS_STORE_NAME], 'readwrite');
+      const objectStore = transaction.objectStore(SNS_STORE_NAME);
+      const request = objectStore.put(record);
 
-    request.onsuccess = () => {
-      resolve();
-    };
+      request.onsuccess = () => {
+        db.close();
+        resolve();
+      };
 
-    request.onerror = () => {
-      reject(new Error('SNSリンクの保存に失敗しました'));
-    };
+      request.onerror = () => {
+        db.close();
+        reject(new Error('SNSリンクの保存に失敗しました'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
   });
 }
 
@@ -382,17 +424,24 @@ export async function deleteSNSLink(id: string): Promise<void> {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([SNS_STORE_NAME], 'readwrite');
-    const objectStore = transaction.objectStore(SNS_STORE_NAME);
-    const request = objectStore.delete(id);
+    try {
+      const transaction = db.transaction([SNS_STORE_NAME], 'readwrite');
+      const objectStore = transaction.objectStore(SNS_STORE_NAME);
+      const request = objectStore.delete(id);
 
-    request.onsuccess = () => {
-      resolve();
-    };
+      request.onsuccess = () => {
+        db.close();
+        resolve();
+      };
 
-    request.onerror = () => {
-      reject(new Error('SNSリンクの削除に失敗しました'));
-    };
+      request.onerror = () => {
+        db.close();
+        reject(new Error('SNSリンクの削除に失敗しました'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
   });
 }
 
@@ -406,17 +455,24 @@ export async function saveGradingHistory(record: GradingHistoryRecord): Promise<
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([GRADING_HISTORY_STORE_NAME], 'readwrite');
-    const objectStore = transaction.objectStore(GRADING_HISTORY_STORE_NAME);
-    const request = objectStore.put(record);
+    try {
+      const transaction = db.transaction([GRADING_HISTORY_STORE_NAME], 'readwrite');
+      const objectStore = transaction.objectStore(GRADING_HISTORY_STORE_NAME);
+      const request = objectStore.put(record);
 
-    request.onsuccess = () => {
-      resolve();
-    };
+      request.onsuccess = () => {
+        db.close();
+        resolve();
+      };
 
-    request.onerror = () => {
-      reject(new Error('採点履歴の保存に失敗しました'));
-    };
+      request.onerror = () => {
+        db.close();
+        reject(new Error('採点履歴の保存に失敗しました'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
   });
 }
 
@@ -425,26 +481,33 @@ export async function getAllGradingHistory(): Promise<GradingHistoryRecord[]> {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([GRADING_HISTORY_STORE_NAME], 'readonly');
-    const objectStore = transaction.objectStore(GRADING_HISTORY_STORE_NAME);
-    const index = objectStore.index('timestamp');
-    const request = index.openCursor(null, 'prev'); // 新しい順
+    try {
+      const transaction = db.transaction([GRADING_HISTORY_STORE_NAME], 'readonly');
+      const objectStore = transaction.objectStore(GRADING_HISTORY_STORE_NAME);
+      const index = objectStore.index('timestamp');
+      const request = index.openCursor(null, 'prev'); // 新しい順
 
-    const records: GradingHistoryRecord[] = [];
+      const records: GradingHistoryRecord[] = [];
 
-    request.onsuccess = (event) => {
-      const cursor = (event.target as IDBRequest).result;
-      if (cursor) {
-        records.push(cursor.value);
-        cursor.continue();
-      } else {
-        resolve(records);
-      }
-    };
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result;
+        if (cursor) {
+          records.push(cursor.value);
+          cursor.continue();
+        } else {
+          db.close();
+          resolve(records);
+        }
+      };
 
-    request.onerror = () => {
-      reject(new Error('採点履歴の取得に失敗しました'));
-    };
+      request.onerror = () => {
+        db.close();
+        reject(new Error('採点履歴の取得に失敗しました'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
   });
 }
 
@@ -453,26 +516,33 @@ export async function getGradingHistoryByPdfId(pdfId: string): Promise<GradingHi
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([GRADING_HISTORY_STORE_NAME], 'readonly');
-    const objectStore = transaction.objectStore(GRADING_HISTORY_STORE_NAME);
-    const index = objectStore.index('pdfId');
-    const request = index.openCursor(IDBKeyRange.only(pdfId), 'prev');
+    try {
+      const transaction = db.transaction([GRADING_HISTORY_STORE_NAME], 'readonly');
+      const objectStore = transaction.objectStore(GRADING_HISTORY_STORE_NAME);
+      const index = objectStore.index('pdfId');
+      const request = index.openCursor(IDBKeyRange.only(pdfId), 'prev');
 
-    const records: GradingHistoryRecord[] = [];
+      const records: GradingHistoryRecord[] = [];
 
-    request.onsuccess = (event) => {
-      const cursor = (event.target as IDBRequest).result;
-      if (cursor) {
-        records.push(cursor.value);
-        cursor.continue();
-      } else {
-        resolve(records);
-      }
-    };
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result;
+        if (cursor) {
+          records.push(cursor.value);
+          cursor.continue();
+        } else {
+          db.close();
+          resolve(records);
+        }
+      };
 
-    request.onerror = () => {
-      reject(new Error('採点履歴の取得に失敗しました'));
-    };
+      request.onerror = () => {
+        db.close();
+        reject(new Error('採点履歴の取得に失敗しました'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
   });
 }
 
@@ -481,17 +551,24 @@ export async function getGradingHistory(id: string): Promise<GradingHistoryRecor
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([GRADING_HISTORY_STORE_NAME], 'readonly');
-    const objectStore = transaction.objectStore(GRADING_HISTORY_STORE_NAME);
-    const request = objectStore.get(id);
+    try {
+      const transaction = db.transaction([GRADING_HISTORY_STORE_NAME], 'readonly');
+      const objectStore = transaction.objectStore(GRADING_HISTORY_STORE_NAME);
+      const request = objectStore.get(id);
 
-    request.onsuccess = () => {
-      resolve(request.result || null);
-    };
+      request.onsuccess = () => {
+        db.close();
+        resolve(request.result || null);
+      };
 
-    request.onerror = () => {
-      reject(new Error('採点履歴の取得に失敗しました'));
-    };
+      request.onerror = () => {
+        db.close();
+        reject(new Error('採点履歴の取得に失敗しました'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
   });
 }
 
@@ -500,17 +577,24 @@ export async function deleteGradingHistory(id: string): Promise<void> {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([GRADING_HISTORY_STORE_NAME], 'readwrite');
-    const objectStore = transaction.objectStore(GRADING_HISTORY_STORE_NAME);
-    const request = objectStore.delete(id);
+    try {
+      const transaction = db.transaction([GRADING_HISTORY_STORE_NAME], 'readwrite');
+      const objectStore = transaction.objectStore(GRADING_HISTORY_STORE_NAME);
+      const request = objectStore.delete(id);
 
-    request.onsuccess = () => {
-      resolve();
-    };
+      request.onsuccess = () => {
+        db.close();
+        resolve();
+      };
 
-    request.onerror = () => {
-      reject(new Error('採点履歴の削除に失敗しました'));
-    };
+      request.onerror = () => {
+        db.close();
+        reject(new Error('採点履歴の削除に失敗しました'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
   });
 }
 
@@ -519,24 +603,31 @@ export async function getAppSettings(): Promise<AppSettings> {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([SETTINGS_STORE_NAME], 'readonly');
-    const objectStore = transaction.objectStore(SETTINGS_STORE_NAME);
-    const request = objectStore.get('app-settings');
+    try {
+      const transaction = db.transaction([SETTINGS_STORE_NAME], 'readonly');
+      const objectStore = transaction.objectStore(SETTINGS_STORE_NAME);
+      const request = objectStore.get('app-settings');
 
-    request.onsuccess = () => {
-      const settings = request.result as AppSettings | undefined;
-      // デフォルト値: 30分、通知無効、モデルは未指定（バックエンドのデフォルト使用）
-      resolve(settings || {
-        id: 'app-settings',
-        snsTimeLimitMinutes: 30,
-        notificationEnabled: false,
-        defaultGradingModel: undefined
-      });
-    };
+      request.onsuccess = () => {
+        const settings = request.result as AppSettings | undefined;
+        db.close();
+        // デフォルト値: 30分、通知無効、モデルは未指定（バックエンドのデフォルト使用）
+        resolve(settings || {
+          id: 'app-settings',
+          snsTimeLimitMinutes: 30,
+          notificationEnabled: false,
+          defaultGradingModel: undefined
+        });
+      };
 
-    request.onerror = () => {
-      reject(new Error('設定の取得に失敗しました'));
-    };
+      request.onerror = () => {
+        db.close();
+        reject(new Error('設定の取得に失敗しました'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
   });
 }
 
@@ -545,17 +636,24 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([SETTINGS_STORE_NAME], 'readwrite');
-    const objectStore = transaction.objectStore(SETTINGS_STORE_NAME);
-    const request = objectStore.put(settings);
+    try {
+      const transaction = db.transaction([SETTINGS_STORE_NAME], 'readwrite');
+      const objectStore = transaction.objectStore(SETTINGS_STORE_NAME);
+      const request = objectStore.put(settings);
 
-    request.onsuccess = () => {
-      resolve();
-    };
+      request.onsuccess = () => {
+        db.close();
+        resolve();
+      };
 
-    request.onerror = () => {
-      reject(new Error('設定の保存に失敗しました'));
-    };
+      request.onerror = () => {
+        db.close();
+        reject(new Error('設定の保存に失敗しました'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
   });
 }
 
@@ -568,25 +666,32 @@ export function generateGradingHistoryId(): string {
 export async function saveSNSUsageHistory(record: Omit<SNSUsageHistoryRecord, 'id'>): Promise<void> {
   return new Promise((resolve, reject) => {
     openDB().then((db) => {
-      const transaction = db.transaction([SNS_USAGE_HISTORY_STORE_NAME], 'readwrite');
-      const objectStore = transaction.objectStore(SNS_USAGE_HISTORY_STORE_NAME);
+      try {
+        const transaction = db.transaction([SNS_USAGE_HISTORY_STORE_NAME], 'readwrite');
+        const objectStore = transaction.objectStore(SNS_USAGE_HISTORY_STORE_NAME);
 
-      const historyRecord: SNSUsageHistoryRecord = {
-        id: `sns_usage_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
-        ...record
-      };
+        const historyRecord: SNSUsageHistoryRecord = {
+          id: `sns_usage_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+          ...record
+        };
 
-      const request = objectStore.add(historyRecord);
+        const request = objectStore.add(historyRecord);
 
-      transaction.oncomplete = () => {
-        console.log('✅ SNS利用履歴を保存:', historyRecord);
-        resolve();
-      };
+        transaction.oncomplete = () => {
+          console.log('✅ SNS利用履歴を保存:', historyRecord);
+          db.close();
+          resolve();
+        };
 
-      request.onerror = () => {
-        console.error('❌ SNS利用履歴の保存に失敗:', request.error);
-        reject(new Error('SNS利用履歴の保存に失敗しました'));
-      };
+        request.onerror = () => {
+          console.error('❌ SNS利用履歴の保存に失敗:', request.error);
+          db.close();
+          reject(new Error('SNS利用履歴の保存に失敗しました'));
+        };
+      } catch (e) {
+        db.close();
+        reject(e);
+      }
     }).catch(reject);
   });
 }
@@ -595,28 +700,35 @@ export async function saveSNSUsageHistory(record: Omit<SNSUsageHistoryRecord, 'i
 export async function getSNSUsageHistory(): Promise<SNSUsageHistoryRecord[]> {
   return new Promise((resolve, reject) => {
     openDB().then((db) => {
-      const transaction = db.transaction([SNS_USAGE_HISTORY_STORE_NAME], 'readonly');
-      const objectStore = transaction.objectStore(SNS_USAGE_HISTORY_STORE_NAME);
-      const index = objectStore.index('timestamp');
-      const request = index.openCursor(null, 'prev'); // 新しい順
+      try {
+        const transaction = db.transaction([SNS_USAGE_HISTORY_STORE_NAME], 'readonly');
+        const objectStore = transaction.objectStore(SNS_USAGE_HISTORY_STORE_NAME);
+        const index = objectStore.index('timestamp');
+        const request = index.openCursor(null, 'prev'); // 新しい順
 
-      const results: SNSUsageHistoryRecord[] = [];
+        const results: SNSUsageHistoryRecord[] = [];
 
-      request.onsuccess = (event) => {
-        const cursor = (event.target as IDBRequest).result;
-        if (cursor) {
-          results.push(cursor.value);
-          cursor.continue();
-        } else {
-          console.log('✅ SNS利用履歴を取得:', results.length);
-          resolve(results);
-        }
-      };
+        request.onsuccess = (event) => {
+          const cursor = (event.target as IDBRequest).result;
+          if (cursor) {
+            results.push(cursor.value);
+            cursor.continue();
+          } else {
+            console.log('✅ SNS利用履歴を取得:', results.length);
+            db.close();
+            resolve(results);
+          }
+        };
 
-      request.onerror = () => {
-        console.error('❌ SNS利用履歴の取得に失敗:', request.error);
-        reject(new Error('SNS利用履歴の取得に失敗しました'));
-      };
+        request.onerror = () => {
+          console.error('❌ SNS利用履歴の取得に失敗:', request.error);
+          db.close();
+          reject(new Error('SNS利用履歴の取得に失敗しました'));
+        };
+      } catch (e) {
+        db.close();
+        reject(e);
+      }
     }).catch(reject);
   });
 }
