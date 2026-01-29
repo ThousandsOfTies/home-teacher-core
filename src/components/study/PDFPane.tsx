@@ -177,10 +177,14 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     // RAFキャンセル用ref
     const rafIdRef = useRef<number | null>(null)
 
-    // 2本指タップUndo用
+    // 2本指ダブルタップUndo用
     const twoFingerTapRef = useRef<{ time: number, startPos: { x: number, y: number }[] } | null>(null)
     // 最初のタッチの時刻を記録（同時押し判定用）
     const firstTouchTimeRef = useRef<number>(0)
+    // ダブルタップ検出用: 最後の2本指タップの時刻
+    const lastTwoFingerTapTime = useRef<number>(0)
+    // ダブルタップタイムアウト用
+    const doubleTapTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
     // Gesture State for Pinch/Pan
     const gestureRef = useRef<{
@@ -737,6 +741,14 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         rect
                     }
 
+                    // ピンチ/パンジェスチャー開始時はダブルタップ状態をクリア
+                    // （ジェスチャー中の誤検知を防ぐ）
+                    if (doubleTapTimeoutRef.current) {
+                        clearTimeout(doubleTapTimeoutRef.current)
+                        doubleTapTimeoutRef.current = null
+                        lastTwoFingerTapTime.current = 0
+                    }
+
                     // For Undo Tap Detection
                     // 同時押し判定: 2本目の指が最初の指から少し遅れても許容するが、
                     // パームリジェクション対策として「最初の指がずっと置いてあった場合」は弾く
@@ -957,18 +969,38 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     }
                 }
 
-                // 2本指タップでUndo判定
-                // FIXME: パームリジェクションとの兼ね合いで誤爆が多いため一時的に無効化
-                /*
+                // 2本指ダブルタップでUndo判定（GoodNotesスタイル）
                 if (twoFingerTapRef.current && e.touches.length === 0) {
                     const elapsed = Date.now() - twoFingerTapRef.current.time
                     // 300ms以内で、移動距離が小さい場合はタップと判定
                     if (elapsed < 300) {
-                        handleUndo()
+                        const now = Date.now()
+                        const timeSinceLastTap = now - lastTwoFingerTapTime.current
+
+                        // 600ms以内に2回目のタップが来たらUndo実行
+                        if (timeSinceLastTap > 0 && timeSinceLastTap < 600) {
+                            // ダブルタップ成功！
+                            handleUndo()
+                            lastTwoFingerTapTime.current = 0 // リセット
+                            if (doubleTapTimeoutRef.current) {
+                                clearTimeout(doubleTapTimeoutRef.current)
+                                doubleTapTimeoutRef.current = null
+                            }
+                        } else {
+                            // 1回目のタップを記録
+                            lastTwoFingerTapTime.current = now
+                            // 600ms後にリセット
+                            if (doubleTapTimeoutRef.current) {
+                                clearTimeout(doubleTapTimeoutRef.current)
+                            }
+                            doubleTapTimeoutRef.current = setTimeout(() => {
+                                lastTwoFingerTapTime.current = 0
+                                doubleTapTimeoutRef.current = null
+                            }, 600)
+                        }
                     }
                     twoFingerTapRef.current = null
                 }
-                */
 
                 // Clear gesture state if all touches end or if gesture is broken
                 if (e.touches.length === 0) {
