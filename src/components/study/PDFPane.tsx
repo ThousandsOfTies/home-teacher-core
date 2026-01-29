@@ -763,9 +763,11 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                                 { x: t2.clientX, y: t2.clientY }
                             ]
                         }
+                        console.log('🔵 Two-finger tap detected (simultaneous)')
                     } else {
                         // 同時でない場合はタップ判定しない
                         twoFingerTapRef.current = null
+                        console.log('⚪ Two-finger tap rejected (not simultaneous)', timeDiff)
                     }
                 } else if (e.touches.length === 1) {
                     // --- Single Touch ---
