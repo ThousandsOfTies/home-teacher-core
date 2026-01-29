@@ -983,14 +983,14 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 if (twoFingerTapRef.current && e.touches.length === 0) {
                     const elapsed = Date.now() - twoFingerTapRef.current.time
                     addDebugLog(`🟢 Tap ended ${elapsed}ms`)
-                    // 300ms以内で、移動距離が小さい場合はタップと判定
-                    if (elapsed < 300) {
+                    // 1000ms以内で、移動距離が小さい場合はタップと判定
+                    if (elapsed < 1000) {
                         const now = Date.now()
                         const timeSinceLastTap = now - lastTwoFingerTapTime.current
                         addDebugLog(`✅ Valid tap, gap=${timeSinceLastTap}ms`)
 
-                        // 600ms以内に2回目のタップが来たらUndo実行
-                        if (timeSinceLastTap > 0 && timeSinceLastTap < 600) {
+                        // 1000ms以内に2回目のタップが来たらUndo実行
+                        if (timeSinceLastTap > 0 && timeSinceLastTap < 1000) {
                             // ダブルタップ成功！
                             addDebugLog('🎉 DOUBLE TAP SUCCESS!')
                             handleUndo()
@@ -1011,7 +1011,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                                 addDebugLog('⏱️ Timeout - reset')
                                 lastTwoFingerTapTime.current = 0
                                 doubleTapTimeoutRef.current = null
-                            }, 600)
+                            }, 1000)
                         }
                     } else {
                         addDebugLog(`❌ Tap too long ${elapsed}ms`)
