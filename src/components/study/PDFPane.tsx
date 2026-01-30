@@ -186,19 +186,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     // ダブルタップタイムアウト用
     const doubleTapTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-    // デバッグログ表示用（iPad用）
-    const [debugLogs, setDebugLogs] = React.useState<string[]>([])
-    const addDebugLog = (msg: string) => {
-        const timestamp = new Date().toLocaleTimeString()
-        setDebugLogs(prev => [...prev.slice(-9), `${timestamp} ${msg}`])
-        console.log(msg)
-    }
 
-    // マウント確認用
-    useEffect(() => {
-        addDebugLog('🚀 PDFPane Mounted')
-        return () => addDebugLog('💀 PDFPane Unmounted')
-    }, [])
 
     // Gesture State for Pinch/Pan
     const gestureRef = useRef<{
@@ -990,19 +978,13 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 // 2本指ダブルタップでUndo判定（GoodNotesスタイル）
                 if (twoFingerTapRef.current && e.touches.length === 0) {
                     const elapsed = Date.now() - twoFingerTapRef.current.time
-                    addDebugLog(`🟢 Tap ended ${elapsed}ms`)
                     // 1000ms以内で、移動距離が小さい場合はタップと判定
                     if (elapsed < 1000) {
                         const now = Date.now()
                         const timeSinceLastTap = now - lastTwoFingerTapTime.current
-                        addDebugLog(`✅ Valid tap, gap=${timeSinceLastTap}ms`)
-                        addDebugLog(`🔍 Check: Ref=${lastTwoFingerTapTime.current}, Now=${now}`)
-
                         // 1000ms以内に2回目のタップが来たらUndo実行
                         if (timeSinceLastTap > 0 && timeSinceLastTap < 1000) {
                             // ダブルタップ成功！
-                            addDebugLog('🎉 DOUBLE TAP SUCCESS!')
-                            addDebugLog(`🔄 Undo Reset. Was: ${lastTwoFingerTapTime.current}`)
                             handleUndo()
                             lastTwoFingerTapTime.current = 0 // リセット
                             if (doubleTapTimeoutRef.current) {
@@ -1010,25 +992,18 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                                 doubleTapTimeoutRef.current = null
                             }
                         } else {
-                            addDebugLog(`💾 Set Ref. Was: ${lastTwoFingerTapTime.current} -> New: ${now}`)
                             // 1回目のタップを記録
-                            addDebugLog('📝 First tap recorded')
                             lastTwoFingerTapTime.current = now
-                            addDebugLog(`✅ Ref set confirmed: ${lastTwoFingerTapTime.current}`)
                             // 600ms後にリセット
                             if (doubleTapTimeoutRef.current) {
-                                addDebugLog('❌ Clearing previous timeout')
                                 clearTimeout(doubleTapTimeoutRef.current)
                             }
                             doubleTapTimeoutRef.current = setTimeout(() => {
-                                addDebugLog('⏱️ Timeout - reset')
-                                addDebugLog(`🗑️ Timeout Reset. Was: ${lastTwoFingerTapTime.current}`)
                                 lastTwoFingerTapTime.current = 0
                                 doubleTapTimeoutRef.current = null
                             }, 1000)
                         }
                     } else {
-                        addDebugLog(`❌ Tap too long ${elapsed}ms`)
                     }
                     twoFingerTapRef.current = null
                 }
@@ -1267,31 +1242,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         </div>
                     </div>
                 )
-            }
-
-            {/* Debug Log Display (iPad用) */}
-            {debugLogs.length > 0 && (
-                <div style={{
-                    position: 'fixed',
-                    top: 10,
-                    left: 10,
-                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                    color: '#0f0',
-                    padding: '10px',
-                    borderRadius: '5px',
-                    fontSize: '12px',
-                    fontFamily: 'monospace',
-                    maxWidth: '90%',
-                    maxHeight: '200px',
-                    overflow: 'auto',
-                    zIndex: 99999,
-                    pointerEvents: 'none'
-                }}>
-                    {debugLogs.map((log, i) => (
-                        <div key={i}>{log}</div>
-                    ))}
-                </div>
-            )}
-        </div >
+            }        </div >
     )
 })
