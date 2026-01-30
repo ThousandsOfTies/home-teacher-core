@@ -755,16 +755,6 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         rect
                     }
 
-                    // ピンチ/パンジェスチャー開始時はダブルタップ状態をクリア
-                    // （ジェスチャー中の誤検知を防ぐ）
-                    // ただし、2本指タップ検出中はリセットしない
-                    if (doubleTapTimeoutRef.current && !twoFingerTapRef.current) {
-                        addDebugLog('🧼 Clearing tap state (pinch/pan detected)')
-                        clearTimeout(doubleTapTimeoutRef.current)
-                        doubleTapTimeoutRef.current = null
-                        lastTwoFingerTapTime.current = 0
-                    }
-
                     // For Undo Tap Detection
                     // 同時押し判定: 2本目の指が最初の指から少し遅れても許容するが、
                     // パームリジェクション対策として「最初の指がずっと置いてあった場合」は弾く
@@ -784,6 +774,16 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                         // 同時でない場合はタップ判定しない
                         twoFingerTapRef.current = null
                         addDebugLog(`⚪ Two-finger tap rejected (not simultaneous) ${timeDiff}ms`)
+                    }
+
+                    // ピンチ/パンジェスチャー開始時はダブルタップ状態をクリア
+                    // （ジェスチャー中の誤検知を防ぐ）
+                    // ただし、2本指タップ検出中はリセットしない
+                    if (doubleTapTimeoutRef.current && !twoFingerTapRef.current) {
+                        addDebugLog('🧼 Clearing tap state (pinch/pan detected)')
+                        clearTimeout(doubleTapTimeoutRef.current)
+                        doubleTapTimeoutRef.current = null
+                        lastTwoFingerTapTime.current = 0
                     }
                 } else if (e.touches.length === 1) {
                     // --- Single Touch ---
