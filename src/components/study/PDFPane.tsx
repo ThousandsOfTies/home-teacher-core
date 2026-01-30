@@ -757,7 +757,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
                     // ピンチ/パンジェスチャー開始時はダブルタップ状態をクリア
                     // （ジェスチャー中の誤検知を防ぐ）
-                    if (doubleTapTimeoutRef.current) {
+                    // ただし、2本指タップ検出中はリセットしない
+                    if (doubleTapTimeoutRef.current && !twoFingerTapRef.current) {
+                        addDebugLog('🧼 Clearing tap state (pinch/pan detected)')
                         clearTimeout(doubleTapTimeoutRef.current)
                         doubleTapTimeoutRef.current = null
                         lastTwoFingerTapTime.current = 0
