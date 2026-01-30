@@ -1012,8 +1012,10 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                             // 1回目のタップを記録
                             addDebugLog('📝 First tap recorded')
                             lastTwoFingerTapTime.current = now
+                            addDebugLog(`✅ Ref set confirmed: ${lastTwoFingerTapTime.current}`)
                             // 600ms後にリセット
                             if (doubleTapTimeoutRef.current) {
+                                addDebugLog('❌ Clearing previous timeout')
                                 clearTimeout(doubleTapTimeoutRef.current)
                             }
                             doubleTapTimeoutRef.current = setTimeout(() => {
