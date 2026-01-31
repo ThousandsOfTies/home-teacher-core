@@ -114,7 +114,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         overscrollRef.current = overscroll
     }, [overscroll])
 
-    const SWIPE_THRESHOLD = window.innerHeight * 0.08
+    const SWIPE_THRESHOLD = window.innerHeight * 0.15
 
     // スワイプ判定と完了処理
     // useCallbackで定義し、依存配列を空にしてuseEffectから安全に呼べるようにする
