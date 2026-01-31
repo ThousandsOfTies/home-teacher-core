@@ -152,6 +152,21 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     // レイアウト準備完了フラグ（ジャンプ防止用）
     const [isLayoutReady, setIsLayoutReady] = React.useState(false)
 
+    // トランジション有効化フラグ（初期表示時のアニメーション防止）
+    const [isTransitionEnabled, setIsTransitionEnabled] = React.useState(false)
+
+    // レイアウト確定後、少し待ってからトランジションを有効化
+    useEffect(() => {
+        if (isLayoutReady) {
+            const timer = setTimeout(() => {
+                setIsTransitionEnabled(true)
+            }, 100) // 100ms待機して確実に初期描画を終わらせる
+            return () => clearTimeout(timer)
+        } else {
+            setIsTransitionEnabled(false)
+        }
+    }, [isLayoutReady])
+
     // 初回フィット完了フラグ（ズームレベル保持のため、ページ変更後はfitToScreenしない）
     const initialFitDoneRef = useRef(false)
 
@@ -159,7 +174,7 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     useEffect(() => {
         if (!canvasRef.current || !containerRef.current) return
 
-        // console.log('📏 PDFPane: splitMode変更、再フィット実行', { splitMode })
+        // console.log('📏 PDFPane: splitMode変更、再フィット実行', {splitMode})
 
         const containerH = containerRef.current.clientHeight
         const maxH = window.innerHeight - 120
@@ -503,8 +518,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
     //     console.log('🖼️ PDFPane Render Status:', {
     //         zoom,
     //         panOffset,
-    //         canvasDimensions: canvasRef.current ? { width: canvasRef.current.width, height: canvasRef.current.height } : 'null',
-    //         containerDimensions: containerRef.current ? { width: containerRef.current.clientWidth, height: containerRef.current.clientHeight } : 'null',
+    //         canvasDimensions: canvasRef.current ? {width: canvasRef.current.width, height: canvasRef.current.height } : 'null',
+    //         containerDimensions: containerRef.current ? {width: containerRef.current.clientWidth, height: containerRef.current.clientHeight } : 'null',
     //         pdfDocAvailable: !!pdfDoc,
     //         numPages,
     //         isLayoutReady
@@ -1034,8 +1049,8 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                     style={{
                         transform: `translate(${panOffset.x + overscroll.x}px, ${panOffset.y + overscroll.y}px) scale(${zoom})`,
                         transformOrigin: '0 0',
-                        // ピンチ/パン操作中はtransitionを無効化（残像防止）
-                        transition: (isPanning || gestureRef.current) ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                        // ピンチ/パン操作中、または初期表示時（トランジション有効化前）は無効化
+                        transition: (isPanning || gestureRef.current || !isTransitionEnabled) ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
                         opacity: isLayoutReady ? 1 : 0,
                         visibility: isLayoutReady ? 'visible' : 'hidden'
                     }}
