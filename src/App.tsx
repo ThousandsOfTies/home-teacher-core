@@ -33,6 +33,7 @@ function App() {
       if (isPremiumUnlock) {
         try {
           // 設定を読み込んで更新
+          // 設定を読み込んで更新
           const settings = await getAppSettings()
           await saveAppSettings({
             ...settings,
@@ -40,10 +41,10 @@ function App() {
           })
           alert('🎉 プレミアム機能が解除されました！\nSNS時間制限を自由に設定できます。')
 
-          // URLからパラメータを削除
-          urlParams.delete('premium')
-          const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '')
-          window.history.replaceState({}, '', newUrl)
+          // URLからパラメータを削除しない（PWAインストール時にパラメータを引き継ぐため）
+          // urlParams.delete('premium')
+          // const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '')
+          // window.history.replaceState({}, '', newUrl)
         } catch (error) {
           console.error('プレミアム解除に失敗:', error)
         }
