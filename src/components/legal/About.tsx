@@ -72,9 +72,7 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
                     </div>
 
                     <h3>バージョン情報</h3>
-                    <p>
-                        <strong>現在のバージョン:</strong> 0.2.0
-                    </p>
+                    <strong>現在のバージョン:</strong> 0.2.1
 
                     <h3>謝辞</h3>
                     <p>
