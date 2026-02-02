@@ -55,31 +55,8 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'prompt',
         includeAssets: ['favicon.ico', 'logo.png', 'app.png'],
-        manifest: {
-          name: appName,
-          short_name: appName,
-          description: 'AI-powered drill grading app with handwriting support',
-          theme_color: themeColor,
-          background_color: '#ffffff',
-          display: 'standalone',
-          orientation: 'portrait',
-          // scope: basePath, // URLパラメータ維持のためスコープ制限を緩和（デフォルト動作に任せる）
-          // start_url: basePath, // URLパラメータ(?premium=true)をショートカットに含めるため、固定のstart_urlを無効化
-          icons: [
-            {
-              src: 'logo.png',
-              sizes: '192x192',
-              type: 'image/png',
-              purpose: 'any maskable'
-            },
-            {
-              src: 'app.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'any maskable'
-            }
-          ]
-        },
+        filename: 'manifest.json',
+        manifest: false,
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10MB
