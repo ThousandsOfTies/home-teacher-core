@@ -72,7 +72,14 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
                     </div>
 
                     <h3>バージョン情報</h3>
-                    <strong>現在のバージョン:</strong> 0.2.1
+                    <p>
+                        <strong>現在のバージョン:</strong> 0.2.1
+                    </p>
+                    <div style={{ marginTop: '20px', padding: '10px', background: '#f5f5f5', borderRadius: '4px', fontSize: '0.8rem' }}>
+                        <p><strong>Debug Info:</strong></p>
+                        <p style={{ wordBreak: 'break-all' }}>URL: {window.location.href}</p>
+                        <p>Premium: {localStorage.getItem('userSettings') && JSON.parse(localStorage.getItem('userSettings') || '{}').isPremium ? 'YES' : 'NO'}</p>
+                    </div>
 
                     <h3>謝辞</h3>
                     <p>

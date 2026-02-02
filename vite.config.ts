@@ -63,7 +63,7 @@ export default defineConfig(({ mode }) => {
           background_color: '#ffffff',
           display: 'standalone',
           orientation: 'portrait',
-          scope: basePath,
+          // scope: basePath, // URLパラメータ維持のためスコープ制限を緩和（デフォルト動作に任せる）
           // start_url: basePath, // URLパラメータ(?premium=true)をショートカットに含めるため、固定のstart_urlを無効化
           icons: [
             {
