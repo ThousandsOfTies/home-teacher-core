@@ -64,7 +64,7 @@ export default defineConfig(({ mode }) => {
           display: 'standalone',
           orientation: 'portrait',
           scope: basePath,
-          start_url: basePath,
+          // start_url: basePath, // URLパラメータ(?premium=true)をショートカットに含めるため、固定のstart_urlを無効化
           icons: [
             {
               src: 'logo.png',
