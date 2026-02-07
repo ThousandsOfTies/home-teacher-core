@@ -35,11 +35,13 @@ function App() {
           // 設定を読み込んで更新
           // 設定を読み込んで更新
           const settings = await getAppSettings()
-          await saveAppSettings({
-            ...settings,
-            isPremium: true
-          })
-          alert('🎉 プレミアム機能が解除されました！\nSNS時間制限を自由に設定できます。')
+          if (!settings.isPremium) {
+            await saveAppSettings({
+              ...settings,
+              isPremium: true
+            })
+            alert('🎉 プレミアム機能が解除されました！\nSNS時間制限を自由に設定できます。')
+          }
 
           // URLからパラメータを削除しない（PWAインストール時にパラメータを引き継ぐため）
           // urlParams.delete('premium')
