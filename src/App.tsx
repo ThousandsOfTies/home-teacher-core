@@ -28,8 +28,8 @@ function App() {
     const checkUrlParams = async () => {
       const urlParams = new URLSearchParams(window.location.search)
 
-      // 1. プレミアム解除チェック (?premium=true)
-      const isPremiumUnlock = urlParams.get('premium') === 'true'
+      // 1. プレミアム解除チェック (?premium=true または #premium=true)
+      const isPremiumUnlock = urlParams.get('premium') === 'true' || window.location.hash.includes('premium=true')
       if (isPremiumUnlock) {
         try {
           // 設定を読み込んで更新
