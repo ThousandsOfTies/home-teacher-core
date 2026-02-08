@@ -23,18 +23,18 @@ function App() {
     },
   })
 
-  // PWA起動時: URLパラメータチェック（復元 & プレミアム解除）
+  // URLパラメータチェック（プレミアム解除 & ドリル再開）
   useEffect(() => {
-    const checkUrlParams = async () => {
+    // プレミアム解除チェック関数
+    const checkPremium = async () => {
       const urlParams = new URLSearchParams(window.location.search)
-
-      // 1. プレミアム解除チェック (?premium=true または #premium=true)
+      // ?premium=true または #premium=true を検知
       const isPremiumUnlock = urlParams.get('premium') === 'true' || window.location.hash.includes('premium=true')
+
       if (isPremiumUnlock) {
         try {
-          // 設定を読み込んで更新
-          // 設定を読み込んで更新
           const settings = await getAppSettings()
+          // 既にプレミアムの場合は何もしない（アラートも出さない）
           if (!settings.isPremium) {
             await saveAppSettings({
               ...settings,
@@ -42,18 +42,17 @@ function App() {
             })
             alert('🎉 プレミアム機能が解除されました！\nSNS時間制限を自由に設定できます。')
           }
-
-          // URLからパラメータを削除しない（PWAインストール時にパラメータを引き継ぐため）
-          // urlParams.delete('premium')
-          // const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '')
-          // window.history.replaceState({}, '', newUrl)
         } catch (error) {
           console.error('プレミアム解除に失敗:', error)
         }
       }
+    }
 
-      // 2. ドリル再開チェック (?pdfId=...)
+    // ドリル再開チェック関数（初回のみ）
+    const checkRestore = async () => {
+      const urlParams = new URLSearchParams(window.location.search)
       const pdfId = urlParams.get('pdfId')
+
       if (pdfId) {
         try {
           const record = await getPDFRecord(pdfId)
@@ -70,15 +69,24 @@ function App() {
         }
       }
 
-      // 3. 通常起動 (Home画面)
+      // 通常起動
       if (!pdfId) {
-        setCurrentView('admin')
-        setSelectedPDF(null)
         console.log('🏠 PWA起動: Home画面を表示')
+        // 初期状態がAdminなので明示的なsetStateは不要だが、ログ用に残す
       }
     }
 
-    checkUrlParams()
+    // 初期化実行
+    checkPremium()
+    checkRestore()
+
+    // ハッシュ変更を監視（リロードなしで #premium=true を検知できるようにする）
+    window.addEventListener('hashchange', checkPremium)
+
+    // クリーンアップ
+    return () => {
+      window.removeEventListener('hashchange', checkPremium)
+    }
   }, [])
 
 
