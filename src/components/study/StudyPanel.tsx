@@ -69,10 +69,25 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
   const [pageA, setPageA] = useState(pdfRecord.lastPageNumberA || 1)
   const [pageB, setPageB] = useState(pdfRecord.lastPageNumberB || 1)
 
+  // PDF Retry
+  const [retryCount, setRetryCount] = useState(0)
+
   // PDF Document Loading
   const { pdfDoc, numPages, isLoading, error: pdfError } = usePDFRenderer(pdfRecord, {
+    retryTrigger: retryCount,
     onLoadSuccess: (pages) => {
       // PDF Loaded
+      // ページ番号の整合性チェック（総ページ数を超えていたら1に戻す）
+      if (pageA > pages) {
+        console.warn(`⚠️ ページ番号補正: A面 ${pageA} -> 1 (総ページ数: ${pages})`)
+        setPageA(1)
+        updatePDFRecord(pdfRecord.id, { lastPageNumberA: 1 }).catch(() => { })
+      }
+      if (pageB > pages) {
+        console.warn(`⚠️ ページ番号補正: B面 ${pageB} -> 1 (総ページ数: ${pages})`)
+        setPageB(1)
+        updatePDFRecord(pdfRecord.id, { lastPageNumberB: 1 }).catch(() => { })
+      }
     },
     onLoadError: (err) => {
       console.error(err)
@@ -1010,6 +1025,64 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
           ref={containerRef}
           style={{ position: 'relative' }} // Ensure container is relative for overlay
         >
+          {/* Error / Loading Overlay */}
+          {(isLoading || pdfError) && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              zIndex: 20000
+            }}>
+              {isLoading ? (
+                <div style={{ textAlign: 'center' }}>
+                  <div className="spinner" style={{
+                    width: '40px',
+                    height: '40px',
+                    border: '4px solid #f3f3f3',
+                    borderTop: '4px solid #3498db',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                    marginBottom: '16px',
+                    margin: '0 auto'
+                  }} />
+                  <p>PDFを読み込み中...</p>
+                  <style>{`
+                    @keyframes spin {
+                      0% { transform: rotate(0deg); }
+                      100% { transform: rotate(360deg); }
+                    }
+                  `}</style>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '20px' }}>
+                  <p style={{ color: '#e74c3c', marginBottom: '16px', fontWeight: 'bold' }}>PDFの読み込みに失敗しました</p>
+                  <p style={{ fontSize: '12px', color: '#666', marginBottom: '20px', maxWidth: '300px', wordBreak: 'break-all' }}>{pdfError}</p>
+                  <button
+                    onClick={() => setRetryCount(c => c + 1)}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#3498db',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '16px',
+                      boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                    }}
+                  >
+                    再読み込み
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           {/* Main Content Area: PDF Panes */}
           <div
             ref={splitContainerRef}

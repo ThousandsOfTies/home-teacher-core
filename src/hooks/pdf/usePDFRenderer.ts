@@ -15,6 +15,7 @@ interface UsePDFRendererOptions {
   onLoadSuccess?: (numPages: number) => void
   onLoadError?: (error: string) => void
   initialPage?: number
+  retryTrigger?: number
 }
 
 export const usePDFRenderer = (
@@ -139,7 +140,7 @@ export const usePDFRenderer = (
         loadedPdf.destroy().catch(() => { })
       }
     }
-  }, [pdfRecord.id]) // Only reload if ID changes
+  }, [pdfRecord.id, options?.retryTrigger]) // Reload if ID or retryTrigger changes
 
   return {
     pdfDoc,

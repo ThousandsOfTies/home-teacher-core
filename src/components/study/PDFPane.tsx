@@ -772,18 +772,18 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                                 { x: t2.clientX, y: t2.clientY }
                             ]
                         }
-                        addDebugLog('🔵 Two-finger tap detected (simultaneous)')
+                        console.log('🔵 Two-finger tap detected (simultaneous)')
                     } else {
                         // 同時でない場合はタップ判定しない
                         twoFingerTapRef.current = null
-                        addDebugLog(`⚪ Two-finger tap rejected (not simultaneous) ${timeDiff}ms`)
+                        console.log(`⚪ Two-finger tap rejected (not simultaneous) ${timeDiff}ms`)
                     }
 
                     // ピンチ/パンジェスチャー開始時はダブルタップ状態をクリア
                     // （ジェスチャー中の誤検知を防ぐ）
                     // ただし、2本指タップ検出中はリセットしない
                     if (doubleTapTimeoutRef.current && !twoFingerTapRef.current) {
-                        addDebugLog('🧼 Clearing tap state (pinch/pan detected)')
+                        console.log('🧼 Clearing tap state (pinch/pan detected)')
                         clearTimeout(doubleTapTimeoutRef.current)
                         doubleTapTimeoutRef.current = null
                         lastTwoFingerTapTime.current = 0
