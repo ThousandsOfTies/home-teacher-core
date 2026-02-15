@@ -1167,7 +1167,20 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                         </svg>
                       )}
                     </div>
-                    <div className="file-name">{record.fileName}</div>
+                    <div className="file-name" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>{record.fileName}</span>
+                      {record.subjectId && (
+                        <span style={{
+                          fontSize: '18px',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          backgroundColor: '#f0f8ff',
+                          border: '1px solid #d1e7ff'
+                        }}>
+                          {subjectsList.find(s => s.id === record.subjectId)?.icon || '📚'}
+                        </span>
+                      )}
+                    </div>
 
                     {/* Settings Button */}
                     <button

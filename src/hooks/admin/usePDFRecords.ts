@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { getAllPDFRecords, deletePDFRecord, savePDFRecord, generatePDFId, PDFFileRecord } from '../../utils/indexedDB'
 import * as pdfjsLib from 'pdfjs-dist'
+import { detectSubject } from '../../services/api'
 
 // Workerの設定
 // Workerの設定（ローカルファイルを使用）
@@ -62,6 +63,22 @@ export const usePDFRecords = () => {
       const thumbnailModel = new File([file], fileName, { type: 'application/pdf' })
       const thumbnail = await generateThumbnail(thumbnailModel)
 
+      // 教科を自動検出（表紙画像を使用）
+      let detectedSubjectId: string | undefined = undefined
+      try {
+        console.log('🔍 Detecting subject from cover page...')
+        const subjectResponse = await detectSubject(thumbnail)
+        if (subjectResponse.success && subjectResponse.subjectId) {
+          detectedSubjectId = subjectResponse.subjectId
+          console.log(`✅ Subject detected: ${detectedSubjectId} (confidence: ${subjectResponse.confidence})`)
+        } else {
+          console.warn('⚠️ Subject detection failed or returned no result')
+        }
+      } catch (error) {
+        console.error('❌ Subject detection error:', error)
+        // エラーが起きても続行（教科は未設定のまま）
+      }
+
       const newRecord: PDFFileRecord = {
         id,
         fileName,
@@ -69,6 +86,7 @@ export const usePDFRecords = () => {
         thumbnail,
         lastOpened: Date.now(),
         drawings: {},
+        subjectId: detectedSubjectId, // 検出された教科ID（未検出の場合はundefined）
       }
 
       await savePDFRecord(newRecord)
