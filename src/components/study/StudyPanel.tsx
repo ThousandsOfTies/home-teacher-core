@@ -239,7 +239,8 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
     pdfId,
     (msg) => addStatusMessage(msg),
     activeTab === 'A' ? pageA : pageB,
-    pdfRecord?.fileName || 'Unknown'
+    pdfRecord?.fileName || 'Unknown',
+    pdfRecord?.subjectId  // Pass subject ID for subject-specific grading
   )
 
   const handleSelectionStart = (e: React.MouseEvent) => {

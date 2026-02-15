@@ -7,7 +7,8 @@ export const useGrading = (
     pdfId: string,
     addStatusMessage: (msg: string) => void,
     pageNumber: number = 1,
-    fileName: string = 'Unknown'
+    fileName: string = 'Unknown',
+    subjectId?: string  // Add subjectId parameter
 ) => {
     const { t, i18n } = useTranslation();
     const [isGrading, setIsGrading] = useState(false);
@@ -24,11 +25,12 @@ export const useGrading = (
         addStatusMessage('🤖 AI採点中... (10〜30秒ほどかかります)');
 
         try {
-            // API呼び出し
+            // API呼び出し（教科IDを含める）
             const response: any = await gradeWork(
                 croppedImageData,
                 selectedModel !== 'default' ? selectedModel : undefined,
-                i18n.language
+                i18n.language,
+                subjectId  // Pass subject ID for subject-specific grading
             );
 
             if (!response.success && response.error) {

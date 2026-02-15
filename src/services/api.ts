@@ -121,7 +121,8 @@ export const getAvailableModels = async (): Promise<AvailableModelsResponse> => 
 export const gradeWork = async (
   croppedImageData: string,
   model?: string,
-  language: string = 'ja'
+  language: string = 'ja',
+  subjectId?: string  // Optional: subject ID for subject-specific grading
 ): Promise<GradeResponse> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/grade-work`, {
@@ -133,6 +134,7 @@ export const gradeWork = async (
         croppedImageData,
         model,
         language,
+        ...(subjectId && { subjectId }), // Only include if provided (backward compatible)
       }),
     })
 
