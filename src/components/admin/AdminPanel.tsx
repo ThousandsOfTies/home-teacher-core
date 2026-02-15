@@ -1141,7 +1141,16 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                           width: '40px',
                           flexShrink: 0
                         }}>
-                          {subjectsList.find(s => s.id === record.subjectId)?.icon || '📚'}
+                          {(() => {
+                            const subject = subjectsList.find(s => s.id === record.subjectId);
+                            if (record.subjectId === 'japanese') {
+                              return <img src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/1f1ef-1f1f5.png" alt="🇯🇵" style={{ width: '32px', height: '32px' }} />;
+                            }
+                            if (record.subjectId === 'english') {
+                              return <img src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/1f1ec-1f1e7.png" alt="🇬🇧" style={{ width: '32px', height: '32px' }} />;
+                            }
+                            return subject?.icon || '📚';
+                          })()}
                         </div>
                       )}
 
