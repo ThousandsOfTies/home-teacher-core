@@ -165,3 +165,99 @@ export const gradeWorkWithContext = async (
   return gradeWork(croppedImageData, model)
 }
 
+
+// ==========================================
+// Subject Management (Server-Driven)
+// ==========================================
+
+export interface SubjectLabel {
+  ja: string
+  en: string
+  [key: string]: string
+}
+
+export interface SubjectInfo {
+  id: string
+  labels: SubjectLabel
+  description?: string
+  icon?: string // Optional icon/emoji
+}
+
+export interface SubjectsResponse {
+  subjects: SubjectInfo[]
+  default: string
+}
+
+export interface DetectSubjectResponse {
+  success: boolean
+  subjectId: string
+  confidence: number
+  error?: string
+}
+
+/**
+ * Get available subjects from the server
+ */
+export const getSubjects = async (): Promise<SubjectsResponse> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/subjects`)
+
+    if (!response.ok) {
+      console.warn('⚠️ /api/subjects endpoint missing or error, using fallback list')
+      throw new Error(`Failed to fetch subjects: ${response.status}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.warn('⚠️ Server subjects not available, using localized fallback')
+    // Fallback: If server is not ready, return static list
+    return {
+      subjects: [
+        { id: 'math', labels: { ja: '算数・数学', en: 'Math' }, icon: '📐' },
+        { id: 'japanese', labels: { ja: '国語', en: 'Japanese' }, icon: '🎌' },
+        { id: 'english', labels: { ja: '英語', en: 'English' }, icon: '🅰️' },
+        { id: 'science', labels: { ja: '理科', en: 'Science' }, icon: '🔬' },
+        { id: 'social', labels: { ja: '社会', en: 'Social Studies' }, icon: '🌍' },
+        { id: 'other', labels: { ja: 'その他', en: 'Other' }, icon: '📝' }
+      ],
+      default: 'math'
+    }
+  }
+}
+
+/**
+ * Detect subject from image (cover page)
+ */
+export const detectSubject = async (croppedImageData: string): Promise<DetectSubjectResponse> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/detect-subject`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        image: croppedImageData
+      }),
+    })
+
+    if (!response.ok) {
+      // If 404 (endpoint not implemented), return mock response
+      if (response.status === 404) {
+        console.warn('⚠️ /api/detect-subject not implemented, returning mock result')
+        return { success: true, subjectId: 'math', confidence: 0.5 }
+      }
+      throw new Error(`HTTP Error: ${response.status}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('❌ Subject detection failed:', error)
+    // Mock response for dev
+    return {
+      success: false,
+      subjectId: 'math', // Default to math
+      confidence: 0,
+      error: String(error)
+    }
+  }
+}

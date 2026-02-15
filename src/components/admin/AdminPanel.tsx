@@ -14,11 +14,14 @@ import TermsOfService from '../legal/TermsOfService';
 import About from '../legal/About';
 import Contact from '../legal/Contact';
 import { FaEarthAmericas } from 'react-icons/fa6';
-import { IoIosFolderOpen } from 'react-icons/io';
+import { FaRegEdit } from 'react-icons/fa';
+import { IoIosFolderOpen, IoMdSettings } from 'react-icons/io';
 import { ImFilePdf } from 'react-icons/im';
 import { VscDatabase } from 'react-icons/vsc';
 import { ICON_SVG } from '../../constants/icons';
 import { useTranslation } from 'react-i18next';
+import { getSubjects, SubjectInfo, SubjectsResponse } from '../../services/api';
+import { updatePDFRecord } from '../../utils/indexedDB';
 
 interface AdminPanelProps {
   onSelectPDF: (record: PDFFileRecord) => void;
@@ -66,6 +69,11 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
   const [showCatalogPopup, setShowCatalogPopup] = useState(false);
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
 
+  // PDF Settings/Edit
+  const [showPDFSettings, setShowPDFSettings] = useState<{ id: string; fileName: string; subjectId?: string } | null>(null);
+  const [subjectsList, setSubjectsList] = useState<SubjectInfo[]>([]);
+  const [subjectLoading, setSubjectLoading] = useState(false);
+
   const [showGradingHistory, setShowGradingHistory] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showTermsOfService, setShowTermsOfService] = useState(false);
@@ -85,11 +93,26 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
     loadSNSLinks();
     initializeStorage();
     loadSettings();
+    loadSubjects(); // Load subjects
     // 通知許可状態をチェック
     if ('Notification' in window) {
       setNotificationPermission(Notification.permission);
     }
   }, []);
+
+  // Load subject list
+  const loadSubjects = async () => {
+    try {
+      setSubjectLoading(true);
+      const response = await getSubjects();
+      setSubjectsList(response.subjects);
+      console.log('📚 Loaded subjects:', response.subjects);
+    } catch (error) {
+      console.error('Failed to load subjects:', error);
+    } finally {
+      setSubjectLoading(false);
+    }
+  };
 
   // 設定を読み込む
   const loadSettings = async () => {
@@ -1146,6 +1169,23 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                     </div>
                     <div className="file-name">{record.fileName}</div>
 
+                    {/* Settings Button */}
+                    <button
+                      className="settings-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowPDFSettings({
+                          id: record.id,
+                          fileName: record.fileName,
+                          subjectId: record.subjectId
+                        });
+                      }}
+                      title="設定"
+                      style={{ color: '#95a5a6' }}
+                    >
+                      <IoMdSettings style={{ fontSize: '20px' }} />
+                    </button>
+
                     {/* 削除ボタン */}
                     <button
                       className="delete-button"
@@ -1351,6 +1391,120 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                 </div>
                 <span style={{ fontSize: '20px', opacity: 0.5 }}>↗</span>
               </button>
+
+
+              {/* PDF Settings Modal */}
+              {showPDFSettings && (
+                <div style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(0,0,0,0.7)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 9999
+                }}>
+                  <div style={{
+                    backgroundColor: 'white',
+                    borderRadius: '12px',
+                    padding: '24px',
+                    maxWidth: '500px',
+                    width: '90%'
+                  }}>
+                    <h3 style={{ margin: '0 0 16px 0', color: '#2c3e50', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <IoMdSettings />
+                      <span>{t('pdfSettings.title') || 'ドリル設定'}</span>
+                    </h3>
+
+                    <div style={{ marginBottom: '20px' }}>
+                      <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#7f8c8d' }}>
+                        {t('pdfSettings.fileName') || 'ファイル名'}:
+                      </p>
+                      <div style={{ fontWeight: 'bold', overflowWrap: 'break-word', color: '#2c3e50' }}>
+                        {showPDFSettings.fileName}
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: '24px' }}>
+                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: '#7f8c8d', fontWeight: 'bold' }}>
+                        {t('pdfSettings.subject') || '教科'}
+                      </label>
+                      {subjectLoading ? (
+                        <div>Loading subjects...</div>
+                      ) : (
+                        <select
+                          value={showPDFSettings.subjectId || ""}
+                          onChange={(e) => setShowPDFSettings({ ...showPDFSettings, subjectId: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '12px',
+                            borderRadius: '8px',
+                            border: '1px solid #bdc3c7',
+                            fontSize: '16px',
+                            backgroundColor: 'white'
+                          }}
+                        >
+                          <option value="">{t('pdfSettings.autoDetect') || '自動(未設定)'}</option>
+                          {subjectsList.map(subject => (
+                            <option key={subject.id} value={subject.id}>
+                              {subject.icon} {subject.labels[i18n.language] || subject.labels['en'] || subject.id}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <p style={{ fontSize: '12px', color: '#95a5a6', marginTop: '8px' }}>
+                        {t('pdfSettings.subjectDescription') || '採点時にこの教科のプロンプトが使用されます。'}
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => setShowPDFSettings(null)}
+                        style={{
+                          padding: '10px 20px',
+                          backgroundColor: '#95a5a6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {t('common.cancel') || 'キャンセル'}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const newRecord = { ...showPDFSettings };
+                            await updatePDFRecord(newRecord.id, { subjectId: newRecord.subjectId !== "" ? newRecord.subjectId : undefined });
+                            await loadPDFRecords(); // Reload list
+                            setShowPDFSettings(null);
+                          } catch (e) {
+                            console.error(e);
+                            alert('Failed to update settings');
+                          }
+                        }}
+                        style={{
+                          padding: '10px 20px',
+                          backgroundColor: '#3498db',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {t('common.save') || '保存'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* ストレージ情報カード */}
               {storageInfo && (

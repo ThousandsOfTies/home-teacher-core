@@ -19,6 +19,7 @@ export interface PDFFileRecord {
   lastPageNumberB?: number; // 最後に開いていたページ番号 (B面)
   drawings: Record<number, string>; // ページ番号 -> JSON文字列のマップ
   textAnnotations?: Record<number, string>; // ページ番号 -> JSON文字列のマップ（テキストアノテーション）
+  subjectId?: string; // 教科識別子 (math, japanese, etc)
 }
 
 export interface SNSLinkRecord {
