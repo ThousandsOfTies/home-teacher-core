@@ -54,12 +54,12 @@ export default defineConfig(({ mode }) => {
       }),
       VitePWA({
         registerType: 'prompt',
-        includeAssets: ['favicon.ico', 'logo.png', 'app.png'],
+        includeAssets: ['logo.png', 'app.png'],
 
         manifest: false,
         workbox: {
           cleanupOutdatedCaches: true,
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          globPatterns: ['**/*.{js,css,html,png,svg,woff,woff2}'],
           maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10MB
           runtimeCaching: [
             {
