@@ -216,8 +216,8 @@ export const getSubjects = async (): Promise<SubjectsResponse> => {
     return {
       subjects: [
         { id: 'math', labels: { ja: '算数・数学', en: 'Math' }, icon: '📐' },
-        { id: 'japanese', labels: { ja: '国語', en: 'Japanese' }, icon: '🎌' },
-        { id: 'english', labels: { ja: '英語', en: 'English' }, icon: '🅰️' },
+        { id: 'japanese', labels: { ja: '国語', en: 'Japanese' }, icon: '🇯🇵' },
+        { id: 'english', labels: { ja: '英語', en: 'English' }, icon: '🇬🇧' },
         { id: 'science', labels: { ja: '理科', en: 'Science' }, icon: '🔬' },
         { id: 'social', labels: { ja: '社会', en: 'Social Studies' }, icon: '🌍' },
         { id: 'other', labels: { ja: 'その他', en: 'Other' }, icon: '📝' }

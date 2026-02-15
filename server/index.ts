@@ -149,8 +149,8 @@ app.get('/api/proxy-pdf', async (req, res) => {
 // Define available subjects with multi-language support
 const SUBJECTS = [
   { id: 'math', labels: { ja: '算数・数学', en: 'Math' }, icon: '📐', description: 'Mathematics and Arithmetic' },
-  { id: 'japanese', labels: { ja: '国語', en: 'Japanese' }, icon: '🎌', description: 'Japanese Language' },
-  { id: 'english', labels: { ja: '英語', en: 'English' }, icon: '🅰️', description: 'English Language' },
+  { id: 'japanese', labels: { ja: '国語', en: 'Japanese' }, icon: '�🇵', description: 'Japanese Language' },
+  { id: 'english', labels: { ja: '英語', en: 'English' }, icon: '�🇧', description: 'English Language' },
   { id: 'science', labels: { ja: '理科', en: 'Science' }, icon: '🔬', description: 'Science' },
   { id: 'social', labels: { ja: '社会', en: 'Social Studies' }, icon: '🌍', description: 'Social Studies' },
   { id: 'other', labels: { ja: 'その他', en: 'Other' }, icon: '📝', description: 'Other subjects' }
