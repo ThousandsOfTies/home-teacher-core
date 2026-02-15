@@ -31,7 +31,7 @@ function App() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
-      console.log('SW Registered:', r)
+      console.log('SW Registered [v0.2.2]:', r)
       // 起動時に更新チェックを明示的に行う
       if (r) {
         setInterval(() => {
