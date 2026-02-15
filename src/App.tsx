@@ -31,16 +31,22 @@ function App() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
-      console.log('SW Registered [v0.2.3]:', r)
+      console.log('SW Registered [v0.2.4]:', r)
       // 起動時に更新チェックを明示的に行う
       if (r) {
-        setInterval(() => {
-          console.log('Checking for sw update')
-          r.update()
-        }, 60 * 60 * 1000)
+        // 定期チェック (10分ごと)
+        setInterval(async () => {
+          console.log('Checking for sw update...')
+          try {
+            await r.update()
+          } catch (e) {
+            console.error('SW update check failed:', e)
+          }
+        }, 10 * 60 * 1000)
 
         // 初回チェック
-        r.update()
+        console.log('Running initial SW update check...')
+        r.update().then(() => console.log('Initial SW update check completed')).catch(e => console.error('Initial SW update check failed:', e))
       }
     },
     onRegisterError(error) {

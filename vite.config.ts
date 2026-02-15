@@ -58,6 +58,7 @@ export default defineConfig(({ mode }) => {
         filename: 'manifest.json',
         manifest: false,
         workbox: {
+          cleanupOutdatedCaches: true,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10MB
           runtimeCaching: [
