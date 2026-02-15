@@ -116,7 +116,10 @@ export default defineConfig(({ mode }) => {
             'react-vendor': ['react', 'react-dom'],
             'fabric-vendor': ['fabric'],
             'pdfjs-vendor': ['pdfjs-dist']
-          }
+          },
+          entryFileNames: `assets/[name]-${Date.now()}.js`,
+          chunkFileNames: `assets/[name]-${Date.now()}.js`,
+          assetFileNames: `assets/[name]-${Date.now()}.[ext]`
         }
       }
     }
