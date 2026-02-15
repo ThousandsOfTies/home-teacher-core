@@ -1130,56 +1130,64 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                     className="pdf-list-item"
                     onClick={() => onSelectPDF(record)}
                   >
-                    <div className="icon-container" style={{
-                      width: '64px',
-                      height: '64px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0
-                    }}>
-                      {record.thumbnail ? (
-                        <img
-                          src={record.thumbnail}
-                          alt={record.fileName}
-                          style={{
-                            maxWidth: '64px',
-                            maxHeight: '64px',
-                            objectFit: 'contain',
-                            borderRadius: '4px',
-                            border: '1px solid #ddd'
-                          }}
-                        />
-                      ) : (
-                        <svg
-                          width="32"
-                          height="32"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#e74c3c"
-                          strokeWidth="2"
-                        >
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <polyline points="14 2 14 8 20 8" />
-                          <line x1="16" y1="13" x2="8" y2="13" />
-                          <line x1="16" y1="17" x2="8" y2="17" />
-                          <polyline points="10 9 9 9 8 9" />
-                        </svg>
-                      )}
-                    </div>
-                    <div className="file-name" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span>{record.fileName}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                      {/* Subject icon on the left */}
                       {record.subjectId && (
-                        <span style={{
-                          fontSize: '18px',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          backgroundColor: '#f0f8ff',
-                          border: '1px solid #d1e7ff'
+                        <div style={{
+                          fontSize: '28px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '40px',
+                          flexShrink: 0
                         }}>
                           {subjectsList.find(s => s.id === record.subjectId)?.icon || '📚'}
-                        </span>
+                        </div>
                       )}
+
+                      {/* Thumbnail */}
+                      <div className="icon-container" style={{
+                        width: '64px',
+                        height: '64px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        {record.thumbnail ? (
+                          <img
+                            src={record.thumbnail}
+                            alt={record.fileName}
+                            style={{
+                              maxWidth: '64px',
+                              maxHeight: '64px',
+                              objectFit: 'contain',
+                              borderRadius: '4px',
+                              border: '1px solid #ddd'
+                            }}
+                          />
+                        ) : (
+                          <svg
+                            width="32"
+                            height="32"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="#e74c3c"
+                            strokeWidth="2"
+                          >
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="16" y1="13" x2="8" y2="13" />
+                            <line x1="16" y1="17" x2="8" y2="17" />
+                            <polyline points="10 9 9 9 8 9" />
+                          </svg>
+                        )}
+                      </div>
+
+                      {/* File name */}
+                      <div className="file-name">
+                        {record.fileName}
+                      </div>
                     </div>
 
                     {/* Settings Button */}
@@ -1264,251 +1272,255 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                 <VscDatabase style={{ fontSize: '32px', color: '#34495e' }} />
               </button>
             </div>
-          </div>
-        )}
+          </div >
+        )
+        }
 
         {/* Catalog Popup Modal */}
-        {showCatalogPopup && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10000
-          }} onClick={() => setShowCatalogPopup(false)}>
+        {
+          showCatalogPopup && (
             <div style={{
-              backgroundColor: 'white',
-              borderRadius: '12px',
-              padding: '20px',
-              maxWidth: '90vw',
-              maxHeight: '80vh',
-              overflow: 'auto',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-              position: 'relative'
-            }} onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={() => setShowCatalogPopup(false)}
-                style={{
-                  position: 'absolute',
-                  top: '10px',
-                  right: '10px',
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '24px',
-                  cursor: 'pointer',
-                  color: '#7f8c8d'
-                }}
-                title="閉じる"
-              >
-                ✕
-              </button>
-              <DrillCatalog addPDF={addPDF} />
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100vw',
+              height: '100vh',
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 10000
+            }} onClick={() => setShowCatalogPopup(false)}>
+              <div style={{
+                backgroundColor: 'white',
+                borderRadius: '12px',
+                padding: '20px',
+                maxWidth: '90vw',
+                maxHeight: '80vh',
+                overflow: 'auto',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                position: 'relative'
+              }} onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => setShowCatalogPopup(false)}
+                  style={{
+                    position: 'absolute',
+                    top: '10px',
+                    right: '10px',
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '24px',
+                    cursor: 'pointer',
+                    color: '#7f8c8d'
+                  }}
+                  title="閉じる"
+                >
+                  ✕
+                </button>
+                <DrillCatalog addPDF={addPDF} />
+              </div>
             </div>
-          </div>
-        )}
+          )
+        }
 
         {/* 管理モード: SNS設定、ストレージ情報、採点履歴、広告 */}
-        {activeTab === 'admin' && (
-          <div style={{ padding: '20px' }}>
-            {/* 広告: 上部バナー */}
-            <AdSlot slot="admin-top" />
+        {
+          activeTab === 'admin' && (
+            <div style={{ padding: '20px' }}>
+              {/* 広告: 上部バナー */}
+              <AdSlot slot="admin-top" />
 
-            {/* 新しいバージョン通知（最優先表示） */}
-            {hasUpdate && (
-              <div style={{
-                backgroundColor: '#fff3e0',
-                border: '2px solid #e67e22',
-                borderRadius: '12px',
-                padding: '16px',
-                marginBottom: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-                boxShadow: '0 2px 4px rgba(230, 126, 34, 0.2)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '24px' }}>✨</span>
-                  <div>
-                    <h3 style={{ margin: '0 0 4px 0', color: '#d35400', fontSize: '16px', fontWeight: 'bold' }}>
-                      New Version Available!
-                    </h3>
-                    <p style={{ margin: 0, color: '#e67e22', fontSize: '14px' }}>
-                      タップしてアプリを更新してください
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={onUpdate}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#e67e22',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                  }}
-                >
-                  更新する
-                </button>
-              </div>
-            )}
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-              gap: '20px',
-              marginTop: '20px'
-            }}>
-              {/* 採点履歴カード */}
-              <button
-                onClick={() => setShowGradingHistory(true)}
-                style={{
-                  width: '100%',
-                  backgroundColor: 'white',
+              {/* 新しいバージョン通知（最優先表示） */}
+              {hasUpdate && (
+                <div style={{
+                  backgroundColor: '#fff3e0',
+                  border: '2px solid #e67e22',
                   borderRadius: '12px',
-                  padding: '20px',
-                  border: '2px solid #ecf0f1',
-                  cursor: 'pointer',
+                  padding: '16px',
+                  marginBottom: '20px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '12px',
-                  fontSize: '18px',
-                  fontWeight: '600',
-                  color: '#2c3e50',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#9b59b6';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#ecf0f1';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-                title="採点履歴を表示"
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '24px' }}>🕒</span>
-                  <span>History</span>
-                </div>
-                <span style={{ fontSize: '20px', opacity: 0.5 }}>↗</span>
-              </button>
-
-
-              {/* ストレージ情報カード */}
-              {storageInfo && (
-                <div style={{
-                  backgroundColor: 'white',
-                  borderRadius: '12px',
-                  padding: '20px',
-                  border: '2px solid #ecf0f1'
+                  boxShadow: '0 2px 4px rgba(230, 126, 34, 0.2)'
                 }}>
-                  <button
-                    onClick={() => setShowStorageInfo(true)}
-                    style={{
-                      width: '100%',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      padding: 0,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '12px',
-                      fontSize: '18px',
-                      fontWeight: '600',
-                      color: '#2c3e50',
-                      marginBottom: '12px',
-                      transition: 'color 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = '#3498db';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = '#2c3e50';
-                    }}
-                    title="ストレージ詳細を表示"
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ fontSize: '24px' }}>💾</span>
-                      <span>Storage</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '24px' }}>✨</span>
+                    <div>
+                      <h3 style={{ margin: '0 0 4px 0', color: '#d35400', fontSize: '16px', fontWeight: 'bold' }}>
+                        New Version Available!
+                      </h3>
+                      <p style={{ margin: 0, color: '#e67e22', fontSize: '14px' }}>
+                        タップしてアプリを更新してください
+                      </p>
                     </div>
-                    <span style={{ fontSize: '20px', opacity: 0.5 }}>↗</span>
-                  </button>
-
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: '14px',
-                    color: '#7f8c8d'
-                  }}>
-                    <span>Usage:</span>
-                    <span style={{ fontWeight: '600', color: '#2c3e50' }}>
-                      {storageInfo.usageMB.toFixed(2)} MB / {storageInfo.quotaMB.toFixed(0)} MB
-                    </span>
                   </div>
+                  <button
+                    onClick={onUpdate}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#e67e22',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    更新する
+                  </button>
                 </div>
               )}
 
-              {/* SNS Links Section - Merged with Notification */}
-              <button
-                onClick={() => setShowSNSSettings(true)}
-                style={{
-                  width: '100%',
-                  backgroundColor: 'white',
-                  borderRadius: '12px',
-                  padding: '20px',
-                  border: '2px solid #ecf0f1',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '12px',
-                  fontSize: '18px',
-                  fontWeight: '600',
-                  color: '#2c3e50',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#27ae60';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#ecf0f1';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-                title="リンクと通知の設定"
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '24px' }}>❤️</span>
-                  <span>Links & Notification</span>
-                </div>
-                <span style={{ fontSize: '20px', opacity: 0.5 }}>↗</span>
-              </button>
-            </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                gap: '20px',
+                marginTop: '20px'
+              }}>
+                {/* 採点履歴カード */}
+                <button
+                  onClick={() => setShowGradingHistory(true)}
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'white',
+                    borderRadius: '12px',
+                    padding: '20px',
+                    border: '2px solid #ecf0f1',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    fontSize: '18px',
+                    fontWeight: '600',
+                    color: '#2c3e50',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#9b59b6';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#ecf0f1';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                  title="採点履歴を表示"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '24px' }}>🕒</span>
+                    <span>History</span>
+                  </div>
+                  <span style={{ fontSize: '20px', opacity: 0.5 }}>↗</span>
+                </button>
 
-            {/* 広告: 下部 */}
-            <div style={{ marginTop: '20px' }}>
-              <AdSlot slot="admin-sidebar" />
+
+                {/* ストレージ情報カード */}
+                {storageInfo && (
+                  <div style={{
+                    backgroundColor: 'white',
+                    borderRadius: '12px',
+                    padding: '20px',
+                    border: '2px solid #ecf0f1'
+                  }}>
+                    <button
+                      onClick={() => setShowStorageInfo(true)}
+                      style={{
+                        width: '100%',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        fontSize: '18px',
+                        fontWeight: '600',
+                        color: '#2c3e50',
+                        marginBottom: '12px',
+                        transition: 'color 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = '#3498db';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = '#2c3e50';
+                      }}
+                      title="ストレージ詳細を表示"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontSize: '24px' }}>💾</span>
+                        <span>Storage</span>
+                      </div>
+                      <span style={{ fontSize: '20px', opacity: 0.5 }}>↗</span>
+                    </button>
+
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '14px',
+                      color: '#7f8c8d'
+                    }}>
+                      <span>Usage:</span>
+                      <span style={{ fontWeight: '600', color: '#2c3e50' }}>
+                        {storageInfo.usageMB.toFixed(2)} MB / {storageInfo.quotaMB.toFixed(0)} MB
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* SNS Links Section - Merged with Notification */}
+                <button
+                  onClick={() => setShowSNSSettings(true)}
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'white',
+                    borderRadius: '12px',
+                    padding: '20px',
+                    border: '2px solid #ecf0f1',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    fontSize: '18px',
+                    fontWeight: '600',
+                    color: '#2c3e50',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#27ae60';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#ecf0f1';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                  title="リンクと通知の設定"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '24px' }}>❤️</span>
+                    <span>Links & Notification</span>
+                  </div>
+                  <span style={{ fontSize: '20px', opacity: 0.5 }}>↗</span>
+                </button>
+              </div>
+
+              {/* 広告: 下部 */}
+              <div style={{ marginTop: '20px' }}>
+                <AdSlot slot="admin-sidebar" />
+              </div>
             </div>
-          </div>
-        )
+          )
         }
-      </div>
+      </div >
 
       {/* フッター */}
-      <footer style={{
+      < footer style={{
         padding: '16px 20px',
         backgroundColor: '#f8f9fa',
         borderTop: '1px solid #ecf0f1',
@@ -1585,7 +1597,7 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
         }}>
           © 2026 TutoTuto
         </div>
-      </footer>
+      </footer >
 
       {/* 採点履歴モーダル */}
       {
@@ -1597,137 +1609,147 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
       }
 
       {/* プライバシーポリシーモーダル */}
-      {showPrivacyPolicy && (
-        <PrivacyPolicy onClose={() => setShowPrivacyPolicy(false)} />
-      )}
+      {
+        showPrivacyPolicy && (
+          <PrivacyPolicy onClose={() => setShowPrivacyPolicy(false)} />
+        )
+      }
 
       {/* 利用規約モーダル */}
-      {showTermsOfService && (
-        <TermsOfService onClose={() => setShowTermsOfService(false)} />
-      )}
+      {
+        showTermsOfService && (
+          <TermsOfService onClose={() => setShowTermsOfService(false)} />
+        )
+      }
 
       {/* 運営者情報モーダル */}
-      {showAbout && (
-        <About onClose={() => setShowAbout(false)} />
-      )}
+      {
+        showAbout && (
+          <About onClose={() => setShowAbout(false)} />
+        )
+      }
 
       {/* お問い合わせモーダル */}
-      {showContact && (
-        <Contact onClose={() => setShowContact(false)} />
-      )}
+      {
+        showContact && (
+          <Contact onClose={() => setShowContact(false)} />
+        )
+      }
 
       {/* PDF Settings Modal */}
-      {showPDFSettings && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.7)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 10001
-        }} onClick={() => setShowPDFSettings(null)}>
+      {
+        showPDFSettings && (
           <div style={{
-            backgroundColor: 'white',
-            borderRadius: '12px',
-            padding: '24px',
-            maxWidth: '500px',
-            width: '90%'
-          }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 16px 0', color: '#2c3e50', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <IoMdSettings />
-              <span>ドリル設定</span>
-            </h3>
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10001
+          }} onClick={() => setShowPDFSettings(null)}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '500px',
+              width: '90%'
+            }} onClick={(e) => e.stopPropagation()}>
+              <h3 style={{ margin: '0 0 16px 0', color: '#2c3e50', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <IoMdSettings />
+                <span>ドリル設定</span>
+              </h3>
 
-            <div style={{ marginBottom: '20px' }}>
-              <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#7f8c8d' }}>
-                ファイル名:
-              </p>
-              <div style={{ fontWeight: 'bold', overflowWrap: 'break-word', color: '#2c3e50' }}>
-                {showPDFSettings.fileName}
+              <div style={{ marginBottom: '20px' }}>
+                <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#7f8c8d' }}>
+                  ファイル名:
+                </p>
+                <div style={{ fontWeight: 'bold', overflowWrap: 'break-word', color: '#2c3e50' }}>
+                  {showPDFSettings.fileName}
+                </div>
               </div>
-            </div>
 
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: '#7f8c8d', fontWeight: 'bold' }}>
-                教科
-              </label>
-              {subjectLoading ? (
-                <div>読み込み中...</div>
-              ) : (
-                <select
-                  value={showPDFSettings.subjectId || ""}
-                  onChange={(e) => setShowPDFSettings({ ...showPDFSettings, subjectId: e.target.value })}
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: '#7f8c8d', fontWeight: 'bold' }}>
+                  教科
+                </label>
+                {subjectLoading ? (
+                  <div>読み込み中...</div>
+                ) : (
+                  <select
+                    value={showPDFSettings.subjectId || ""}
+                    onChange={(e) => setShowPDFSettings({ ...showPDFSettings, subjectId: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: '1px solid #bdc3c7',
+                      fontSize: '16px',
+                      backgroundColor: 'white'
+                    }}
+                  >
+                    <option value="">自動(未設定)</option>
+                    {subjectsList.map(subject => (
+                      <option key={subject.id} value={subject.id}>
+                        {subject.icon} {subject.labels[i18n.language] || subject.labels['en'] || subject.id}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <p style={{ fontSize: '12px', color: '#95a5a6', marginTop: '8px' }}>
+                  採点時にこの教科のプロンプトが使用されます。
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setShowPDFSettings(null)}
                   style={{
-                    width: '100%',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    border: '1px solid #bdc3c7',
-                    fontSize: '16px',
-                    backgroundColor: 'white'
+                    padding: '10px 20px',
+                    backgroundColor: '#95a5a6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
                   }}
                 >
-                  <option value="">自動(未設定)</option>
-                  {subjectsList.map(subject => (
-                    <option key={subject.id} value={subject.id}>
-                      {subject.icon} {subject.labels[i18n.language] || subject.labels['en'] || subject.id}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <p style={{ fontSize: '12px', color: '#95a5a6', marginTop: '8px' }}>
-                採点時にこの教科のプロンプトが使用されます。
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setShowPDFSettings(null)}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#95a5a6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >
-                キャンセル
-              </button>
-              <button
-                onClick={async () => {
-                  try {
-                    const newRecord = { ...showPDFSettings };
-                    await updatePDFRecord(newRecord.id, { subjectId: newRecord.subjectId !== "" ? newRecord.subjectId : undefined });
-                    await loadPDFRecords(); // Reload list
-                    setShowPDFSettings(null);
-                  } catch (e) {
-                    console.error(e);
-                    alert('設定の更新に失敗しました');
-                  }
-                }}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#3498db',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >
-                保存
-              </button>
+                  キャンセル
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const newRecord = { ...showPDFSettings };
+                      await updatePDFRecord(newRecord.id, { subjectId: newRecord.subjectId !== "" ? newRecord.subjectId : undefined });
+                      await loadPDFRecords(); // Reload list
+                      setShowPDFSettings(null);
+                    } catch (e) {
+                      console.error(e);
+                      alert('設定の更新に失敗しました');
+                    }
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#3498db',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  保存
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
     </>
   );
 }
