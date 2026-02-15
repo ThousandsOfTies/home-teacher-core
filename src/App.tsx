@@ -19,6 +19,16 @@ function App() {
   } = useRegisterSW({
     onRegistered(r) {
       console.log('SW Registered:', r)
+      // 起動時に更新チェックを明示的に行う
+      if (r) {
+        setInterval(() => {
+          console.log('Checking for sw update')
+          r.update()
+        }, 60 * 60 * 1000)
+
+        // 初回チェック
+        r.update()
+      }
     },
     onRegisterError(error) {
       console.log('SW registration error', error)
