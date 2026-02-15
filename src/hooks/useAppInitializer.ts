@@ -71,6 +71,7 @@ export const useAppInitializer = () => {
         }
 
         initialize()
+        console.log('App initialization started [v1.0.1]')
 
         // ハッシュ変更監視（初期化後も有効にする）
         const handleHashChange = () => {
