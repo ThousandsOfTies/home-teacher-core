@@ -168,7 +168,8 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
       await saveAppSettings({
         id: 'app-settings',
         snsTimeLimitMinutes: snsTimeLimit,
-        notificationEnabled: notificationEnabled
+        notificationEnabled: notificationEnabled,
+        isPremium: isPremium
       });
       setShowSNSSettings(false);
     } catch (error) {

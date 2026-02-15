@@ -8,6 +8,8 @@ type AppView = 'admin' | 'viewer'
 
 function App() {
   const [currentView, setCurrentView] = useState<AppView>('admin')
+  const [settingsVersion, setSettingsVersion] = useState(0)
+
   const [selectedPDF, setSelectedPDF] = useState<PDFFileRecord | null>(null)
 
   // PWA update handling
@@ -40,6 +42,8 @@ function App() {
               ...settings,
               isPremium: true
             })
+            // AdminPanelをリロードさせるためにバージョンを更新
+            setSettingsVersion(v => v + 1)
             alert('🎉 プレミアム機能が解除されました！\nSNS時間制限を自由に設定できます。')
           }
         } catch (error) {
@@ -109,6 +113,7 @@ function App() {
     <div className="app">
       {currentView === 'admin' ? (
         <AdminPanel
+          key={settingsVersion}
           onSelectPDF={handleSelectPDF}
           hasUpdate={needRefresh}
           onUpdate={handleUpdate}
