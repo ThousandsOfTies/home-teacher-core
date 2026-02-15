@@ -55,7 +55,7 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'prompt',
         includeAssets: ['favicon.ico', 'logo.png', 'app.png'],
-        filename: 'manifest.json',
+
         manifest: false,
         workbox: {
           cleanupOutdatedCaches: true,
