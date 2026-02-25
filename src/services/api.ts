@@ -114,7 +114,14 @@ export const getAvailableModels = async (): Promise<AvailableModelsResponse> => 
   if (!response.ok) {
     throw new Error(`Failed to fetch models: ${response.status}`)
   }
-  return response.json()
+
+  const text = await response.text()
+  try {
+    return JSON.parse(text)
+  } catch (err) {
+    console.error("Failed to parse models JSON. Response was:", text.substring(0, 100))
+    throw new Error("Invalid JSON response from /api/models")
+  }
 }
 
 // 簡素化された採点API（切り抜き画像のみ）

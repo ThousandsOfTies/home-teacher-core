@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { getAllPDFRecords, deletePDFRecord, savePDFRecord, generatePDFId, PDFFileRecord } from '../../utils/indexedDB'
 import * as pdfjsLib from 'pdfjs-dist'
 import { detectSubject } from '../../services/api'
+import { isSupportedImageFile, processImageFiles } from '../../utils/imageProcessor'
+import { convertImagesToPDF } from '../../services/pdfConverter'
 
 // Workerの設定
 // Workerの設定（ローカルファイルを使用）
@@ -104,34 +106,51 @@ export const usePDFRecords = () => {
   const handleFileSelect = async () => {
     setUploading(true)
     try {
-      let file: File | null = null
+      let files: File[] = []
 
       if ('showOpenFilePicker' in window) {
+        console.log('📂 Using modern file picker API...')
         try {
-          const [fileHandle] = await (window as any).showOpenFilePicker({
+          const fileHandles = await (window as any).showOpenFilePicker({
             types: [
               {
-                description: 'PDF Files',
+                description: 'PDF and Image Files',
                 accept: {
                   'application/pdf': ['.pdf'],
+                  'image/jpeg': ['.jpg', '.jpeg'],
+                  'image/png': ['.png'],
+                  'image/heic': ['.heic'],
+                  'image/heif': ['.heif'],
                 },
               },
             ],
-            multiple: false,
+            multiple: true,
           })
-          file = await fileHandle.getFile()
+          console.log(`📂 File handles received: ${fileHandles.length}`)
+          files = await Promise.all(fileHandles.map((handle: any) => handle.getFile()))
+          console.log(`📂 Files loaded: ${files.length}`)
+
+          if (!files || files.length === 0) {
+            console.log('⚠️ No files selected')
+            setUploading(false)
+            return
+          }
         } catch (error) {
           if (error instanceof Error && error.name !== 'AbortError') {
             console.error('File picker failed:', error)
+          } else {
+            console.log('📂 File picker cancelled by user')
           }
           setUploading(false)
           return
         }
       } else {
-        file = await new Promise<File | null>((resolve) => {
+        console.log('📂 Using fallback file picker...')
+        const selectedFiles = await new Promise<FileList | null>((resolve) => {
           const input = document.createElement('input')
           input.type = 'file'
-          input.accept = 'application/pdf'
+          input.accept = 'application/pdf,image/jpeg,image/jpg,image/png,image/heic,image/heif'
+          input.multiple = true
 
           let isResolved = false
 
@@ -139,8 +158,8 @@ export const usePDFRecords = () => {
           input.onchange = (e) => {
             if (isResolved) return
             isResolved = true
-            const selectedFile = (e.target as HTMLInputElement).files?.[0]
-            resolve(selectedFile || null)
+            const selectedFiles = (e.target as HTMLInputElement).files
+            resolve(selectedFiles)
           }
 
           // キャンセルイベント（ファイル選択ダイアログを閉じた時）
@@ -163,8 +182,7 @@ export const usePDFRecords = () => {
               } else {
                 // ファイルが選択されているがonchangeが呼ばれていない場合
                 isResolved = true
-                const selectedFile = input.files[0]
-                resolve(selectedFile)
+                resolve(input.files)
               }
             }, 1000) // iPadのために待機時間を延長
           }
@@ -173,25 +191,116 @@ export const usePDFRecords = () => {
           input.click()
         })
 
-        if (!file) {
+        if (!selectedFiles || selectedFiles.length === 0) {
+          setUploading(false)
+          return
+        }
+
+        files = Array.from(selectedFiles)
+      }
+
+      // ファイル数制限チェック
+      const MAX_FILES = 100
+      const MAX_FILE_SIZE_MB = 100
+      const MAX_TOTAL_SIZE_MB = 300
+
+      if (files.length > MAX_FILES) {
+        const message = `ファイル数が多すぎます。最大${MAX_FILES}枚まで選択できます。\n現在: ${files.length}枚`
+        setErrorMessage(message)
+        alert(message)
+        setUploading(false)
+        return
+      }
+
+      // ファイルサイズチェック（各ファイル100MBまで）
+      console.log(`📁 Selected ${files.length} file(s)`)
+      let totalSize = 0
+
+      for (const file of files) {
+        console.log(`  - ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB, ${file.type})`)
+        totalSize += file.size
+
+        if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+          const message = `ファイルサイズが大きすぎます（最大${MAX_FILE_SIZE_MB}MB）\nファイル: ${file.name}\nサイズ: ${(file.size / 1024 / 1024).toFixed(2)}MB`
+          setErrorMessage(message)
+          alert(message)
           setUploading(false)
           return
         }
       }
 
-      // ファイルサイズチェック（100MBまで）
-      if (file.size > 100 * 1024 * 1024) {
-        setErrorMessage('ファイルサイズが大きすぎます（最大100MB）')
+      // 合計サイズチェック
+      const totalSizeMB = totalSize / 1024 / 1024
+      console.log(`📊 Total size: ${totalSizeMB.toFixed(2)}MB`)
+
+      if (totalSizeMB > MAX_TOTAL_SIZE_MB) {
+        const message = `合計ファイルサイズが大きすぎます。\n最大: ${MAX_TOTAL_SIZE_MB}MB\n現在: ${totalSizeMB.toFixed(2)}MB\n\nファイル数を減らすか、小さい画像を選択してください。`
+        setErrorMessage(message)
+        alert(message)
         setUploading(false)
         return
       }
 
-      // addPDFを呼び出し
-      await addPDF(file, file.name)
+      // ファイルを種類別に分類
+      console.log('🔍 Classifying files...')
+      const pdfFiles: File[] = []
+      const imageFiles: File[] = []
+
+      for (const file of files) {
+        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+          pdfFiles.push(file)
+          console.log(`  ✅ PDF: ${file.name}`)
+        } else if (isSupportedImageFile(file)) {
+          imageFiles.push(file)
+          console.log(`  ✅ Image: ${file.name}`)
+        } else {
+          console.warn(`  ⚠️ Unsupported file type: ${file.name}`)
+        }
+      }
+
+      console.log(`📊 Classification result: ${pdfFiles.length} PDF(s), ${imageFiles.length} image(s)`)
+
+      // 画像ファイルをPDFに変換
+      if (imageFiles.length > 0) {
+        console.log(`📷 Converting ${imageFiles.length} image(s) to PDF...`)
+        try {
+          console.log('  🔄 Step 1: Processing images...')
+          const processedImages = await processImageFiles(imageFiles)
+          console.log(`  ✅ Step 1 complete: ${processedImages.length} images processed`)
+
+          console.log('  🔄 Step 2: Converting to PDF...')
+          const pdfBlob = await convertImagesToPDF(processedImages, 'converted-images.pdf')
+          console.log(`  ✅ Step 2 complete: PDF created (${(pdfBlob.size / 1024 / 1024).toFixed(2)}MB)`)
+
+          // 変換されたPDFを追加
+          const fileName = imageFiles.length === 1
+            ? imageFiles[0].name.replace(/\.[^/.]+$/, '.pdf') // 拡張子をpdfに変更
+            : 'converted-images.pdf'
+
+          console.log(`  🔄 Step 3: Saving PDF as "${fileName}"...`)
+          await addPDF(pdfBlob, fileName)
+          console.log(`  ✅ Step 3 complete: PDF saved`)
+        } catch (error) {
+          console.error('❌ Image conversion failed:', error)
+          throw error
+        }
+      }
+
+      // PDFファイルを直接追加
+      if (pdfFiles.length > 0) {
+        console.log(`📄 Adding ${pdfFiles.length} PDF file(s)...`)
+        for (const pdfFile of pdfFiles) {
+          console.log(`  🔄 Adding: ${pdfFile.name}`)
+          await addPDF(pdfFile, pdfFile.name)
+          console.log(`  ✅ Added: ${pdfFile.name}`)
+        }
+      }
+
+      console.log('🎉 All files processed successfully!')
 
     } catch (error) {
-      console.error('Failed to select PDF:', error)
-      setErrorMessage(`Failed to select PDF: ${error}`)
+      console.error('Failed to select files:', error)
+      setErrorMessage(`Failed to select files: ${error}`)
       setUploading(false)
     }
   }

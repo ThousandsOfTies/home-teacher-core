@@ -59,8 +59,9 @@ export default defineConfig(({ mode }) => {
         manifest: false,
         workbox: {
           cleanupOutdatedCaches: true,
+          globIgnores: ['**/opencv*.js'],
           globPatterns: ['**/*.{js,css,html,png,svg,woff,woff2}'],
-          maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10MB
+          maximumFileSizeToCacheInBytes: 15 * 1024 * 1024, // 15MB 念のため増やす
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

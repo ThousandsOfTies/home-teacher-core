@@ -137,5 +137,24 @@
     },
     "textMode": {
         "placeholder": "テキストを入力..."
+    },
+    "imageImport": {
+        "title": "画像取込（デジタルバインダー）",
+        "dropZone": "画像をここにドロップ、またはクリックして選択",
+        "supportedFormats": "JPG, PNG, HEIC対応",
+        "dragToReorder": "ドラッグ＆ドロップでページ順を変更できます",
+        "page": "ページ",
+        "rotate": "回転",
+        "delete": "削除",
+        "addMore": "画像を追加",
+        "imagesSelected": "枚の画像が選択されています",
+        "convertAndImport": "PDFに変換して取り込む",
+        "processing": "処理中...",
+        "processingError": "画像の処理に失敗しました",
+        "noImagesError": "画像が選択されていません",
+        "conversionError": "PDFへの変換に失敗しました"
+    },
+    "common": {
+        "cancel": "キャンセル"
     }
 }

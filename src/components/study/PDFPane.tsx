@@ -43,6 +43,7 @@ export interface PDFPaneHandle {
     getPanOffset: () => { x: number, y: number }
     setPanOffsetValue: (offset: { x: number, y: number }) => void
     getContainerRect: () => DOMRect | null
+    getPdfCanvas: () => HTMLCanvasElement | null
 }
 
 export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
@@ -148,6 +149,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
 
     // キャンバスサイズの状態（DrawingCanvas との同期用）
     const [canvasSize, setCanvasSize] = React.useState<{ width: number, height: number } | null>(null)
+
+    // スライダーの一時状態（ドラッグ中の高速レンダリング防止用）
+    const [sliderValue, setSliderValue] = React.useState<number | null>(null)
 
     // レイアウト準備完了フラグ（ジャンプ防止用）
     const [isLayoutReady, setIsLayoutReady] = React.useState(false)
@@ -507,7 +511,9 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
         setZoomValue: (newZoom: number) => { setZoom(Math.min(Math.max(newZoom, 0.1), 5.0)) },
         getPanOffset: () => panOffset,
         setPanOffsetValue: (offset: { x: number, y: number }) => { setPanOffset(offset) },
-        getContainerRect: () => containerRef.current?.getBoundingClientRect() || null
+        getContainerRect: () => containerRef.current?.getBoundingClientRect() || null,
+        getPdfCanvas: () => canvasRef.current
+
     }), [splitMode, fitToScreen, resetZoom, setZoom, setPanOffset, zoom, panOffset, handleUndo, pdfDoc])
 
     // Eraser cursor state
@@ -1143,6 +1149,26 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                 )
             }
 
+            {/* Slider Dragging Overlay */}
+            {sliderValue !== null && (
+                <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    color: 'white',
+                    fontSize: '64px',
+                    fontWeight: 'bold',
+                    padding: '32px 64px',
+                    borderRadius: '16px',
+                    zIndex: 10001,
+                    pointerEvents: 'none'
+                }}>
+                    {sliderValue}
+                </div>
+            )}
+
             {/* Eraser Cursor */}
             {
                 tool === 'eraser' && eraserCursorPos && (
@@ -1221,8 +1247,21 @@ export const PDFPane = forwardRef<PDFPaneHandle, PDFPaneProps>((props, ref) => {
                                 type="range"
                                 min="1"
                                 max={numPages}
-                                value={pageNum}
-                                onChange={(e) => onPageChange(Number(e.target.value))}
+                                value={sliderValue !== null ? sliderValue : pageNum}
+                                onChange={(e) => setSliderValue(Number(e.target.value))}
+                                onPointerUp={() => {
+                                    if (sliderValue !== null && sliderValue !== pageNum) {
+                                        onPageChange(sliderValue)
+                                    }
+                                    setSliderValue(null)
+                                }}
+                                onPointerCancel={() => setSliderValue(null)}
+                                onTouchEnd={() => {
+                                    if (sliderValue !== null && sliderValue !== pageNum) {
+                                        onPageChange(sliderValue)
+                                    }
+                                    setSliderValue(null)
+                                }}
                                 className="page-slider"
                                 title="ページ移動"
                             />

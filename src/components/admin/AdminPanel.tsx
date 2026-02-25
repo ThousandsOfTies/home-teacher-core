@@ -25,11 +25,12 @@ import { updatePDFRecord } from '../../utils/indexedDB';
 
 interface AdminPanelProps {
   onSelectPDF: (record: PDFFileRecord) => void;
+  onEditPDF?: (record: PDFFileRecord) => void;
   hasUpdate?: boolean;
   onUpdate?: () => void;
 }
 
-export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }: AdminPanelProps) {
+export default function AdminPanel({ onSelectPDF, onEditPDF, hasUpdate = false, onUpdate }: AdminPanelProps) {
   // i18n
   const { t, i18n } = useTranslation();
 
@@ -70,9 +71,8 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
 
   // PDF Settings/Edit
-  const [showPDFSettings, setShowPDFSettings] = useState<{ id: string; fileName: string; subjectId?: string } | null>(null);
   const [subjectsList, setSubjectsList] = useState<SubjectInfo[]>([]);
-  const [subjectLoading, setSubjectLoading] = useState(false);
+  const [subjectLoading, setSubjectLoading] = useState(true);
 
   const [showGradingHistory, setShowGradingHistory] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
@@ -1040,13 +1040,6 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
         <div className="admin-header">
           {/* 開発モードと本番モードでパスを切り替え */}
           <div className="logo-container">
-            <img
-              src={import.meta.env.DEV
-                ? `/icons/${import.meta.env.MODE}/logo.png`
-                : `${import.meta.env.BASE_URL}logo.png`}
-              alt="Tuto Tuto"
-              className="app-logo"
-            />
             <span className="logo-text">TutoTuto</span>
           </div>
 
@@ -1204,11 +1197,8 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
                       className="settings-button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setShowPDFSettings({
-                          id: record.id,
-                          fileName: record.fileName,
-                          subjectId: record.subjectId
-                        });
+                        // Call onEditPDF callback to open editor panel
+                        onEditPDF?.(record);
                       }}
                       title="設定"
                       style={{ color: '#95a5a6' }}
@@ -1257,28 +1247,54 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
               <button
                 className="add-button"
                 onClick={() => setShowCatalogPopup(true)}
-                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', height: 'auto', padding: '20px 24px', background: 'white', border: '2px solid #bdc3c7', borderRadius: '8px' }}
+                style={{
+                  width: '100%',
+                  margin: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '16px',
+                  height: 'auto',
+                  padding: '16px',
+                  background: 'white',
+                  border: '2px solid #bdc3c7',
+                  borderRadius: '8px'
+                }}
                 title="おすすめ無料教材サイト"
               >
-                <FaEarthAmericas style={{ fontSize: '32px', color: '#3498db' }} />
-                <div style={{ fontSize: '24px', color: '#2c3e50' }}>→</div>
-                <ImFilePdf style={{ fontSize: '32px', color: '#e74c3c' }} />
-                <div style={{ fontSize: '24px', color: '#2c3e50' }}>→</div>
-                <IoIosFolderOpen style={{ fontSize: '32px', color: '#f39c12' }} />
+                <FaEarthAmericas style={{ fontSize: '28px', width: '28px', height: '28px', color: '#3498db' }} />
+                <div style={{ fontSize: '20px', color: '#95a5a6' }}>→</div>
+                <IoIosFolderOpen style={{ fontSize: '28px', width: '28px', height: '28px', color: '#f39c12' }} />
               </button>
 
-              {/* Local Import Button (ローカルファイルを登録) */}
+              {/* Local Import Button (ローカルファイルを登録 - PDF & 画像対応) */}
               <button
                 className="add-button"
                 onClick={() => handleFileSelect()}
-                style={{ width: '100%', margin: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', height: 'auto', padding: '20px 24px', background: 'white', border: '2px solid #bdc3c7', borderRadius: '8px' }}
-                title="ローカルファイルを登録"
+                style={{
+                  width: '100%',
+                  margin: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '16px',
+                  height: 'auto',
+                  padding: '16px',
+                  background: 'white',
+                  border: '2px solid #bdc3c7',
+                  borderRadius: '8px'
+                }}
+                title="ローカルファイルを登録（PDF・画像対応）"
               >
-                <IoIosFolderOpen style={{ fontSize: '32px', color: '#f39c12' }} />
-                <div style={{ fontSize: '24px', color: '#2c3e50' }}>→</div>
-                <ImFilePdf style={{ fontSize: '32px', color: '#e74c3c' }} />
-                <div style={{ fontSize: '24px', color: '#2c3e50' }}>→</div>
-                <VscDatabase style={{ fontSize: '32px', color: '#34495e' }} />
+                <IoIosFolderOpen style={{ fontSize: '28px', width: '28px', height: '28px', color: '#f39c12' }} />
+                <div style={{ fontSize: '20px', color: '#95a5a6' }}>→</div>
+                <img
+                  src={import.meta.env.DEV
+                    ? `/icons/${import.meta.env.MODE}/logo.png`
+                    : `${import.meta.env.BASE_URL}logo.png`}
+                  alt="TutoTuto Storage"
+                  style={{ width: '44px', height: '44px', objectFit: 'contain' }}
+                />
               </button>
             </div>
           </div >
@@ -1642,121 +1658,6 @@ export default function AdminPanel({ onSelectPDF, hasUpdate = false, onUpdate }:
       {
         showContact && (
           <Contact onClose={() => setShowContact(false)} />
-        )
-      }
-
-      {/* PDF Settings Modal */}
-      {
-        showPDFSettings && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10001
-          }} onClick={() => setShowPDFSettings(null)}>
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '12px',
-              padding: '24px',
-              maxWidth: '500px',
-              width: '90%'
-            }} onClick={(e) => e.stopPropagation()}>
-              <h3 style={{ margin: '0 0 16px 0', color: '#2c3e50', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <IoMdSettings />
-                <span>ドリル設定</span>
-              </h3>
-
-              <div style={{ marginBottom: '20px' }}>
-                <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#7f8c8d' }}>
-                  ファイル名:
-                </p>
-                <div style={{ fontWeight: 'bold', overflowWrap: 'break-word', color: '#2c3e50' }}>
-                  {showPDFSettings.fileName}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: '24px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: '#7f8c8d', fontWeight: 'bold' }}>
-                  教科
-                </label>
-                {subjectLoading ? (
-                  <div>読み込み中...</div>
-                ) : (
-                  <select
-                    value={showPDFSettings.subjectId || ""}
-                    onChange={(e) => setShowPDFSettings({ ...showPDFSettings, subjectId: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      border: '1px solid #bdc3c7',
-                      fontSize: '16px',
-                      backgroundColor: 'white'
-                    }}
-                  >
-                    <option value="">自動(未設定)</option>
-                    {subjectsList.map(subject => (
-                      <option key={subject.id} value={subject.id}>
-                        {subject.icon} {subject.labels[i18n.language] || subject.labels['en'] || subject.id}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <p style={{ fontSize: '12px', color: '#95a5a6', marginTop: '8px' }}>
-                  採点時にこの教科のプロンプトが使用されます。
-                </p>
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                <button
-                  onClick={() => setShowPDFSettings(null)}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#95a5a6',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
-                >
-                  キャンセル
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      const newRecord = { ...showPDFSettings };
-                      await updatePDFRecord(newRecord.id, { subjectId: newRecord.subjectId !== "" ? newRecord.subjectId : undefined });
-                      await loadPDFRecords(); // Reload list
-                      setShowPDFSettings(null);
-                    } catch (e) {
-                      console.error(e);
-                      alert('設定の更新に失敗しました');
-                    }
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#3498db',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
-                >
-                  保存
-                </button>
-              </div>
-            </div>
-          </div>
         )
       }
     </>

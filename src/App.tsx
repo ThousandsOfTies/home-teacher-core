@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import AdminPanel from './components/admin/AdminPanel'
 import StudyPanel from './components/study/StudyPanel'
+import PDFEditorPanel from './components/admin/PDFEditorPanel'
 import { PDFFileRecord, getPDFRecord, getAppSettings, saveAppSettings } from './utils/indexedDB'
 import { useAppInitializer } from './hooks/useAppInitializer'
 
-type AppView = 'admin' | 'viewer'
+type AppView = 'admin' | 'viewer' | 'editor'
 
 function App() {
   const [currentView, setCurrentView] = useState<AppView>('admin')
@@ -59,6 +60,11 @@ function App() {
     setCurrentView('viewer')
   }
 
+  const handleEditPDF = (record: PDFFileRecord) => {
+    setSelectedPDF(record)
+    setCurrentView('editor')
+  }
+
   const handleBackToAdmin = () => {
     setCurrentView('admin')
     setSelectedPDF(null)
@@ -86,12 +92,20 @@ function App() {
         <AdminPanel
           key={`admin-${settingsVersion}`}
           onSelectPDF={handleSelectPDF}
+          onEditPDF={handleEditPDF}
           hasUpdate={needRefresh}
           onUpdate={handleUpdate}
         />
-      ) : selectedPDF ? (
+      ) : currentView === 'viewer' && selectedPDF ? (
         <StudyPanel
           key={`study-${settingsVersion}-${selectedPDF.id}`}
+          pdfRecord={selectedPDF}
+          pdfId={selectedPDF.id}
+          onBack={handleBackToAdmin}
+        />
+      ) : currentView === 'editor' && selectedPDF ? (
+        <PDFEditorPanel
+          key={`editor-${settingsVersion}-${selectedPDF.id}`}
           pdfRecord={selectedPDF}
           pdfId={selectedPDF.id}
           onBack={handleBackToAdmin}

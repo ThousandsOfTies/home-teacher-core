@@ -100,6 +100,8 @@ export const usePDFRenderer = (
           timeoutPromise
         ]) as pdfjsLib.PDFDocumentProxy
 
+        console.log('✅ PDF document loaded successfully, numPages:', pdf.numPages, 'isActive:', isActive);
+
         if (isActive) {
           loadedPdf = pdf
           setPdfDoc(pdf)

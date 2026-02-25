@@ -137,5 +137,24 @@
     },
     "textMode": {
         "placeholder": "Enter text..."
+    },
+    "imageImport": {
+        "title": "Image Import (Digital Binder)",
+        "dropZone": "Drop images here, or click to select",
+        "supportedFormats": "JPG, PNG, HEIC supported",
+        "dragToReorder": "Drag and drop to reorder pages",
+        "page": "Page",
+        "rotate": "Rotate",
+        "delete": "Delete",
+        "addMore": "Add more images",
+        "imagesSelected": "images selected",
+        "convertAndImport": "Convert to PDF and Import",
+        "processing": "Processing...",
+        "processingError": "Failed to process images",
+        "noImagesError": "No images selected",
+        "conversionError": "Failed to convert to PDF"
+    },
+    "common": {
+        "cancel": "Cancel"
     }
 }
