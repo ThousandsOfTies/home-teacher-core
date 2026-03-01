@@ -22,7 +22,7 @@ function getPerspectiveTransform(src: number[], dst: number[]): number[] {
     ];
     const b = [dst[0], dst[1], dst[2], dst[3], dst[4], dst[5], dst[6], dst[7]];
 
-    // Gaussian elimination
+    // Gaussian elimination with partial pivoting
     for (let i = 0; i < 8; i++) {
         let maxRow = i;
         for (let j = i + 1; j < 8; j++) {
@@ -30,8 +30,15 @@ function getPerspectiveTransform(src: number[], dst: number[]): number[] {
                 maxRow = j;
             }
         }
+
+        // Swap rows
         const tmpA = a[i]; a[i] = a[maxRow]; a[maxRow] = tmpA;
         const tmpB = b[i]; b[i] = b[maxRow]; b[maxRow] = tmpB;
+
+        // Skip if pivot is effectively zero (singular matrix handling)
+        if (Math.abs(a[i][i]) < 1e-10) {
+            continue;
+        }
 
         for (let j = i + 1; j < 8; j++) {
             const factor = a[j][i] / a[i][i];
@@ -48,7 +55,9 @@ function getPerspectiveTransform(src: number[], dst: number[]): number[] {
         for (let j = i + 1; j < 8; j++) {
             sum += a[i][j] * x[j];
         }
-        x[i] = (b[i] - sum) / a[i][i];
+        if (Math.abs(a[i][i]) > 1e-10) {
+            x[i] = (b[i] - sum) / a[i][i];
+        }
     }
 
     return [...x, 1];
@@ -124,21 +133,57 @@ export async function warpPerspectiveCanvas(
 
     for (let y = 0; y < maxH; y++) {
         for (let x = 0; x < maxW; x++) {
-            // map point from destination to source
+            // Map point from destination to source
             const w = t6 * x + t7 * y + t8;
             const sx = (t0 * x + t1 * y + t2) / w;
             const sy = (t3 * x + t4 * y + t5) / w;
 
-            // Nearest neighbor interpolation (fastest)
-            const srcX = Math.round(sx);
-            const srcY = Math.round(sy);
-
             const dstIdx = y * dstWidth + x;
 
+            if (isNaN(sx) || isNaN(sy)) {
+                dstBuf32[dstIdx] = 0xFFFFFFFF;
+                continue;
+            }
+
+            // Bilinear interpolation for smoother results on heavy warps
+            const dx = sx - Math.floor(sx);
+            const dy = sy - Math.floor(sy);
+            const mdx = 1 - dx;
+            const mdy = 1 - dy;
+
+            const x0 = Math.floor(sx);
+            const y0 = Math.floor(sy);
+            const x1 = x0 + 1;
+            const y1 = y0 + 1;
+
             // Bounds check
-            if (srcX >= 0 && srcX < sWidth && srcY >= 0 && srcY < sHeight) {
-                const srcIdx = srcY * sWidth + srcX;
-                dstBuf32[dstIdx] = srcBuf32[srcIdx];
+            if (x0 >= 0 && x1 < sWidth && y0 >= 0 && y1 < sHeight) {
+                const idx00 = y0 * sWidth + x0;
+                const idx01 = idx00 + 1;
+                const idx10 = y1 * sWidth + x0;
+                const idx11 = idx10 + 1;
+
+                const p00 = srcBuf32[idx00];
+                const p01 = srcBuf32[idx01];
+                const p10 = srcBuf32[idx10];
+                const p11 = srcBuf32[idx11];
+
+                const r = mdy * (mdx * (p00 & 0xff) + dx * (p01 & 0xff)) +
+                    dy * (mdx * (p10 & 0xff) + dx * (p11 & 0xff));
+
+                const g = mdy * (mdx * ((p00 >> 8) & 0xff) + dx * ((p01 >> 8) & 0xff)) +
+                    dy * (mdx * ((p10 >> 8) & 0xff) + dx * ((p11 >> 8) & 0xff));
+
+                const b = mdy * (mdx * ((p00 >> 16) & 0xff) + dx * ((p01 >> 16) & 0xff)) +
+                    dy * (mdx * ((p10 >> 16) & 0xff) + dx * ((p11 >> 16) & 0xff));
+
+                const a = mdy * (mdx * ((p00 >> 24) & 0xff) + dx * ((p01 >> 24) & 0xff)) +
+                    dy * (mdx * ((p10 >> 24) & 0xff) + dx * ((p11 >> 24) & 0xff));
+
+                dstBuf32[dstIdx] = (r & 0xff) | ((g & 0xff) << 8) | ((b & 0xff) << 16) | ((a & 0xff) << 24);
+            } else if (x0 >= 0 && x0 < sWidth && y0 >= 0 && y0 < sHeight) {
+                // Edge fallback (nearest neighbor)
+                dstBuf32[dstIdx] = srcBuf32[y0 * sWidth + x0];
             } else {
                 dstBuf32[dstIdx] = 0xFFFFFFFF; // White in ABGR (little endian)
             }

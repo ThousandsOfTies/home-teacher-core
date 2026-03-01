@@ -1,5 +1,6 @@
 import React from 'react';
 import { SubjectInfo } from '../../services/api';
+import { MdCleaningServices, MdContrast, MdLightbulbOutline } from 'react-icons/md';
 
 interface EditorToolbarProps {
     onBack?: () => void;
@@ -23,7 +24,6 @@ interface EditorToolbarProps {
     rotationAngle: number;
 
     // Perspective
-    onPerspectiveCrop: () => void;
     hasDistortion?: boolean;
 
     // Reset
@@ -47,7 +47,6 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
     setRemoveShadow,
     onRotate,
     rotationAngle,
-    onPerspectiveCrop,
     hasDistortion,
     onReset,
     disabled
@@ -87,13 +86,17 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                 <div style={{ width: '1px', height: '24px', backgroundColor: '#dcdde1' }} />
 
                 {/* Filters */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '13px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '13px', color: '#636e72' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ cursor: 'pointer' }} title="コントラスト" onClick={() => setContrast(1)}>🌓</span>
+                        <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '18px' }} title="コントラスト" onClick={() => setContrast(1)}>
+                            <MdContrast style={{ transform: 'scaleX(-1)' }} />
+                        </span>
                         <input type="range" min="0.5" max="3" step="0.1" value={contrast} onChange={e => setContrast(parseFloat(e.target.value))} style={{ width: '240px' }} disabled={disabled} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ cursor: 'pointer' }} title="明るさ" onClick={() => setBrightness(1)}>💡</span>
+                        <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '18px' }} title="明るさ" onClick={() => setBrightness(1)}>
+                            <MdLightbulbOutline />
+                        </span>
                         <input type="range" min="0.5" max="2" step="0.1" value={brightness} onChange={e => setBrightness(parseFloat(e.target.value))} style={{ width: '240px' }} disabled={disabled} />
                     </div>
                     <button
@@ -104,33 +107,16 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             width: '32px', height: '32px', border: 'none', borderRadius: '4px',
                             backgroundColor: removeShadow ? '#e67e22' : 'transparent',
-                            color: removeShadow ? 'white' : 'inherit',
+                            color: removeShadow ? 'white' : '#636e72',
                             cursor: disabled ? 'not-allowed' : 'pointer',
-                            fontSize: '16px',
+                            fontSize: '18px',
                             transition: 'background-color 0.2s, color 0.2s',
                             opacity: disabled ? 0.5 : 1
                         }}
                     >
-                        ✨
+                        <MdCleaningServices />
                     </button>
                 </div>
-
-                <div style={{ width: '1px', height: '24px', backgroundColor: '#dcdde1' }} />
-
-                {/* Perspective Crop */}
-                <button
-                    onClick={onPerspectiveCrop}
-                    disabled={disabled}
-                    title="歪み補正（4点を指定して正面から見たように補正）"
-                    style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        width: '32px', height: '32px', border: '1px solid #bdc3c7', borderRadius: '4px',
-                        backgroundColor: 'white', cursor: disabled ? 'not-allowed' : 'pointer',
-                        fontSize: '16px'
-                    }}
-                >
-                    ◪
-                </button>
 
                 <div style={{ width: '1px', height: '24px', backgroundColor: '#dcdde1' }} />
 

@@ -5,7 +5,7 @@ import { usePDFRenderer } from '../../hooks/pdf/usePDFRenderer';
 import { getSubjects, SubjectInfo } from '../../services/api';
 import { PDFDocument } from 'pdf-lib';
 import '../study/StudyPanel.css'; // Reuse study panel styles for layout
-import { PerspectiveCropper } from './PerspectiveCropper';
+import { PerspectiveCropper, DEFAULT_CORNERS } from './PerspectiveCropper';
 import { warpPerspectiveCanvas } from '../../utils/warpPerspective';
 
 interface PDFEditorPanelProps {
@@ -21,7 +21,6 @@ export default function PDFEditorPanel({ pdfRecord, pdfId, onBack }: PDFEditorPa
 
     type PageEdit = { contrast: number; brightness: number; removeShadow: boolean; rotationAngle: number; distortionCorners?: [number, number, number, number, number, number, number, number] };
     const [pageEdits, setPageEdits] = useState<Record<number, PageEdit>>({});
-    const [isCroppingMode, setIsCroppingMode] = useState(false);
 
     const currentEdit = pageEdits[currentPage] || { contrast: 1, brightness: 1, removeShadow: false, rotationAngle: 0 };
     const contrast = currentEdit.contrast;
@@ -63,60 +62,7 @@ export default function PDFEditorPanel({ pdfRecord, pdfId, onBack }: PDFEditorPa
 
     const [previewImageSrc, setPreviewImageSrc] = useState<string | null>(null);
 
-    // Apply warp for live preview
-    useEffect(() => {
-        if (!imageSrc) {
-            setPreviewImageSrc(null);
-            return;
-        }
-
-        if (!currentEdit.distortionCorners || isCroppingMode) {
-            setPreviewImageSrc(imageSrc);
-            return;
-        }
-
-        const warpPreview = async () => {
-            console.log("warpPreview started");
-            const img = new Image();
-            img.onload = async () => {
-                console.log("warpPreview img onload. W/H:", img.width, img.height);
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d', { willReadFrequently: true });
-                if (!ctx) {
-                    console.error("warpPreview: Cannot get 2D context");
-                    return;
-                }
-                ctx.drawImage(img, 0, 0);
-
-                const c = currentEdit.distortionCorners!;
-                const srcCorners = [
-                    c[0] * canvas.width, c[1] * canvas.height,
-                    c[2] * canvas.width, c[3] * canvas.height,
-                    c[4] * canvas.width, c[5] * canvas.height,
-                    c[6] * canvas.width, c[7] * canvas.height
-                ];
-                const w1 = Math.hypot(srcCorners[2] - srcCorners[0], srcCorners[3] - srcCorners[1]);
-                const w2 = Math.hypot(srcCorners[4] - srcCorners[6], srcCorners[5] - srcCorners[7]);
-                const dstW = Math.round(Math.max(w1, w2));
-
-                const h1 = Math.hypot(srcCorners[6] - srcCorners[0], srcCorners[7] - srcCorners[1]);
-                const h2 = Math.hypot(srcCorners[4] - srcCorners[2], srcCorners[5] - srcCorners[3]);
-                const dstH = Math.round(Math.max(h1, h2));
-
-                console.log("Calling warpPerspectiveCanvas with:", { srcCorners, dstW, dstH });
-                const warped = await warpPerspectiveCanvas(canvas, srcCorners, dstW, dstH);
-                console.log("warpPerspectiveCanvas finished.");
-                setPreviewImageSrc(warped.toDataURL('image/jpeg', 0.8)); // slightly lower quality for faster preview
-            };
-            img.onerror = (err) => {
-                console.error("warpPreview img loaded error:", err);
-            };
-            img.src = imageSrc;
-        };
-        warpPreview();
-    }, [imageSrc, currentEdit.distortionCorners, isCroppingMode]);
+    // No live warp preview - corners are shown inline; warp is applied on save/page change
 
     // Messages
     const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -195,13 +141,24 @@ export default function PDFEditorPanel({ pdfRecord, pdfId, onBack }: PDFEditorPa
         try {
             const originalBytes = await pdfRecord.fileData.arrayBuffer();
             const document = await PDFDocument.load(originalBytes);
+            let newThumbnail: string | undefined = undefined;
 
             for (const pageNum of editedPages) {
                 const edit = pageEdits[pageNum];
 
                 // Get original page image
+                const baseScale = 2.0;
                 const page = await pdfDoc.getPage(pageNum);
-                const viewport = page.getViewport({ scale: 2.0 });
+
+                // Prevent out-of-memory if the page is already extremely large
+                // Limit maximum width/height to reasonable bounds
+                const unscaledViewport = page.getViewport({ scale: 1.0 });
+                let scale = baseScale;
+                if (unscaledViewport.width * scale > 4000 || unscaledViewport.height * scale > 4000) {
+                    scale = Math.min(4000 / unscaledViewport.width, 4000 / unscaledViewport.height);
+                }
+
+                const viewport = page.getViewport({ scale });
                 const canvas = window.document.createElement('canvas');
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
@@ -291,6 +248,19 @@ export default function PDFEditorPanel({ pdfRecord, pdfId, onBack }: PDFEditorPa
                 }
                 pCtx.putImageData(imageData, 0, 0);
 
+                if (pageNum === 1) {
+                    const thumbCanvas = window.document.createElement('canvas');
+                    const maxDim = 800;
+                    const scaleFactor = Math.min(1.0, maxDim / Math.max(newWidth, newHeight));
+                    thumbCanvas.width = newWidth * scaleFactor;
+                    thumbCanvas.height = newHeight * scaleFactor;
+                    const tCtx = thumbCanvas.getContext('2d');
+                    if (tCtx) {
+                        tCtx.drawImage(processCanvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+                        newThumbnail = thumbCanvas.toDataURL('image/jpeg', 0.7);
+                    }
+                }
+
                 const blob = await new Promise<Blob>((resolve, reject) => {
                     processCanvas.toBlob((b) => b ? resolve(b) : reject(), 'image/jpeg', 0.9);
                 });
@@ -299,20 +269,29 @@ export default function PDFEditorPanel({ pdfRecord, pdfId, onBack }: PDFEditorPa
                 const pdfImage = await document.embedJpg(imageBytes);
 
                 const docPageNum = pageNum - 1; // pdf-lib
-                const newPage = document.insertPage(docPageNum, [newWidth, newHeight]);
+                // Insert page with original PDF point sizes (divide by the pixel scale we used)
+                const pdfPageWidth = newWidth / scale;
+                const pdfPageHeight = newHeight / scale;
+
+                const newPage = document.insertPage(docPageNum, [pdfPageWidth, pdfPageHeight]);
                 document.removePage(docPageNum + 1);
 
                 newPage.drawImage(pdfImage, {
                     x: 0,
                     y: 0,
-                    width: newWidth,
-                    height: newHeight
+                    width: pdfPageWidth,
+                    height: pdfPageHeight
                 });
             }
 
             const newPdfBytes = await document.save();
             const newBlob = new Blob([newPdfBytes as any], { type: 'application/pdf' });
-            await updatePDFRecord(pdfRecord.id, { fileData: newBlob });
+
+            const updates: Partial<PDFFileRecord> = { fileData: newBlob };
+            if (newThumbnail) {
+                updates.thumbnail = newThumbnail;
+            }
+            await updatePDFRecord(pdfRecord.id, updates);
 
             addStatusMessage(`✅ 保存しました`);
             setTimeout(() => {
@@ -325,7 +304,7 @@ export default function PDFEditorPanel({ pdfRecord, pdfId, onBack }: PDFEditorPa
         }
     };
 
-    const isLoadingPage = pdfLoading || isExtracting || !imageSrc || (currentEdit.distortionCorners && !previewImageSrc);
+    const isLoadingPage = pdfLoading || isExtracting || !imageSrc;
 
     return (
         <div className="pdf-viewer-container" style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#2c3e50' }}>
@@ -343,7 +322,6 @@ export default function PDFEditorPanel({ pdfRecord, pdfId, onBack }: PDFEditorPa
                 setRemoveShadow={(r) => updateCurrentPageEdit({ removeShadow: r })}
                 onRotate={(a) => updateCurrentPageEdit({ rotationAngle: rotationAngle + a })}
                 rotationAngle={rotationAngle}
-                onPerspectiveCrop={() => setIsCroppingMode(true)}
                 hasDistortion={currentEdit.distortionCorners !== undefined}
                 onReset={() => {
                     setPageEdits(prev => {
@@ -356,14 +334,6 @@ export default function PDFEditorPanel({ pdfRecord, pdfId, onBack }: PDFEditorPa
             />
 
             <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-                {isCroppingMode && imageSrc && (
-                    <PerspectiveCropper
-                        imageSrc={imageSrc}
-                        initialCorners={currentEdit.distortionCorners}
-                        onChange={(corners) => updateCurrentPageEdit({ distortionCorners: corners })}
-                        onClose={() => setIsCroppingMode(false)}
-                    />
-                )}
                 {statusMessage && (
                     <div className="status-message popup" style={{ position: 'absolute', top: 16, right: 16, zIndex: 1000, backgroundColor: 'rgba(0,0,0,0.8)', color: 'white', padding: '8px 16px', borderRadius: '4px' }}>
                         {statusMessage}
@@ -418,7 +388,7 @@ export default function PDFEditorPanel({ pdfRecord, pdfId, onBack }: PDFEditorPa
                 )}
 
                 {/* Image View */}
-                {!isLoadingPage && (previewImageSrc || imageSrc) && (
+                {!isLoadingPage && imageSrc && (
                     <div style={{
                         width: '100%',
                         height: '100%',
@@ -427,52 +397,9 @@ export default function PDFEditorPanel({ pdfRecord, pdfId, onBack }: PDFEditorPa
                         justifyContent: 'center',
                         overflow: 'hidden',
                         padding: '16px',
-                        paddingRight: '64px' // keep space for pager
+                        paddingRight: '64px'
                     }}>
-                        <div style={{
-                            position: 'relative',
-                            width: '100%',
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            isolation: 'isolate',
-                            filter: `brightness(${brightness}) contrast(${contrast})`,
-                            transition: 'filter 0.2s'
-                        }}>
-                            <img
-                                src={previewImageSrc || imageSrc!}
-                                style={{
-                                    maxWidth: '100%',
-                                    maxHeight: '100%',
-                                    objectFit: 'contain',
-                                    transform: `rotate(${rotationAngle}deg)`,
-                                    transition: 'transform 0.2s',
-                                    userSelect: 'none',
-                                    pointerEvents: 'none'
-                                }}
-                            />
-                            {removeShadow && (
-                                <img
-                                    src={previewImageSrc || imageSrc!}
-                                    style={{
-                                        position: 'absolute',
-                                        width: '100%',
-                                        height: '100%',
-                                        maxWidth: '100%',
-                                        maxHeight: '100%',
-                                        objectFit: 'contain',
-                                        transform: `rotate(${rotationAngle}deg)`,
-                                        transition: 'transform 0.2s',
-                                        userSelect: 'none',
-                                        pointerEvents: 'none',
-                                        mixBlendMode: 'color-dodge',
-                                        filter: 'blur(3vmin) invert(100%)'
-                                    }}
-                                />
-                            )}
-                        </div>
-                        {/* Grid overlay */}
+                        {/* Grid overlay (reference for rotation & skew) */}
                         <div style={{
                             position: 'absolute',
                             top: '16px',
@@ -486,11 +413,55 @@ export default function PDFEditorPanel({ pdfRecord, pdfId, onBack }: PDFEditorPa
                                 linear-gradient(rgba(0, 0, 0, 0.4) 1px, transparent 1px),
                                 linear-gradient(90deg, rgba(0, 0, 0, 0.4) 1px, transparent 1px)
                             `,
-                            // 横12本（1/12 ≈ 8.33%）、縦20本（1/20 = 5%）
                             backgroundSize: '8.33% 5%, 8.33% 5%, 8.33% 5%, 8.33% 5%',
                             backgroundPosition: '0 0, 0 0, 1px 1px, 1px 1px',
-                            zIndex: 10
+                            zIndex: 5
                         }} />
+
+                        {/* Image + inline corner handles */}
+                        <div style={{
+                            position: 'relative',
+                            display: 'inline-block',
+                            maxWidth: '100%',
+                            maxHeight: '100%',
+                            filter: `brightness(${brightness}) contrast(${contrast})`,
+                            transition: 'filter 0.2s',
+                            transform: `rotate(${rotationAngle}deg)`,
+                        }}>
+                            <img
+                                src={imageSrc}
+                                style={{
+                                    display: 'block',
+                                    maxWidth: '100%',
+                                    maxHeight: 'calc(100vh - 80px)',
+                                    objectFit: 'contain',
+                                    userSelect: 'none',
+                                    pointerEvents: 'none'
+                                }}
+                            />
+                            {removeShadow && (
+                                <img
+                                    src={imageSrc}
+                                    style={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'contain',
+                                        userSelect: 'none',
+                                        pointerEvents: 'none',
+                                        mixBlendMode: 'color-dodge',
+                                        filter: 'blur(3vmin) invert(100%)'
+                                    }}
+                                />
+                            )}
+                            {/* Inline perspective corner handles - always visible */}
+                            <PerspectiveCropper
+                                corners={currentEdit.distortionCorners ?? DEFAULT_CORNERS}
+                                onChange={(corners) => updateCurrentPageEdit({ distortionCorners: corners })}
+                                disabled={isSaving}
+                            />
+                        </div>
                     </div>
                 )}
 
