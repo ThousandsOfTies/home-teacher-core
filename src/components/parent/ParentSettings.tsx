@@ -52,6 +52,29 @@ export const ParentSettings: React.FC = () => {
         }
     };
 
+    const handleManageSubscription = async () => {
+        try {
+            setIsUpdating(true);
+            const token = await auth.currentUser?.getIdToken();
+            const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3003'}/api/create-portal-session`;
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            const data = await response.json();
+            if (data.url) {
+                window.location.href = data.url;
+            }
+        } catch (error) {
+            console.error('Portal session error:', error);
+            alert('エラーが発生しました');
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
     const handleUpdateMinutes = async () => {
         try {
             setIsUpdating(true);
@@ -185,10 +208,18 @@ export const ParentSettings: React.FC = () => {
                         ありがとうございます！すべてのPremium機能をご利用いただけます。
                     </p>
 
-                    <div style={{ backgroundColor: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '16px', fontSize: '14px', textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                    <div style={{ backgroundColor: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '16px', fontSize: '14px', textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '24px' }}>
                         <span style={{ fontSize: '20px' }}>💡</span>
                         <p style={{ margin: 0 }}>SNSの制限時間変更は、元の「管理パネル」画面のスライダーから自由に行えるようになっています！</p>
                     </div>
+
+                    <button
+                        onClick={handleManageSubscription}
+                        disabled={isUpdating}
+                        style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', backgroundColor: 'white', color: '#374151', fontSize: '14px', fontWeight: '600', cursor: isUpdating ? 'not-allowed' : 'pointer', opacity: isUpdating ? 0.5 : 1 }}
+                    >
+                        {isUpdating ? '処理中...' : 'プランを管理（キャンセル・支払い方法の変更）'}
+                    </button>
                 </div>
             )}
         </div>

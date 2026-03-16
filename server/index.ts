@@ -724,6 +724,28 @@ app.post('/api/update-sns-time', authenticateUser, async (req, res) => {
   }
 });
 
+app.post('/api/create-portal-session', authenticateUser, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const userDoc = await admin.firestore().collection('users').doc(user.uid).get();
+    const customerId = userDoc.data()?.stripeCustomerId;
+
+    if (!customerId) {
+      return res.status(400).json({ error: 'No Stripe customer found for this user' });
+    }
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${req.headers.origin || 'http://localhost:5173'}/settings`,
+    });
+
+    res.json({ url: session.url });
+  } catch (error: any) {
+    console.error('Error creating portal session:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`)
 })
