@@ -33,16 +33,18 @@ if (!admin.apps.length) {
   try {
     const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT;
     if (serviceAccountPath) {
+      // ローカル開発: サービスアカウントキーファイルを使用
       const fullPath = path.resolve(__dirname, `../${serviceAccountPath}`);
       const serviceAccountJson = fs.readFileSync(fullPath, 'utf8');
       const serviceAccount = JSON.parse(serviceAccountJson);
-
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
       });
       console.log('Firebase Admin initialized with service account.');
     } else {
-      console.warn('⚠️ FIREBASE_SERVICE_ACCOUNT not set. Firebase Admin not initialized.');
+      // Cloud Run本番: Application Default Credentials (ADC) を使用
+      admin.initializeApp();
+      console.log('Firebase Admin initialized with Application Default Credentials.');
     }
   } catch (error) {
     console.error('Failed to initialize Firebase Admin:', error);
