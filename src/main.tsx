@@ -30,8 +30,12 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('未処理のPromise拒否:', event.reason)
 })
 
+import { AuthProvider } from './contexts/AuthContext'
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   </React.StrictMode>,
 )

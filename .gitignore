@@ -35,3 +35,5 @@ PDFs/
 # Lockfiles
 package-lock.json
 pnpm-lock.yaml
+hometeacher-api-firebase-adminsdk-fbsvc-69abc81b69.json
+*.json.backup

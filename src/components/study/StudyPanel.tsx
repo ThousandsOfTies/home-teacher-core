@@ -14,6 +14,7 @@ import { usePDFRenderer } from '../../hooks/pdf/usePDFRenderer'
 import './StudyPanel.css'
 import { useGrading } from '../../hooks/study/useGrading'
 import { compressImage } from '../../utils/image'
+import { useAuth } from '../../contexts/AuthContext'
 
 // テキストアノテーションの型定義
 export type TextDirection = 'horizontal' | 'vertical-rl' | 'vertical-lr'
@@ -152,17 +153,14 @@ const StudyPanel = ({ pdfRecord, pdfId, onBack }: StudyPanelProps) => {
 
   // SNS State
   const [snsLinks, setSnsLinks] = useState<SNSLinkRecord[]>([])
-  const [snsTimeLimit, setSnsTimeLimit] = useState<number>(30)
+  const { userData } = useAuth()
+  const snsTimeLimit = userData?.snsRewardMinutes || 60
 
   useEffect(() => {
     const loadSNSData = async () => {
       try {
         const links = await getAllSNSLinks()
         setSnsLinks(links)
-        const settings = await getAppSettings()
-        if (settings?.snsTimeLimitMinutes) {
-          setSnsTimeLimit(settings.snsTimeLimitMinutes)
-        }
       } catch (error) {
         console.error('Failed to load SNS data:', error)
       }

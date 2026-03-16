@@ -3,7 +3,69 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
-dotenv.config()
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const result = dotenv.config({ path: path.resolve(__dirname, '../.env') })
+if (result.error) {
+  console.log('Dotenv error:', result.error)
+}
+console.log('CWD:', process.cwd())
+console.log('__dirname:', __dirname)
+
+import Stripe from 'stripe'
+import admin from 'firebase-admin'
+
+// Initialize Stripe
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || 'sk_test_dummy';
+if (stripeSecretKey === 'sk_test_dummy') {
+  console.warn('⚠️ STRIPE_SECRET_KEY not set. Using dummy key. Stripe features will fail.');
+}
+const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-04-10' as any });
+
+import fs from 'fs';
+
+// Initialize Firebase Admin
+if (!admin.apps.length) {
+  try {
+    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (serviceAccountPath) {
+      const fullPath = path.resolve(__dirname, `../${serviceAccountPath}`);
+      const serviceAccountJson = fs.readFileSync(fullPath, 'utf8');
+      const serviceAccount = JSON.parse(serviceAccountJson);
+
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+      console.log('Firebase Admin initialized with service account.');
+    } else {
+      console.warn('⚠️ FIREBASE_SERVICE_ACCOUNT not set. Firebase Admin not initialized.');
+    }
+  } catch (error) {
+    console.error('Failed to initialize Firebase Admin:', error);
+  }
+}
+
+// Authentication Middleware
+const authenticateUser = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized: No token provided' });
+  }
+
+  const token = authHeader.split('Bearer ')[1];
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    (req as any).user = decodedToken;
+    next();
+  } catch (error) {
+    console.error('Error verifying auth token:', error);
+    res.status(401).json({ error: 'Unauthorized: Invalid token' });
+  }
+};
 
 // 文字列の正規化と一致判定を行う関数
 function validateAndOverrideGrading(student: string, correct: string): boolean {
@@ -55,8 +117,14 @@ function validateAndOverrideGrading(student: string, correct: string): boolean {
 const app = express()
 const port = process.env.PORT || 3003
 
-// Increase payload size limit for base64 images
-app.use(express.json({ limit: '50mb' }))
+// Increase payload size limit for base64 images, but skip for Stripe webhooks
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/webhooks/stripe') {
+    next();
+  } else {
+    express.json({ limit: '50mb' })(req, res, next);
+  }
+});
 app.use(cors())
 
 // Log API Key status (do not log the actual key)
@@ -530,6 +598,131 @@ Output ONLY JSON. No introductory text.`;
     })
   }
 })
+
+// ==========================================
+// Stripe Subscriptions
+// ==========================================
+
+app.post('/api/create-checkout-session', authenticateUser, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    // You would typically have a specific price ID from your Stripe Dashboard
+    // Replace this with your actual Price ID
+    const priceId = process.env.STRIPE_PRICE_ID || 'price_1234567890';
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      mode: 'subscription',
+      success_url: `${req.headers.origin || 'http://localhost:5173'}/settings?success=true`,
+      cancel_url: `${req.headers.origin || 'http://localhost:5173'}/settings?canceled=true`,
+      client_reference_id: user.uid, // Tie the session to the Firebase User ID
+    });
+
+    res.json({ url: session.url });
+  } catch (error: any) {
+    console.error('Error creating checkout session:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Configure Express to parse raw body for Stripe Webhook Verification
+app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }));
+
+app.post('/api/webhooks/stripe', async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  let event;
+
+  try {
+    if (!sig || !endpointSecret) throw new Error('Missing stripe signature or webhok secret');
+    // Important: req.body MUST be raw buffer here, so express.raw() is used above
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+  } catch (err: any) {
+    console.error(`⚠️  Webhook signature verification failed.`, err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle the event
+  try {
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const uid = session.client_reference_id;
+
+      if (uid && admin.apps.length) {
+        console.log(`💰 Checkout completed for user ${uid}. Marking as premium.`);
+        // Update Firestore
+        await admin.firestore().collection('users').doc(uid).update({
+          isPremium: true,
+          stripeCustomerId: session.customer,
+          stripeSubscriptionId: session.subscription,
+        });
+      }
+    } else if (event.type === 'customer.subscription.deleted') {
+      const subscription = event.data.object as Stripe.Subscription;
+      const customerId = subscription.customer as string;
+
+      if (admin.apps.length) {
+        console.log(`🔴 Subscription deleted for customer ${customerId}. Removing premium status.`);
+        // Note: You need to query the user by stripeCustomerId
+        const usersRef = admin.firestore().collection('users');
+        const snapshot = await usersRef.where('stripeCustomerId', '==', customerId).get();
+
+        if (!snapshot.empty) {
+          const docId = snapshot.docs[0].id;
+          await usersRef.doc(docId).update({
+            isPremium: false,
+            snsRewardMinutes: 60, // Reset to free tier default
+            stripeSubscriptionId: admin.firestore.FieldValue.delete(),
+          });
+          console.log(`User ${docId} downgraded successfully.`);
+        }
+      }
+    }
+    // Return a 200 response to acknowledge receipt of the event
+    res.send();
+  } catch (error) {
+    console.error('Error handling webhook event:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+app.post('/api/update-sns-time', authenticateUser, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const { snsRewardMinutes } = req.body;
+
+    if (typeof snsRewardMinutes !== 'number' || snsRewardMinutes < 0) {
+      return res.status(400).json({ error: 'Invalid snsRewardMinutes value' });
+    }
+
+    if (!admin.apps.length) {
+      return res.status(500).json({ error: 'Firebase Admin not initialized' });
+    }
+
+    // Check if the user is premium
+    const userDoc = await admin.firestore().collection('users').doc(user.uid).get();
+    if (!userDoc.exists || !userDoc.data()?.isPremium) {
+      return res.status(403).json({ error: 'Forbidden: Only premium users can update SNS time' });
+    }
+
+    // Update the value
+    await admin.firestore().collection('users').doc(user.uid).update({
+      snsRewardMinutes
+    });
+
+    res.json({ success: true, snsRewardMinutes });
+  } catch (error: any) {
+    console.error('Error updating SNS time:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`)

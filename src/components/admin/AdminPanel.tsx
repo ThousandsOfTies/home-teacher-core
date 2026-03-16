@@ -13,6 +13,9 @@ import PrivacyPolicy from '../legal/PrivacyPolicy';
 import TermsOfService from '../legal/TermsOfService';
 import About from '../legal/About';
 import Contact from '../legal/Contact';
+import { ParentSettings } from '../parent/ParentSettings';
+import { useAuth } from '../../contexts/AuthContext';
+import { auth } from '../../lib/firebase';
 import { FaEarthAmericas } from 'react-icons/fa6';
 import { FaRegEdit } from 'react-icons/fa';
 import { IoIosFolderOpen, IoMdSettings } from 'react-icons/io';
@@ -79,13 +82,16 @@ export default function AdminPanel({ onSelectPDF, onEditPDF, hasUpdate = false, 
   const [showTermsOfService, setShowTermsOfService] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showContact, setShowContact] = useState(false);
+  const [showParentSettings, setShowParentSettings] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [showStorageInfo, setShowStorageInfo] = useState(false);
   const [snsTimeLimit, setSnsTimeLimit] = useState<number>(60); // デフォルト60分
   const [snsTimeLimitInput, setSnsTimeLimitInput] = useState<string>('60'); // 入力フィールド用
   const [notificationEnabled, setNotificationEnabled] = useState<boolean>(false); // 通知の有効/無効
-  const [isPremium, setIsPremium] = useState<boolean>(false); // プレミアム権限
+
+  const { userData } = useAuth();
+  const isPremium = userData?.isPremium || false;
 
   // Load data on mount
   useEffect(() => {
@@ -118,21 +124,14 @@ export default function AdminPanel({ onSelectPDF, onEditPDF, hasUpdate = false, 
   const loadSettings = async () => {
     try {
       const settings = await getAppSettings();
-      // プレミアム権限チェック
-      const premium = settings.isPremium || false;
-      setIsPremium(premium);
 
-      // 時間制限: プレミアムでない場合は強制的に60分、プレミアムなら保存された値（なければデフォルト60分）
-      // ただし、すでに保存されている値が30分で、今回プレミアム制限が入った場合でも、ユーザー体験としては「60分に戻る」べき。
-      // なので !premium なら 60 固定表示に近い挙動にするが、DB値を勝手に書き換えるかは別。
-      // ここでは表示の初期値を決定する。
-
+      // 時間制限: プレミアムでない場合は強制的に60分、プレミアムならFirestoreの値（なければデフォルト60分）
+      // userData は useAuth() から提供される
       const savedTime = settings.snsTimeLimitMinutes || 60;
-      // プレミアムでなければ60分固定
-      const effectiveTime = premium ? savedTime : 60;
 
-      setSnsTimeLimit(effectiveTime);
-      setSnsTimeLimitInput(String(effectiveTime));
+      // We will override effectiveTime in a useEffect below once userData loads
+      setSnsTimeLimit(savedTime);
+      setSnsTimeLimitInput(String(savedTime));
       setNotificationEnabled(settings.notificationEnabled);
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -146,6 +145,15 @@ export default function AdminPanel({ onSelectPDF, onEditPDF, hasUpdate = false, 
       }
     }
   };
+
+  // Sync with Firestore user data
+  useEffect(() => {
+    if (userData) {
+      const effectiveTime = userData.isPremium ? (userData.snsRewardMinutes || 60) : 60;
+      setSnsTimeLimit(effectiveTime);
+      setSnsTimeLimitInput(String(effectiveTime));
+    }
+  }, [userData]);
 
   // ストレージをクリアする（確認なし、自動更新）
   const clearAllStorage = async () => {
@@ -187,6 +195,20 @@ export default function AdminPanel({ onSelectPDF, onEditPDF, hasUpdate = false, 
   const saveSNSSettings = async () => {
     try {
       await saveSNSSettingsHook();
+
+      // Update Firestore if premium
+      if (isPremium && auth.currentUser) {
+        const token = await auth.currentUser.getIdToken();
+        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3003'}/api/update-sns-time`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ snsRewardMinutes: snsTimeLimit })
+        }).catch(err => console.error('Failed to sync sns-time to backend', err));
+      }
+
       // 時間制限設定も保存
       await saveAppSettings({
         id: 'app-settings',
@@ -437,9 +459,22 @@ export default function AdminPanel({ onSelectPDF, onEditPDF, hasUpdate = false, 
                       />
                       <span style={{ fontSize: '14px', color: '#7f8c8d' }}>{t('snsSettings.minutes')}</span>
                     </div>
-                    {!isPremium && (
-                      <div style={{ fontSize: '10px', color: '#e74c3c' }}>
-                        🔒 Default: 60 min. Unlock to change.
+                    {!isPremium ? (
+                      <div style={{ fontSize: '12px', color: '#e74c3c', marginTop: '4px', textAlign: 'right' }}>
+                        🔒 60分固定<br />
+                        <button
+                          onClick={() => {
+                            setShowSNSSettings(false);
+                            setShowParentSettings(true);
+                          }}
+                          style={{ background: 'none', border: 'none', color: '#3498db', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+                        >
+                          Premium登録で自由に変更
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '10px', color: '#27ae60', marginTop: '4px', textAlign: 'right' }}>
+                        ✅ プレミアム機能有効
                       </div>
                     )}
                   </div>
@@ -1533,6 +1568,8 @@ export default function AdminPanel({ onSelectPDF, onEditPDF, hasUpdate = false, 
                   </div>
                   <span style={{ fontSize: '20px', opacity: 0.5 }}>↗</span>
                 </button>
+
+
               </div>
 
               {/* 広告: 下部 */}
@@ -1543,6 +1580,53 @@ export default function AdminPanel({ onSelectPDF, onEditPDF, hasUpdate = false, 
           )
         }
       </div >
+
+      {/* Parent Settings Popup */}
+      {showParentSettings && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }} onClick={(e) => {
+          if (e.target === e.currentTarget) setShowParentSettings(false);
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            maxWidth: '500px',
+            maxHeight: '90vh',
+            width: '90%',
+            overflowY: 'auto',
+            position: 'relative'
+          }}>
+            <button
+              onClick={() => setShowParentSettings(false)}
+              style={{
+                position: 'absolute',
+                top: '10px',
+                right: '10px',
+                background: 'none',
+                border: 'none',
+                fontSize: '24px',
+                cursor: 'pointer',
+                color: '#7f8c8d',
+                zIndex: 10
+              }}
+              title="閉じる"
+            >
+              ✕
+            </button>
+            <ParentSettings />
+          </div>
+        </div>
+      )}
 
       {/* フッター */}
       < footer style={{
