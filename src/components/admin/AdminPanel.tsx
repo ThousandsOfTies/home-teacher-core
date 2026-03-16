@@ -474,7 +474,16 @@ export default function AdminPanel({ onSelectPDF, onEditPDF, hasUpdate = false, 
                       </div>
                     ) : (
                       <div style={{ fontSize: '10px', color: '#27ae60', marginTop: '4px', textAlign: 'right' }}>
-                        ✅ プレミアム機能有効
+                        ✅ プレミアム機能有効<br />
+                        <button
+                          onClick={() => {
+                            setShowSNSSettings(false);
+                            setShowParentSettings(true);
+                          }}
+                          style={{ background: 'none', border: 'none', color: '#3498db', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: '10px' }}
+                        >
+                          プランを管理
+                        </button>
                       </div>
                     )}
                   </div>
