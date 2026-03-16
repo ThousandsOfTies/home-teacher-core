@@ -50,7 +50,11 @@
         "notification": "Notification",
         "notificationEnable": "Enable notifications",
         "cancel": "Cancel",
-        "save": "Save"
+        "save": "Save",
+        "timeLocked": "🔒 Fixed at 60 min",
+        "upgradeToPremium": "Change with Premium",
+        "premiumActive": "✅ Premium active",
+        "managePlan": "Manage plan"
     },
     "gradingHistory": {
         "title": "Learning Timeline",
@@ -156,5 +160,25 @@
     },
     "common": {
         "cancel": "Cancel"
+    },
+    "parentSettings": {
+        "title": "Parent Settings",
+        "loginPrompt": "Sign in with your Google account",
+        "signIn": "Sign in with Google",
+        "account": "Account",
+        "currentPlan": "Current Plan",
+        "premium": "Premium",
+        "free": "Free",
+        "premiumTitle": "What you get with Premium",
+        "snsTimeFeature": "Custom SNS reward time",
+        "snsTimeDesc": "Free plan is fixed at 60 min. With Premium, set it freely from 1–120 min.",
+        "startPremium": "Get Premium",
+        "stripeNote": "Secure payment powered by Stripe",
+        "premiumActive": "Premium Active",
+        "premiumActiveDesc": "Thank you! All Premium features are available.",
+        "snsHint": "Adjust the time limit from the slider in the Admin panel.",
+        "managePlan": "Manage plan (cancel / change payment)",
+        "logout": "Log out",
+        "processing": "Processing..."
     }
 }
