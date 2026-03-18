@@ -608,9 +608,15 @@ Output ONLY JSON. No introductory text.`;
 app.post('/api/create-checkout-session', authenticateUser, async (req, res) => {
   try {
     const user = (req as any).user;
-    // You would typically have a specific price ID from your Stripe Dashboard
-    // Replace this with your actual Price ID
     const priceId = process.env.STRIPE_PRICE_ID || 'price_1234567890';
+    const baseUrl = req.body?.baseUrl || req.headers.origin || 'http://localhost:5173';
+
+    // 既存のStripe顧客IDをFirebaseから取得
+    let customerId: string | undefined;
+    if (admin.apps.length) {
+      const userDoc = await admin.firestore().collection('users').doc(user.uid).get();
+      customerId = userDoc.data()?.stripeCustomerId;
+    }
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -621,9 +627,10 @@ app.post('/api/create-checkout-session', authenticateUser, async (req, res) => {
         },
       ],
       mode: 'subscription',
-      success_url: `${req.headers.origin || 'http://localhost:5173'}/settings?success=true`,
-      cancel_url: `${req.headers.origin || 'http://localhost:5173'}/settings?canceled=true`,
-      client_reference_id: user.uid, // Tie the session to the Firebase User ID
+      success_url: `${baseUrl}/settings?success=true`,
+      cancel_url: `${baseUrl}/settings?canceled=true`,
+      client_reference_id: user.uid,
+      ...(customerId ? { customer: customerId } : { customer_email: user.email }),
     });
 
     res.json({ url: session.url });
