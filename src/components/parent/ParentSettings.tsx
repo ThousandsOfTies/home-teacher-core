@@ -31,9 +31,11 @@ export const ParentSettings: React.FC = () => {
             setIsUpdating(true);
             const token = await auth.currentUser?.getIdToken();
             const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3003'}/api/create-checkout-session`;
+            const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '');
             const response = await fetch(apiUrl, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ baseUrl })
             });
             const data = await response.json();
             if (data.url) window.location.href = data.url;
