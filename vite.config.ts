@@ -59,6 +59,7 @@ export default defineConfig(({ mode }) => {
         manifest: false,
         workbox: {
           cleanupOutdatedCaches: true,
+          navigateFallbackDenylist: [/\/manage\.html/],
           globIgnores: ['**/opencv*.js'],
           globPatterns: ['**/*.{js,css,html,png,svg,woff,woff2}'],
           maximumFileSizeToCacheInBytes: 15 * 1024 * 1024, // 15MB 念のため増やす
