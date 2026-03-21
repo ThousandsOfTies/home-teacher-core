@@ -206,20 +206,19 @@
     const params = new URLSearchParams(window.location.search);
     const timeLimitMinutes = parseInt(params.get('time') || '30');
     const timeLimit = timeLimitMinutes; // 後で使う用
+    const snsLinksJson = params.get('snsLinks');
     const returnUrl = params.get('returnUrl'); // 戻り先URL
 
     document.getElementById('timeLimit').textContent = `制限時間: ${timeLimitMinutes}分`;
 
-    // SNSリンクはsessionStorageから取得（URLパラメータだとSVGデータでURL長制限に引っかかるため）
+    // SNSリンクをパース（SVGなし・絵文字アイコンのみなのでURLに収まる）
     let snsLinks = [];
-    try {
-      const stored = sessionStorage.getItem('snsLinksData');
-      if (stored) {
-        snsLinks = JSON.parse(stored);
-        sessionStorage.removeItem('snsLinksData');
+    if (snsLinksJson) {
+      try {
+        snsLinks = JSON.parse(decodeURIComponent(snsLinksJson));
+      } catch (error) {
+        console.error('❌ SNSリンクのパースに失敗:', error);
       }
-    } catch (error) {
-      console.error('❌ SNSリンクの読み込みに失敗:', error);
     }
 
     // SNS選択画面を構築

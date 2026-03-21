@@ -150,24 +150,17 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
 
   // SNS選択画面（警告ページ）を開く
   const openSNSSelectionPage = () => {
-    const snsLinksData = snsLinks.map(link => {
-      const snsIcon = getSNSIcon(link.id)
-      return {
-        id: link.id,
-        name: link.name,
-        url: link.url.startsWith('http://') || link.url.startsWith('https://') ? link.url : 'https://' + link.url,
-        icon: link.icon,
-        svg: snsIcon?.svg || null,
-        color: snsIcon?.color || '#666'
-      }
-    })
-
-    // SVGデータを含むためURLパラメータが長くなりすぎる→sessionStorageで渡す（iOS URL長制限対策）
-    sessionStorage.setItem('snsLinksData', JSON.stringify(snsLinksData))
+    // SVGは渡さず絵文字アイコンのみ（URLパラメータで渡す。SVGなしなら長さは問題なし）
+    const snsLinksJson = JSON.stringify(snsLinks.map(link => ({
+      id: link.id,
+      name: link.name,
+      url: link.url.startsWith('http://') || link.url.startsWith('https://') ? link.url : 'https://' + link.url,
+      icon: link.icon,
+    })))
 
     const baseUrl = `${window.location.origin}${import.meta.env.BASE_URL || '/'}`
     const returnUrl = pdfId ? `${baseUrl}?pdfId=${encodeURIComponent(pdfId)}` : baseUrl
-    const manageUrl = `${baseUrl}manage.html?time=${timeLimitMinutes}&returnUrl=${encodeURIComponent(returnUrl)}`
+    const manageUrl = `${baseUrl}manage.html?time=${timeLimitMinutes}&snsLinks=${encodeURIComponent(snsLinksJson)}&returnUrl=${encodeURIComponent(returnUrl)}`
 
     window.location.replace(manageUrl)
   }
