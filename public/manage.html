@@ -446,11 +446,12 @@
 
     // ページの表示状態が変わったとき（フォアグラウンド⇔バックグラウンド）
     document.addEventListener('visibilitychange', () => {
+      const countdownView = document.getElementById('countdownView');
+      console.log('👁️ visibilitychange:', { hidden: document.hidden, countdownDisplay: countdownView.style.display });
       if (!document.hidden) {
         // フォアグラウンドに戻った
-        const countdownView = document.getElementById('countdownView');
         if (countdownView.style.display === 'block') {
-          console.log('▶️ 警告画面に復帰');
+          console.log('▶️ 警告画面に復帰 → TOP画面へリダイレクト');
 
           // SNSタブを閉じた場合は常にドリル画面に戻る（時間切れ前後を問わず）
           console.log('✅ SNSタブを閉じました。ドリル画面に戻ります。');
@@ -486,6 +487,17 @@
     });
 
     console.log('📱 SNS選択画面を表示:', { timeLimitMinutes, snsLinksCount: snsLinks.length });
+
+    // bfcache（Back-Forward Cache）対策
+    // iOS/Edgeではページを離れたときのDOM状態がキャッシュされることがある
+    // 復元時にcountdownViewが'block'のままだとvisibilitychangeで即リダイレクトしてしまう
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted) {
+        console.log('♻️ bfcacheから復元 → 初期状態にリセット');
+        document.getElementById('snsSelection').style.display = 'block';
+        document.getElementById('countdownView').style.display = 'none';
+      }
+    });
   </script>
 </body>
 </html>
