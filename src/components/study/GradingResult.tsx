@@ -150,29 +150,25 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
 
   // SNS選択画面（警告ページ）を開く
   const openSNSSelectionPage = () => {
-    // SNSリンク情報をJSON形式でURLパラメータに渡す（SVGとカラー情報も含む）
-    const snsLinksJson = JSON.stringify(snsLinks.map(link => {
+    const snsLinksData = snsLinks.map(link => {
       const snsIcon = getSNSIcon(link.id)
       return {
         id: link.id,
         name: link.name,
         url: link.url.startsWith('http://') || link.url.startsWith('https://') ? link.url : 'https://' + link.url,
-        icon: link.icon, // 絵文字（フォールバック用）
-        svg: snsIcon?.svg || null, // SVGデータ
-        color: snsIcon?.color || '#666' // ブランドカラー
+        icon: link.icon,
+        svg: snsIcon?.svg || null,
+        color: snsIcon?.color || '#666'
       }
-    }))
+    })
 
-    // SNS管理ページへ遷移（SNS選択UIを表示）
-    // 戻り先URLを明示的に渡す（PWA/IndexedDB安定性のため）
-    // pdfIdがあれば、戻り先URLにも含めてドリルを再開できるようにする
+    // SVGデータを含むためURLパラメータが長くなりすぎる→sessionStorageで渡す（iOS URL長制限対策）
+    sessionStorage.setItem('snsLinksData', JSON.stringify(snsLinksData))
+
     const baseUrl = `${window.location.origin}${import.meta.env.BASE_URL || '/'}`
     const returnUrl = pdfId ? `${baseUrl}?pdfId=${encodeURIComponent(pdfId)}` : baseUrl
-    const manageUrl = `${baseUrl}manage.html?time=${timeLimitMinutes}&snsLinks=${encodeURIComponent(snsLinksJson)}&returnUrl=${encodeURIComponent(returnUrl)}`
+    const manageUrl = `${baseUrl}manage.html?time=${timeLimitMinutes}&returnUrl=${encodeURIComponent(returnUrl)}`
 
-    // console.log('🔄 SNS管理ページへ遷移:', { manageUrl, returnUrl })
-
-    // 現在のタブをSNS管理ページに置き換え
     window.location.replace(manageUrl)
   }
 
