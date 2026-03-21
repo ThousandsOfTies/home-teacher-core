@@ -230,15 +230,29 @@
       const button = document.createElement('button');
       button.className = 'sns-button';
 
-      // SVGがある場合はSVGアイコンを使用、なければ絵文字にフォールバック
-      const iconHtml = link.svg
-        ? `<div class="sns-icon" style="color: ${link.color}; fill: ${link.color};">${link.svg}</div>`
-        : `<div class="sns-icon">${link.icon || '🌐'}</div>`;
+      // Simple Icons CDN からアイコンを取得（id キーのみ渡せばよい）
 
-      button.innerHTML = `
-        ${iconHtml}
-        <div class="sns-button-name">${link.name}</div>
-      `;
+      const iconDiv = document.createElement('div');
+      iconDiv.className = 'sns-icon';
+      const img = document.createElement('img');
+      img.src = `https://cdn.simpleicons.org/${link.id}`;
+      img.alt = link.name;
+      img.style.width = '48px';
+      img.style.height = '48px';
+      img.addEventListener('error', () => {
+        const fallback = document.createElement('span');
+        fallback.style.fontSize = '48px';
+        fallback.textContent = link.icon || '🌐';
+        img.replaceWith(fallback);
+      });
+      iconDiv.appendChild(img);
+
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'sns-button-name';
+      nameDiv.textContent = link.name;
+
+      button.appendChild(iconDiv);
+      button.appendChild(nameDiv);
 
       button.addEventListener('click', () => {
         startCountdownForSNS(link);

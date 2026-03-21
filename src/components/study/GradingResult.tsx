@@ -160,7 +160,7 @@ const GradingResult = ({ result, onClose, snsLinks = [], timeLimitMinutes = 30, 
 
     const baseUrl = `${window.location.origin}${import.meta.env.BASE_URL || '/'}`
     const returnUrl = pdfId ? `${baseUrl}?pdfId=${encodeURIComponent(pdfId)}` : baseUrl
-    const manageUrl = `${baseUrl}manage.html?time=${timeLimitMinutes}&snsLinks=${encodeURIComponent(snsLinksJson)}&returnUrl=${encodeURIComponent(returnUrl)}`
+    const manageUrl = `${baseUrl}manage.html?time=${timeLimitMinutes}&snsLinks=${encodeURIComponent(snsLinksJson)}&returnUrl=${encodeURIComponent(returnUrl)}&t=${Date.now()}`
 
     window.location.replace(manageUrl)
   }
